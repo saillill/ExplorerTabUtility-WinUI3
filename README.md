@@ -12,32 +12,6 @@ Windows 11 File Explorer tab manager — rebuilt on the Windows App SDK.
   French, Russian, German, Japanese and Korean — switchable at runtime, following the system language
   by default. The installer picks its language the same way. Language names are shown in their own
   script so the picker is readable whichever language is active.
-- **Bug fixes.** Several defects inherited from the original implementation are fixed. Two examples:
-  *Restore previous windows* never triggered after an Explorer restart, because it required an empty
-  window list that the shell had already populated by then; and the crash bookkeeping walked off the
-  front of its list whenever the number of crashed windows exceeded the recorded history.
-
-## Download
-
-| Build | Notes |
-|---|---|
-| `ExplorerTabUtility_<version>_Setup.exe` | Per-user install, no administrator rights required, includes an uninstaller. Detects a missing .NET 10 Desktop Runtime or Windows App Runtime and offers to download it. |
-| `ExplorerTabUtility_<version>_Portable_x64.zip` | Framework-dependent: extract and run, but the .NET 10 Desktop Runtime and the Windows App Runtime must already be installed |
-
-Settings live in `%APPDATA%\ExplorerTabUtility\settings.json`, outside the install directory, so
-installing, upgrading or reinstalling never clears your configuration.
-
-## License
-
-MIT — see [LICENSE](LICENSE). Original project by [w4po](https://github.com/w4po).
-
----
-
-## Original project README
-
-_The README below belongs to the upstream project this rewrite is based on
-([w4po/ExplorerTabUtility](https://github.com/w4po/ExplorerTabUtility)) and is reproduced
-unchanged._
 
 # Explorer Tab Utility
 
