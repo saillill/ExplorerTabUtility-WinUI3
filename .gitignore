@@ -1,0 +1,45 @@
+## ExplorerTabUtility — WinUI 3 重构版
+## 只提交源码；构建产物与本地工具目录一律忽略。
+
+# ---- 构建产物 ----
+[Bb]in/
+[Oo]bj/
+publish/
+artifacts/
+
+# ---- Visual Studio / Rider ----
+.vs/
+.idea/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ---- 构建日志与临时文件 ----
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+project.lock.json
+project.fragment.lock.json
+*.binlog
+*.tlog
+*.log
+
+# ---- NuGet ----
+*.nupkg
+*.snupkg
+packages/*.nupkg
+!packages/**/chocolatey/*.nuspec
+
+# ---- 其它 ----
+*.tmp
+*.bak
+*.cache
+_ReSharper*/
+*.DotSettings.user

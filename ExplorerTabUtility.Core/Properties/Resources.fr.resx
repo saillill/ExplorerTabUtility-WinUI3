@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
+  <data name="AppTitle" xml:space="preserve"><value>Explorer Tab Utility</value></data>
+  <data name="AppTitleWithDesc" xml:space="preserve"><value>Explorer Tab Utility - Gestionnaire d’onglets de dossiers</value></data>
+  <data name="AppDescription" xml:space="preserve"><value>Améliore l’Explorateur de fichiers Windows</value></data>
+  <data name="MenuShortcuts" xml:space="preserve"><value>⌨  Raccourcis</value></data>
+  <data name="MenuPreferences" xml:space="preserve"><value>⚙  Préférences</value></data>
+  <data name="MenuAbout" xml:space="preserve"><value>ℹ  À propos</value></data>
+  <data name="TabShortcuts" xml:space="preserve"><value>Raccourcis</value></data>
+  <data name="TabPreferences" xml:space="preserve"><value>Préférences</value></data>
+  <data name="TabAbout" xml:space="preserve"><value>À propos</value></data>
+  <data name="BtnNewProfile" xml:space="preserve"><value>NOUVEAU</value></data>
+  <data name="BtnImport" xml:space="preserve"><value>IMPORTER</value></data>
+  <data name="BtnExport" xml:space="preserve"><value>EXPORTER</value></data>
+  <data name="GroupAppSettings" xml:space="preserve"><value>Paramètres de l’application</value></data>
+  <data name="Theme" xml:space="preserve"><value>Thème</value></data>
+  <data name="ThemeFollowSystem" xml:space="preserve"><value>Suivre le système</value></data>
+  <data name="ThemeDark" xml:space="preserve"><value>Sombre</value></data>
+  <data name="ThemeLight" xml:space="preserve"><value>Clair</value></data>
+  <data name="SaveClosedHistory" xml:space="preserve"><value>Enregistrer l’historique</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Enregistre les fenêtres fermées pour les rouvrir plus tard</value></data>
+  <data name="RestorePreviousWindows" xml:space="preserve"><value>Restaurer les fenêtres précédentes</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Restaure les fenêtres après un redémarrage ou un plantage de l’Explorateur</value></data>
+  <data name="HideTrayIcon" xml:space="preserve"><value>Masquer l’icône de la zone de notification</value></data>
+  <data name="HideTrayIconTooltip" xml:space="preserve"><value>Masque l’icône dans la zone de notification</value></data>
+  <data name="Language" xml:space="preserve"><value>Langue</value></data>
+  <data name="StatusWindowHook" xml:space="preserve"><value>Interception de fenêtres</value></data>
+  <data name="StatusReuseTabs" xml:space="preserve"><value>Réutilisation des onglets</value></data>
+  <data name="StatusKeyboardHook" xml:space="preserve"><value>Interception du clavier</value></data>
+  <data name="StatusMouseHook" xml:space="preserve"><value>Interception de la souris</value></data>
+  <data name="MenuOpen" xml:space="preserve"><value>Ouvrir le menu</value></data>
+  <data name="ScopeTooltip" xml:space="preserve"><value>Portée : globale ou uniquement quand l’Explorateur est actif</value></data>
+  <data name="ActionTooltip" xml:space="preserve"><value>Action exécutée lorsque les raccourcis sont pressés</value></data>
+  <data name="ProfileEnabledTooltip" xml:space="preserve"><value>Activer ou désactiver ce profil</value></data>
+  <data name="ProfileNameTooltip" xml:space="preserve"><value>Nom du profil</value></data>
+  <data name="HotKeysTooltip" xml:space="preserve"><value>Touches du clavier ou de la souris à écouter. Cliquez pour enregistrer.</value></data>
+  <data name="ExpanderTooltip" xml:space="preserve"><value>Afficher plus d’options</value></data>
+  <data name="DeleteProfileTooltip" xml:space="preserve"><value>Supprimer ce profil</value></data>
+  <data name="PathTooltip" xml:space="preserve"><value>Emplacement à ouvrir lors de l’appui (dossier, fichier, URL, CLSID)</value></data>
+  <data name="DelayTooltip" xml:space="preserve"><value>Délai en millisecondes avant l’action</value></data>
+  <data name="HandledTooltip" xml:space="preserve"><value>Empêche les autres applications de traiter ce raccourci</value></data>
+  <data name="TabTooltip" xml:space="preserve"><value>Ouvrir dans un onglet plutôt qu’une nouvelle fenêtre</value></data>
+  <data name="Delay" xml:space="preserve"><value>Millisecondes d’attente avant d’exécuter l’action</value></data>
+  <data name="Handled" xml:space="preserve"><value>Intercepté</value></data>
+  <data name="Tab" xml:space="preserve"><value>Onglet</value></data>
+  <data name="SupportProject" xml:space="preserve"><value>Soutenir le projet</value></data>
+  <data name="SupportDescription" xml:space="preserve"><value>Si cet outil vous est utile, vous pouvez soutenir :</value></data>
+  <data name="Developer" xml:space="preserve"><value>Développeur</value></data>
+  <data name="CurrentSupporters" xml:space="preserve"><value>Soutiens actuels</value></data>
+  <data name="SupportersThanks" xml:space="preserve"><value>Merci à tous les soutiens !</value></data>
+  <data name="BeFirst" xml:space="preserve"><value>Soyez le premier à soutenir ce projet !</value></data>
+  <data name="SupportHelps" xml:space="preserve"><value>Votre soutien fait vivre ce projet</value></data>
+  <data name="StarOnGitHub" xml:space="preserve"><value>Mettre une étoile sur GitHub</value></data>
+  <data name="KeyboardShortcut" xml:space="preserve"><value>Raccourci clavier</value></data>
+  <data name="MouseShortcut" xml:space="preserve"><value>Raccourci souris</value></data>
+  <data name="WindowIntercept" xml:space="preserve"><value>Interception de fenêtres</value></data>
+  <data name="TabReuse" xml:space="preserve"><value>Réutilisation des onglets</value></data>
+  <data name="AddToStartup" xml:space="preserve"><value>Lancer au démarrage</value></data>
+  <data name="Settings" xml:space="preserve"><value>Paramètres</value></data>
+  <data name="Exit" xml:space="preserve"><value>Quitter</value></data>
+  <data name="ScopeGlobal" xml:space="preserve"><value>Globale</value></data>
+  <data name="ScopeFileExplorer" xml:space="preserve"><value>Explorateur uniquement</value></data>
+  <data name="Action_Open" xml:space="preserve"><value>Ouvrir un emplacement</value></data>
+  <data name="Action_Duplicate" xml:space="preserve"><value>Dupliquer l’onglet</value></data>
+  <data name="Action_ReopenClosed" xml:space="preserve"><value>Rouvrir un onglet fermé</value></data>
+  <data name="Action_TabSearch" xml:space="preserve"><value>Rechercher des onglets</value></data>
+  <data name="Action_NavigateBack" xml:space="preserve"><value>Précédent</value></data>
+  <data name="Action_NavigateUp" xml:space="preserve"><value>Remonter</value></data>
+  <data name="Action_NavigateForward" xml:space="preserve"><value>Suivant</value></data>
+  <data name="Action_SetTargetWindow" xml:space="preserve"><value>Définir la fenêtre cible</value></data>
+  <data name="Action_ToggleWinHook" xml:space="preserve"><value>Activer/désactiver l’interception de fenêtres</value></data>
+  <data name="Action_ToggleReuseTabs" xml:space="preserve"><value>Activer/désactiver la réutilisation des onglets</value></data>
+  <data name="Action_ToggleVisibility" xml:space="preserve"><value>Afficher ou masquer la fenêtre principale</value></data>
+  <data name="Action_DetachTab" xml:space="preserve"><value>Détacher l’onglet</value></data>
+  <data name="Action_SnapRight" xml:space="preserve"><value>Ancrer à droite</value></data>
+  <data name="Action_SnapLeft" xml:space="preserve"><value>Ancrer à gauche</value></data>
+  <data name="Action_SnapUp" xml:space="preserve"><value>Ancrer en haut</value></data>
+  <data name="Action_SnapDown" xml:space="preserve"><value>Ancrer en bas</value></data>
+  <data name="AlreadyRunning" xml:space="preserve"><value>Une autre instance est déjà en cours d’exécution.
+Vérifiez la zone de notification.</value></data>
+  <data name="RestoreWindowsPrompt" xml:space="preserve"><value>Voulez-vous restaurer les fenêtres précédemment ouvertes ?</value></data>
+  <data name="ClearHistoryConfirm" xml:space="preserve"><value>Voulez-vous vraiment effacer l’historique des fenêtres fermées ?</value></data>
+  <data name="ConfirmClearHistory" xml:space="preserve"><value>Confirmer l’effacement de l’historique</value></data>
+  <data name="OK" xml:space="preserve"><value>OK</value></data>
+  <data name="Yes" xml:space="preserve"><value>Oui</value></data>
+  <data name="No" xml:space="preserve"><value>Non</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Close" xml:space="preserve"><value>Fermer</value></data>
+  <data name="Delete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="Name" xml:space="preserve"><value>Nom du profil</value></data>
+  <data name="HotKeys" xml:space="preserve"><value>Raccourci déclencheur</value></data>
+  <data name="Scope" xml:space="preserve"><value>S’applique à</value></data>
+  <data name="Action" xml:space="preserve"><value>Action exécutée à l’appui du raccourci</value></data>
+  <data name="Path" xml:space="preserve"><value>Emplacement à ouvrir à l’appui</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Avancé</value></data>
+  <data name="Version" xml:space="preserve"><value>Version</value></data>
+  <data name="SelectHotKey" xml:space="preserve"><value>Appuyez sur une combinaison de touches…</value></data>
+  <data name="ClearHistory" xml:space="preserve"><value>Effacer l’historique des fenêtres fermées</value></data>
+  <data name="ShortcutsHeader" xml:space="preserve"><value>Raccourcis globaux agissant sur les onglets de l’Explorateur.</value></data>
+  <data name="PreferencesHeader" xml:space="preserve"><value>Comportement et apparence de l’application.</value></data>
+  <data name="TabSearchPlaceholder" xml:space="preserve"><value>Rechercher les onglets ouverts et récemment fermés</value></data>
+  <data name="ClosedWindows" xml:space="preserve"><value>Récemment fermés</value></data>
+  <data name="ToggleOn" xml:space="preserve"><value>Activé</value></data>
+  <data name="ToggleOff" xml:space="preserve"><value>Désactivé</value></data>
+  <data name="BasicSettings" xml:space="preserve"><value>Général</value></data>
+  <data name="BehaviourSettings" xml:space="preserve"><value>Comportement</value></data>
+  <data name="ExpandProfile" xml:space="preserve"><value>Afficher les paramètres avancés</value></data>
+  <data name="TogglePane" xml:space="preserve"><value>Afficher/masquer le volet</value></data>
+  <data name="HideWindowOnStartup" xml:space="preserve"><value>Démarrer dans la zone de notification à l’ouverture de session</value></data>
+  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>Si cette option est activée, l’application démarre dans la zone de notification sans afficher de fenêtre</value></data>
+  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>Ce paramètre n’est disponible que si un raccourci Afficher/Masquer est configuré.</value></data>
+</root>

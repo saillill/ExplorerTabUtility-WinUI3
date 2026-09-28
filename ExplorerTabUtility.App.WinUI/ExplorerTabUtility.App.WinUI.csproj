@@ -1,0 +1,91 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>ExplorerTabUtility.App</RootNamespace>
+    <AssemblyName>ExplorerTabUtility</AssemblyName>
+    <ApplicationIcon>Assets\Icon.ico</ApplicationIcon>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- About 页显示的版本号；发布 Release 时与此保持一致 -->
+    <Version>1.0.1</Version>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <!-- 非打包（unpackaged）模型：保留 HKCU Run 开机自启、便携 zip 与现有安装器链路 -->
+    <WindowsPackageType>None</WindowsPackageType>
+
+    <!-- 默认自包含（免装 Windows App Runtime）。
+         两者都写成"未指定才赋值"，因此命令行可用
+         -p:SelfContained=false -p:WindowsAppSDKSelfContained=false 切到框架依赖模式。 -->
+    <WindowsAppSDKSelfContained Condition="'$(WindowsAppSDKSelfContained)' == ''">true</WindowsAppSDKSelfContained>
+    <SelfContained Condition="'$(SelfContained)' == ''">true</SelfContained>
+
+    <!-- 由 Program.cs 接管入口，以便在创建任何 XAML 对象前完成单实例判定 -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <!-- 生成 WinUI 3 所需的 COM/WinRT 互操作支持 -->
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <UseWinUI>true</UseWinUI>
+
+    <!-- 只保留本应用真正提供的语言，避免把 .NET / WinAppSDK 的全部附属程序集打进发布目录。
+         列表必须与 LocalizationService.SupportedLanguages 及 Core 里的 Resources.<code>.resx 对齐，
+         否则卫星程序集会被生成却不复制到发布目录（表现为"选了某语言但还是英文"）。 -->
+    <SatelliteResourceLanguages>en;zh-CN;zh-Hant;ja;ko;de;fr;es;ru</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- 发布产物不需要符号文件，与原 CI 的 /p:DebugType=none 一致 -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+    <PackageReference Include="CommunityToolkit.WinUI.Converters" Version="8.2.251219" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- 托盘图标：WinUI 3 没有原生托盘控件，H.NotifyIcon 是同生态（H.Hooks 作者）的官方推荐替代 -->
+    <PackageReference Include="H.NotifyIcon.WinUI" Version="2.4.1" />
+    <!-- SystemEvents.SessionEnding：WinUI 的 Application 没有 SessionEnding 事件 -->
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExplorerTabUtility.Core\ExplorerTabUtility.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 必须显式 CopyToOutputDirectory：托盘与 AppWindow 都按绝对路径读这个文件，
+         不设置的话它不会进入 bin/ 与 publish/ 目录。 -->
+    <Content Include="Assets\Icon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Manifest Include="app.manifest" />
+  </ItemGroup>
+
+  <!--
+    dotnet publish 不会把应用自己的 ExplorerTabUtility.pri 复制到 publish 目录，
+    而它正是编译后 XAML（XBF）的载体。缺失时 MainWindow.InitializeComponent 会在运行时抛
+    XamlParseException（表现为"窗口打不开、托盘图标随即消失"）。
+    构建输出 bin/ 里该文件是正常生成的，只是没随 publish 走，这里补上。
+  -->
+  <Target Name="CopyAppPriToPublish" AfterTargets="Publish" Condition="Exists('$(OutputPath)$(AssemblyName).pri')">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pri"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+</Project>

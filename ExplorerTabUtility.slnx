@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ExplorerTabUtility.App.WinUI/ExplorerTabUtility.App.WinUI.csproj" />
+  <Project Path="ExplorerTabUtility.Core/ExplorerTabUtility.Core.csproj" />
+</Solution>

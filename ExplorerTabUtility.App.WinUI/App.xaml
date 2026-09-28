@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application
+    x:Class="ExplorerTabUtility.App.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- 只引入官方控件资源。没有任何自定义颜色、Brush 或控件模板：
+                     强调色跟随系统（AccentFillColorDefaultBrush 等官方 key）。
+                     浅色/深色/高对比度由官方 ThemeDictionaries 自动切换。 -->
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                代码创建的元素用这些样式着色。
+                Setter 里的 {ThemeResource} 会随元素的实际主题解析；而代码里直接取画刷
+                （Application.Current.Resources[key]）落到的是「应用主题」，与本应用在根元素上
+                覆盖的主题可能不一致 —— 深色卡片因此会拿到浅色主题的黑字。
+            -->
+            <Style x:Key="SecondaryCaptionTextStyle" TargetType="TextBlock"
+                   BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+
+            <!--
+                禁用行里"为什么不可用"的说明文字用这个：正文主色（浅色=黑、深色=白），
+                不能用 Secondary，更不能跟控件一起变灰 —— 提示看不清就失去意义了。
+            -->
+            <Style x:Key="PrimaryCaptionTextStyle" TargetType="TextBlock"
+                   BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="AccentBadgeFillStyle" TargetType="Ellipse">
+                <Setter Property="Fill" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+            </Style>
+
+            <Style x:Key="OnAccentTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+            </Style>
+
+            <!--
+                WinUI 3 的 ToggleSwitch 在「禁用 + 关」状态下把轨道整个画没了
+                （FillOffDisabled 透明、StrokeOffDisabled 也取不到可见描边），
+                只剩一个孤立圆点，看不出这是个开关。这里按官方禁用描边令牌补回描边，
+                只覆盖这一个主题资源，不动模板、不改其他状态。
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="#37000000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="#37FFFFFF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

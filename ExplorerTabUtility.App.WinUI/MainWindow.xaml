@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="ExplorerTabUtility.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        自定义标题栏 + 官方 NavigationView。
+
+        与 WPF 版的差异（均为"删除自绘"的结果）：
+          · 没有 WindowStyle=None / AllowsTransparency / 自绘标题栏 / 三个自绘窗口按钮
+            → 改为 ExtendsContentIntoTitleBar：应用内容延伸到系统标题栏区域，
+              最小化/最大化/关闭仍由系统绘制，位于同一行的最右侧
+          · 没有手写抽屉动画（60 行 Storyboard）—— NavigationView 内置面板动画
+          · 没有 NavigationList(TextBox) + TabControl 双控件同步 —— NavigationView + Frame
+          · 没有 StatuBar 的椭圆指示灯与 DropShadowEffect 发光
+
+        标题栏排布（同一行）：[缩放侧栏] [应用名称] ............ [最小化][最大化][关闭]
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="TitleBar" Grid.Row="0" Height="32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- NavigationView 自带的面板开关已隐藏，改由这里控制，以便与窗口按钮同处一行 -->
+            <Button x:Name="BtnPaneToggle"
+                    Grid.Column="0"
+                    Width="40"
+                    Height="32"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnPaneToggleClick">
+                <FontIcon Glyph="&#xE700;" FontSize="14" />
+            </Button>
+
+            <TextBlock x:Name="TitleText"
+                       Grid.Column="1"
+                       VerticalAlignment="Center"
+                       Margin="2,0,0,0"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Grid>
+
+        <NavigationView
+            x:Name="Nav"
+            Grid.Row="1"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            IsPaneToggleButtonVisible="False"
+            AlwaysShowHeader="False"
+            PaneDisplayMode="Left"
+            OpenPaneLength="240"
+            SelectionChanged="OnNavSelectionChanged">
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="NavShortcuts" Tag="Shortcuts">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE765;" FontSize="16" Width="16" VerticalAlignment="Center" Margin="0,2,0,0" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="NavPreferences" Tag="Preferences">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE713;" FontSize="16" Width="16" VerticalAlignment="Center" Margin="0,2,0,0" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <!--
+                    图标保留。要去掉的是「按钮」的外观：条目原本在选中/悬停时铺满一条底色块，
+                    看起来像按钮。这里用官方轻量样式把该条目的各种状态底色覆盖为透明（不改模板），
+                    选中指示条保留 —— 否则无法判断当前停留在哪一页。
+                -->
+                <NavigationViewItem x:Name="NavAbout" Tag="About">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE946;" FontSize="16" Width="16" VerticalAlignment="Center" Margin="0,2,0,0" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Resources>
+                        <SolidColorBrush x:Key="NavigationViewItemBackground" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundDisabled" Color="Transparent" />
+                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedDisabled" Color="Transparent" />
+                    </NavigationViewItem.Resources>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+    </Grid>
+</Window>

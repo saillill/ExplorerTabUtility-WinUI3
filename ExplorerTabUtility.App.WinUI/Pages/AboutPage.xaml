@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ExplorerTabUtility.App.Pages.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        原 WPF 版关于页 684 行，其中约 500 行是自定义动效：
+          IconAnimation / TitleAnimation / StarContinuousAnimation /
+          SupporterHoverAnimation / DeveloperNameAnimation
+        全部删除。下面只有官方排版样式、官方控件与静态图片。
+    -->
+    <Page.Resources>
+        <!--
+            卡片容器：用于顶部 GitHub 仓库按钮与贡献者列表。
+            「开发者」与「支持本项目」两块按设计要求改为纯文本，不再使用卡片。
+        -->
+        <Style x:Key="LinkCard" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer Padding="36,24,36,24">
+        <StackPanel Spacing="8" MaxWidth="720" HorizontalAlignment="Left">
+
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <Image x:Name="AppIcon" Width="64" Height="64" VerticalAlignment="Top" />
+                <!-- Top, not Center: centring the text block against the 64px icon pushed the title
+                     lower than the icon's top edge, which read as misalignment. -->
+                <StackPanel VerticalAlignment="Top" Spacing="2">
+                    <TextBlock x:Name="AppTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBlock x:Name="VersionText"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock x:Name="DescriptionText"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       TextWrapping="Wrap"
+                       Margin="0,8,0,0" />
+
+            <!-- GitHub 仓库链接：按钮本身就是完整的视觉单元，外面再套一层卡片是多余的 -->
+            <Button x:Name="BtnGitHub"
+                    Style="{StaticResource AccentButtonStyle}"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Click="OnGitHubClick">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE735;" FontSize="14" />
+                    <TextBlock x:Name="GitHubButtonText" />
+                </StackPanel>
+            </Button>
+
+            <TextBlock x:Name="SupportTitle"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,24,0,0" />
+
+            <TextBlock x:Name="SupportDescriptionText"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" />
+
+            <!--
+                纯文本链接，与标题左对齐。不用卡片、不用固定宽度网格：
+                卡片会把文字挤在固定宽度里，「Buy me a coffee」这类较长文案会被截断。
+            -->
+            <StackPanel Margin="0,4,0,0" Spacing="4">
+                <HyperlinkButton x:Name="LnkGitHubSponsors" Click="OnSponsorsClick"
+                                 Padding="0" HorizontalAlignment="Left" />
+                <HyperlinkButton x:Name="LnkPatreon" Content="Patreon"
+                                 NavigateUri="https://www.patreon.com/w4po"
+                                 Padding="0" HorizontalAlignment="Left" />
+                <HyperlinkButton x:Name="LnkBuyMeACoffee" Content="Buy me a coffee"
+                                 NavigateUri="https://www.buymeacoffee.com/w4po"
+                                 Padding="0" HorizontalAlignment="Left" />
+            </StackPanel>
+
+            <TextBlock x:Name="DeveloperTitle"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,24,0,0" />
+
+            <!-- 开发者：同样改为与标题对齐的纯文本，不使用卡片 -->
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                <!-- 源码在 OnLoaded 里用 HttpClient 取字节后解码：github 的头像地址交给
+                     BitmapImage.UriSource 会一直挂起（既不触发 ImageOpened 也不触发 ImageFailed） -->
+                <Image x:Name="DeveloperAvatar" Width="40" Height="40" VerticalAlignment="Top" />
+                <StackPanel VerticalAlignment="Top" Spacing="2">
+                    <TextBlock Text="Abd-Alrahman Ghanem" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <HyperlinkButton Content="github.com/w4po" NavigateUri="https://github.com/w4po"
+                                     Padding="0" HorizontalAlignment="Left" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock x:Name="SupportersTitle"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,24,0,0" />
+
+            <TextBlock x:Name="SupportersDescriptionText"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" />
+
+            <!--
+                贡献者列表：数据来自 Core 的 Helper.GetSupporters()（此前页面从未调用，所以一直是空状态）。
+                ItemsWrapGrid 按容器宽度自适应换行，每行最多三个。
+                PersonPicture 在头像不可用时会显示姓名首字母，不会出现空白方块。
+            -->
+            <ItemsControl x:Name="SupportersList" Margin="0,4,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal"
+                                       MaximumRowsOrColumns="3"
+                                       ItemWidth="232"
+                                       ItemHeight="72" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource LinkCard}" Margin="0,0,8,8">
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <PersonPicture Width="40" Height="40"
+                                               DisplayName="{Binding Name}"
+                                               ProfilePicture="{Binding Avatar}" />
+                                <HyperlinkButton Content="{Binding Name}"
+                                                 NavigateUri="{Binding ProfileUrl}"
+                                                 Padding="0"
+                                                 VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- 仅在确实没有贡献者时显示 -->
+            <TextBlock x:Name="SupportersEmptyText"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

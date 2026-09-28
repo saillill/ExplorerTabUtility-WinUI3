@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>ExplorerTabUtility</RootNamespace>
+    <AssemblyName>ExplorerTabUtility.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <Version>3.0.0</Version>
+    <Authors>saillill</Authors>
+    <Description>ExplorerTabUtility 业务内核 — 零 UI 框架依赖，可同时被 WPF 与 WinUI 3 外壳引用。</Description>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+
+    <!-- 本项目的 Resources.<code>.resx 提供的语言。不要删减：列表里没有的语言，
+         卫星程序集会被生成但不会复制到发布目录，运行时只能回落英文。 -->
+    <SatelliteResourceLanguages>en;zh-CN;zh-Hant;ja;ko;de;fr;es;ru</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="H.Hooks" Version="1.7.0" />
+    <!-- 保留原有的 IL 织入语义：全量注入 ConfigureAwait(false)。
+         后续可逐步显式化并移除，见重构方案阶段 0 说明。 -->
+    <PackageReference Include="Fody" Version="6.9.2" PrivateAssets="all" />
+    <PackageReference Include="ConfigureAwait.Fody" Version="3.3.2" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
