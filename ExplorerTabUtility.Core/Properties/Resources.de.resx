@@ -5,18 +5,13 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <data name="AppTitle" xml:space="preserve"><value>Explorer Tab Utility</value></data>
-  <data name="AppTitleWithDesc" xml:space="preserve"><value>Explorer Tab Utility - Ordner-Tab-Verwaltung</value></data>
   <data name="AppDescription" xml:space="preserve"><value>Verbessert den Windows-Datei-Explorer</value></data>
-  <data name="MenuShortcuts" xml:space="preserve"><value>⌨  Tastenkürzel</value></data>
-  <data name="MenuPreferences" xml:space="preserve"><value>⚙  Einstellungen</value></data>
-  <data name="MenuAbout" xml:space="preserve"><value>ℹ  Info</value></data>
   <data name="TabShortcuts" xml:space="preserve"><value>Tastenkürzel</value></data>
   <data name="TabPreferences" xml:space="preserve"><value>Einstellungen</value></data>
   <data name="TabAbout" xml:space="preserve"><value>Info</value></data>
   <data name="BtnNewProfile" xml:space="preserve"><value>NEU</value></data>
   <data name="BtnImport" xml:space="preserve"><value>IMPORTIEREN</value></data>
   <data name="BtnExport" xml:space="preserve"><value>EXPORTIEREN</value></data>
-  <data name="GroupAppSettings" xml:space="preserve"><value>Anwendungseinstellungen</value></data>
   <data name="Theme" xml:space="preserve"><value>Design</value></data>
   <data name="ThemeFollowSystem" xml:space="preserve"><value>Systemeinstellung folgen</value></data>
   <data name="ThemeDark" xml:space="preserve"><value>Dunkel</value></data>
@@ -28,32 +23,19 @@
   <data name="HideTrayIcon" xml:space="preserve"><value>Infobereichssymbol ausblenden</value></data>
   <data name="HideTrayIconTooltip" xml:space="preserve"><value>Blendet das Symbol im Infobereich aus</value></data>
   <data name="Language" xml:space="preserve"><value>Sprache</value></data>
-  <data name="StatusWindowHook" xml:space="preserve"><value>Fenster-Abfangen</value></data>
-  <data name="StatusReuseTabs" xml:space="preserve"><value>Tab-Wiederverwendung</value></data>
-  <data name="StatusKeyboardHook" xml:space="preserve"><value>Tastatur-Abfangen</value></data>
-  <data name="StatusMouseHook" xml:space="preserve"><value>Maus-Abfangen</value></data>
-  <data name="MenuOpen" xml:space="preserve"><value>Menü öffnen</value></data>
-  <data name="ScopeTooltip" xml:space="preserve"><value>Gilt: global oder nur bei aktivem Datei-Explorer</value></data>
-  <data name="ActionTooltip" xml:space="preserve"><value>Aktion, die beim Drücken der Tastenkürzel ausgeführt wird</value></data>
-  <data name="ProfileEnabledTooltip" xml:space="preserve"><value>Dieses Profil aktivieren oder deaktivieren</value></data>
-  <data name="ProfileNameTooltip" xml:space="preserve"><value>Name des Profils</value></data>
-  <data name="HotKeysTooltip" xml:space="preserve"><value>Tastatur- oder Maustasten zum Abfangen. Zum Aufzeichnen klicken.</value></data>
-  <data name="ExpanderTooltip" xml:space="preserve"><value>Weitere Optionen anzeigen</value></data>
+  <data name="LanguageFollowSystem" xml:space="preserve">
+    <value>Systemeinstellung folgen</value>
+  </data>
   <data name="DeleteProfileTooltip" xml:space="preserve"><value>Dieses Profil löschen</value></data>
-  <data name="PathTooltip" xml:space="preserve"><value>Beim Drücken zu öffnender Ort (Ordner, Datei, URL, CLSID)</value></data>
-  <data name="DelayTooltip" xml:space="preserve"><value>Verzögerung in Millisekunden vor der Aktion</value></data>
   <data name="HandledTooltip" xml:space="preserve"><value>Verhindert die weitere Verarbeitung durch andere Apps</value></data>
   <data name="TabTooltip" xml:space="preserve"><value>Als Tab statt in einem neuen Fenster öffnen</value></data>
   <data name="Delay" xml:space="preserve"><value>Wartezeit vor dem Ausführen der Aktion, in Millisekunden</value></data>
-  <data name="Handled" xml:space="preserve"><value>Abgefangen</value></data>
-  <data name="Tab" xml:space="preserve"><value>Tab</value></data>
   <data name="SupportProject" xml:space="preserve"><value>Das Projekt unterstützen</value></data>
   <data name="SupportDescription" xml:space="preserve"><value>Wenn dir dieses Tool hilft, kannst du es unterstützen:</value></data>
   <data name="Developer" xml:space="preserve"><value>Entwickler</value></data>
   <data name="CurrentSupporters" xml:space="preserve"><value>Aktuelle Unterstützer</value></data>
   <data name="SupportersThanks" xml:space="preserve"><value>Vielen Dank an alle Unterstützer!</value></data>
   <data name="BeFirst" xml:space="preserve"><value>Sei der erste Unterstützer dieses Projekts!</value></data>
-  <data name="SupportHelps" xml:space="preserve"><value>Deine Unterstützung hält dieses Projekt am Leben</value></data>
   <data name="StarOnGitHub" xml:space="preserve"><value>Auf GitHub mit Stern markieren</value></data>
   <data name="KeyboardShortcut" xml:space="preserve"><value>Tastaturkürzel</value></data>
   <data name="MouseShortcut" xml:space="preserve"><value>Mauskürzel</value></data>
@@ -96,21 +78,24 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="Scope" xml:space="preserve"><value>Gilt für</value></data>
   <data name="Action" xml:space="preserve"><value>Aktion beim Drücken des Tastenkürzels</value></data>
   <data name="Path" xml:space="preserve"><value>Beim Drücken zu öffnender Ort</value></data>
-  <data name="Advanced" xml:space="preserve"><value>Erweitert</value></data>
   <data name="Version" xml:space="preserve"><value>Version</value></data>
   <data name="SelectHotKey" xml:space="preserve"><value>Tastenkombination drücken…</value></data>
   <data name="ClearHistory" xml:space="preserve"><value>Verlauf geschlossener Fenster löschen</value></data>
   <data name="ShortcutsHeader" xml:space="preserve"><value>Globale Tastenkürzel, die auf Datei-Explorer-Tabs wirken.</value></data>
   <data name="PreferencesHeader" xml:space="preserve"><value>Verhalten und Aussehen der Anwendung.</value></data>
   <data name="TabSearchPlaceholder" xml:space="preserve"><value>Geöffnete und zuletzt geschlossene Tabs durchsuchen</value></data>
-  <data name="ClosedWindows" xml:space="preserve"><value>Zuletzt geschlossen</value></data>
   <data name="ToggleOn" xml:space="preserve"><value>Ein</value></data>
   <data name="ToggleOff" xml:space="preserve"><value>Aus</value></data>
-  <data name="BasicSettings" xml:space="preserve"><value>Allgemein</value></data>
-  <data name="BehaviourSettings" xml:space="preserve"><value>Verhalten</value></data>
   <data name="ExpandProfile" xml:space="preserve"><value>Erweiterte Einstellungen anzeigen</value></data>
   <data name="TogglePane" xml:space="preserve"><value>Bereich umschalten</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>Beim Anmelden im Infobereich starten</value></data>
   <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>Wenn aktiviert, läuft die App beim Anmelden nur im Infobereich, ohne Fenster</value></data>
   <data name="HideTrayIconUnavailable" xml:space="preserve"><value>Diese Einstellung ist nur verfügbar, wenn ein Ein-/Ausblenden-Tastenkürzel eingerichtet ist.</value></data>
+  <data name="TabSearchTitle" xml:space="preserve"><value>Zum Tab wechseln</value></data>
+  <data name="TabSearchNoResults" xml:space="preserve"><value>Keine passenden Tabs</value></data>
+  <data name="TabSearchHint" xml:space="preserve"><value>Enter: wechseln · Umschalt: neues Fenster · Strg: duplizieren</value></data>
+  <data name="ImportFailed" xml:space="preserve"><value>Profile konnten nicht importiert werden. Die Datei ist möglicherweise ungültig.</value></data>
+  <data name="ExportFailed" xml:space="preserve"><value>Profile konnten nicht exportiert werden. Prüfen Sie, ob der Zielordner beschreibbar ist.</value></data>
+  <data name="DefaultProfileName" xml:space="preserve"><value>Neues Tastenkürzel</value></data>
+  <data name="NoHotKeyBound" xml:space="preserve"><value>Nicht zugewiesen</value></data>
 </root>

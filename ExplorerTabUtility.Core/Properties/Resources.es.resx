@@ -5,18 +5,13 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <data name="AppTitle" xml:space="preserve"><value>Explorer Tab Utility</value></data>
-  <data name="AppTitleWithDesc" xml:space="preserve"><value>Explorer Tab Utility - Gestor de pestañas de carpetas</value></data>
   <data name="AppDescription" xml:space="preserve"><value>Mejora la experiencia del Explorador de archivos de Windows</value></data>
-  <data name="MenuShortcuts" xml:space="preserve"><value>⌨  Atajos</value></data>
-  <data name="MenuPreferences" xml:space="preserve"><value>⚙  Preferencias</value></data>
-  <data name="MenuAbout" xml:space="preserve"><value>ℹ  Acerca de</value></data>
   <data name="TabShortcuts" xml:space="preserve"><value>Atajos</value></data>
   <data name="TabPreferences" xml:space="preserve"><value>Preferencias</value></data>
   <data name="TabAbout" xml:space="preserve"><value>Acerca de</value></data>
   <data name="BtnNewProfile" xml:space="preserve"><value>NUEVO</value></data>
   <data name="BtnImport" xml:space="preserve"><value>IMPORTAR</value></data>
   <data name="BtnExport" xml:space="preserve"><value>EXPORTAR</value></data>
-  <data name="GroupAppSettings" xml:space="preserve"><value>Configuración de la aplicación</value></data>
   <data name="Theme" xml:space="preserve"><value>Tema</value></data>
   <data name="ThemeFollowSystem" xml:space="preserve"><value>Seguir el sistema</value></data>
   <data name="ThemeDark" xml:space="preserve"><value>Oscuro</value></data>
@@ -28,32 +23,19 @@
   <data name="HideTrayIcon" xml:space="preserve"><value>Ocultar el icono de la bandeja</value></data>
   <data name="HideTrayIconTooltip" xml:space="preserve"><value>Oculta el icono de la bandeja del sistema</value></data>
   <data name="Language" xml:space="preserve"><value>Idioma</value></data>
-  <data name="StatusWindowHook" xml:space="preserve"><value>Intercepción de ventanas</value></data>
-  <data name="StatusReuseTabs" xml:space="preserve"><value>Reutilización de pestañas</value></data>
-  <data name="StatusKeyboardHook" xml:space="preserve"><value>Intercepción del teclado</value></data>
-  <data name="StatusMouseHook" xml:space="preserve"><value>Intercepción del ratón</value></data>
-  <data name="MenuOpen" xml:space="preserve"><value>Abrir el menú</value></data>
-  <data name="ScopeTooltip" xml:space="preserve"><value>Ámbito: global o solo cuando el Explorador está en primer plano</value></data>
-  <data name="ActionTooltip" xml:space="preserve"><value>Acción que se ejecuta al pulsar los atajos</value></data>
-  <data name="ProfileEnabledTooltip" xml:space="preserve"><value>Activa o desactiva este perfil</value></data>
-  <data name="ProfileNameTooltip" xml:space="preserve"><value>Nombre del perfil</value></data>
-  <data name="HotKeysTooltip" xml:space="preserve"><value>Teclas del teclado o del ratón que se escuchan. Haz clic para grabarlas.</value></data>
-  <data name="ExpanderTooltip" xml:space="preserve"><value>Mostrar más opciones</value></data>
+  <data name="LanguageFollowSystem" xml:space="preserve">
+    <value>Seguir el sistema</value>
+  </data>
   <data name="DeleteProfileTooltip" xml:space="preserve"><value>Eliminar este perfil</value></data>
-  <data name="PathTooltip" xml:space="preserve"><value>Ubicación que se abre al pulsar (carpeta, archivo, URL, CLSID)</value></data>
-  <data name="DelayTooltip" xml:space="preserve"><value>Retraso en milisegundos antes de la acción</value></data>
   <data name="HandledTooltip" xml:space="preserve"><value>Impide que otras aplicaciones procesen este atajo</value></data>
   <data name="TabTooltip" xml:space="preserve"><value>Abrir como pestaña en lugar de una ventana nueva</value></data>
   <data name="Delay" xml:space="preserve"><value>Milisegundos de espera antes de ejecutar la acción</value></data>
-  <data name="Handled" xml:space="preserve"><value>Interceptado</value></data>
-  <data name="Tab" xml:space="preserve"><value>Pestaña</value></data>
   <data name="SupportProject" xml:space="preserve"><value>Apoya el proyecto</value></data>
   <data name="SupportDescription" xml:space="preserve"><value>Si esta herramienta te resulta útil, puedes apoyar:</value></data>
   <data name="Developer" xml:space="preserve"><value>Desarrollador</value></data>
   <data name="CurrentSupporters" xml:space="preserve"><value>Colaboradores actuales</value></data>
   <data name="SupportersThanks" xml:space="preserve"><value>¡Gracias a todos los colaboradores!</value></data>
   <data name="BeFirst" xml:space="preserve"><value>¡Sé el primero en apoyar este proyecto!</value></data>
-  <data name="SupportHelps" xml:space="preserve"><value>Tu apoyo mantiene vivo este proyecto</value></data>
   <data name="StarOnGitHub" xml:space="preserve"><value>Dar una estrella en GitHub</value></data>
   <data name="KeyboardShortcut" xml:space="preserve"><value>Atajo de teclado</value></data>
   <data name="MouseShortcut" xml:space="preserve"><value>Atajo de ratón</value></data>
@@ -96,21 +78,24 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="Scope" xml:space="preserve"><value>Se aplica a</value></data>
   <data name="Action" xml:space="preserve"><value>Acción al pulsar el atajo</value></data>
   <data name="Path" xml:space="preserve"><value>Ubicación que se abre al pulsar</value></data>
-  <data name="Advanced" xml:space="preserve"><value>Avanzado</value></data>
   <data name="Version" xml:space="preserve"><value>Versión</value></data>
   <data name="SelectHotKey" xml:space="preserve"><value>Pulsa una combinación de teclas…</value></data>
   <data name="ClearHistory" xml:space="preserve"><value>Borrar el historial de ventanas cerradas</value></data>
   <data name="ShortcutsHeader" xml:space="preserve"><value>Atajos globales que actúan sobre las pestañas del Explorador.</value></data>
   <data name="PreferencesHeader" xml:space="preserve"><value>Comportamiento y aspecto de la aplicación.</value></data>
   <data name="TabSearchPlaceholder" xml:space="preserve"><value>Buscar pestañas abiertas y cerradas recientemente</value></data>
-  <data name="ClosedWindows" xml:space="preserve"><value>Cerradas recientemente</value></data>
   <data name="ToggleOn" xml:space="preserve"><value>Activado</value></data>
   <data name="ToggleOff" xml:space="preserve"><value>Desactivado</value></data>
-  <data name="BasicSettings" xml:space="preserve"><value>General</value></data>
-  <data name="BehaviourSettings" xml:space="preserve"><value>Comportamiento</value></data>
   <data name="ExpandProfile" xml:space="preserve"><value>Mostrar la configuración avanzada</value></data>
   <data name="TogglePane" xml:space="preserve"><value>Alternar el panel</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>Iniciar en la bandeja al iniciar sesión</value></data>
   <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>Si se activa, la aplicación se inicia en la bandeja sin mostrar la ventana</value></data>
   <data name="HideTrayIconUnavailable" xml:space="preserve"><value>Esta opción solo está disponible si hay configurado un atajo Mostrar/Ocultar.</value></data>
+  <data name="TabSearchTitle" xml:space="preserve"><value>Cambiar a pestaña</value></data>
+  <data name="TabSearchNoResults" xml:space="preserve"><value>No hay pestañas coincidentes</value></data>
+  <data name="TabSearchHint" xml:space="preserve"><value>Intro: cambiar · Mayús: ventana nueva · Ctrl: duplicar</value></data>
+  <data name="ImportFailed" xml:space="preserve"><value>No se pudieron importar los perfiles. Es posible que el archivo no sea válido.</value></data>
+  <data name="ExportFailed" xml:space="preserve"><value>No se pudieron exportar los perfiles. Compruebe que la carpeta de destino se pueda escribir.</value></data>
+  <data name="DefaultProfileName" xml:space="preserve"><value>Nuevo atajo</value></data>
+  <data name="NoHotKeyBound" xml:space="preserve"><value>Sin asignar</value></data>
 </root>

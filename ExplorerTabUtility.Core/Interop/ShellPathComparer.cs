@@ -145,8 +145,7 @@ public sealed class ShellPathComparer : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    ~ShellPathComparer()
-    {
-        Dispose();
-    }
+    // No finalizer on purpose: the only consumer (ExplorerWatcher) disposes deterministically, and
+    // calling Marshal.ReleaseComObject from a finalizer thread risks a process-terminating
+    // exception if the runtime has already torn the RCW down.
 }

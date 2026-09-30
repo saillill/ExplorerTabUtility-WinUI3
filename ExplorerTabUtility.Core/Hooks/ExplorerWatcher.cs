@@ -54,13 +54,25 @@ public class ExplorerWatcher : IHook
     private int _mainExplorerProcessId;
     private Timer? _explorerCheckTimer;
 
+    /// <summary>
+    /// Set once <see cref="Dispose"/> runs. Reads from the timer callback and the Shell COM event
+    /// threads, so it must be volatile. Guards <see cref="InitializeShellObjects"/> against being
+    /// resurrected by a timer tick that fired after the watcher was disposed.
+    /// </summary>
+    private volatile bool _disposed;
+
+    /// <summary>True between a successful <see cref="InitializeShellObjects"/> and its teardown.</summary>
+    private bool _shellInitialized;
+
     private nint _eventObjectShowHookId;
     private WinEventDelegate? _eventObjectShowHookCallback;
     private Action<int>? _windowRegisteredHandler;
 
     private string _defaultLocation = null!;
     private bool _reuseTabs = true;
-    private bool _isForcingTabs;
+    // Toggled from the UI thread, read from the WinEvent hook thread; volatile keeps the hook from
+    // acting on a stale value (AUD-23).
+    private volatile bool _isForcingTabs;
     public bool IsHookActive => _isForcingTabs;
     public event Action? OnShellInitialized;
 
@@ -98,12 +110,28 @@ public class ExplorerWatcher : IHook
 
     public IReadOnlyCollection<WindowRecord> GetWindows()
     {
+        // Take a snapshot under the lock, then read each window's location / selection OUTSIDE it.
+        // Those reads are blocking COM calls (LocationURL, SelectedItems) against Explorer windows
+        // that may be busy or unresponsive; doing them while holding the dictionary lock stalls every
+        // other watcher operation behind a single slow window (AUD-01).
+        WindowEntry[] entries;
+        lock (_windowEntryDictLock)
+            entries = _windowEntryDict.ToArray<WindowEntry>();
+
         var result = new List<WindowRecord>();
 
         // Add open windows
-        lock (_windowEntryDictLock)
-            result.AddRange(
-                _windowEntryDict.Keys.Select(ie => new WindowRecord(GetLocation(ie), new IntPtr(ie.HWND), GetSelectedItems(ie), ie.LocationName)));
+        foreach (var (window, windowInfo, tabHandle) in entries)
+        {
+            try
+            {
+                result.Add(new WindowRecord(GetLocation(window), new IntPtr(window.HWND), GetSelectedItems(window), window.LocationName));
+            }
+            catch
+            {
+                // The window may have been destroyed between the snapshot and this read; skip it.
+            }
+        }
 
         // Add closed windows in reverse order (last closed on top)
         lock (_closedWindowsLock)
@@ -177,6 +205,10 @@ public class ExplorerWatcher : IHook
     public void SelectLastTab(nint windowHandle)
     {
         var count = Helper.GetAllExplorerTabs(windowHandle).Count();
+
+        // No tabs (mid switch/close): count - 1 would be -1 and lParam 0 is a meaningless index.
+        if (count <= 0) return;
+
         SelectTabByIndex(windowHandle, count - 1);
     }
     public void SelectTabByIndex(nint windowHandle, int index)
@@ -276,14 +308,29 @@ public class ExplorerWatcher : IHook
         WindowRecord? closedWindow;
         lock (_closedWindowsLock)
         {
-            closedWindow = _closedWindows.LastOrDefault(w => w.Location != _defaultLocation);
+            // Walk from the newest record: default-location entries (Home / This PC) are not worth
+            // reopening, but merely skipping them with LastOrDefault left them at the tail of the list
+            // forever, shadowing the real history behind them (AUD-29). Drop them as we pass over them.
+            closedWindow = null;
+            for (var i = _closedWindows.Count - 1; i >= 0; i--)
+            {
+                if (string.Equals(_closedWindows[i].Location, _defaultLocation, StringComparison.OrdinalIgnoreCase))
+                {
+                    _closedWindows.RemoveAt(i);
+                    continue;
+                }
+
+                closedWindow = _closedWindows[i];
+                _closedWindows.RemoveAt(i);
+                break;
+            }
+
             if (closedWindow == null) return;
-            _closedWindows.Remove(closedWindow);
         }
 
         if (!asTab)
         {
-            closedWindow.CreatedAt = Environment.TickCount;
+            closedWindow.CreatedAt = Environment.TickCount64;
             await OpenNewWindowWithSelection(closedWindow);
             return;
         }
@@ -351,6 +398,12 @@ public class ExplorerWatcher : IHook
 
         if (_windowEntryDict.Count < 2 || Helper.IsCtrlShiftDown()) return;
         Helper.HideWindow(hWnd);
+
+        // Mirror OnShellWindowRegistered: schedule the delayed cache eviction afterwards. The two
+        // "hide a window" entry points must have symmetric cleanup — without it here the entry stays
+        // in Helper.HiddenWindows forever, the window (alpha 0) can never be recovered, and the cache
+        // grows without bound over a long session (AUD-10).
+        _ = Task.Delay(3000).ContinueWith(t => Helper.HiddenWindows.TryRemove(hWnd, out _), TaskScheduler.Default);
     }
     private ExplorerWindow? GetRecentlyCreatedWindow(out WindowInfo? windowInfo)
     {
@@ -361,18 +414,30 @@ public class ExplorerWatcher : IHook
             var window = _shellWindows.Item(i);
             if (window is null) continue;
 
+            // Blocking COM property-bag reads stay OUTSIDE _windowEntryDictLock — the same rule
+            // GetWindows follows (AUD-01): a hung window must not stall every other watcher
+            // operation while the lock is held.
+            if (window.GetProperty("seenBefore") is not null) continue;
+
             lock (_windowEntryDictLock)
             {
                 if (_windowEntryDict.Keys.Contains(window)) continue;
-                if (window.GetProperty("seenBefore") is not null) continue;
-                window.PutProperty("seenBefore", true);
 
                 windowInfo = new WindowInfo();
-                _windowEntryDict.Add(window, windowInfo);
+
+                // TryAdd, not Add: the Contains check above and this insert are not atomic, and
+                // InitializeShellObjects inserts without taking _windowEntryDictLock. Losing that race
+                // must skip the window, not throw ArgumentException out of a COM event callback (AUD-01).
+                if (!_windowEntryDict.TryAdd(window, windowInfo)) continue;
 
                 if (_windowEntryDict.Count == 1)
                     _mainWindowHandle = new IntPtr(window.HWND);
             }
+
+            // Mark only after winning the add: the property bag is the cross-thread guard for the
+            // lock-free pre-check above. A thread that lost the TryAdd race must NOT mark the window,
+            // otherwise the winner's window could be skipped by a later scan before it is in the dict.
+            window.PutProperty("seenBefore", true);
 
             // Outside the lock: MaybeRestore takes _closedWindowsLock, and PersistWindows takes the
             // two locks in the opposite order.
@@ -461,17 +526,32 @@ public class ExplorerWatcher : IHook
 
             HookWindowEvents(window, windowInfo);
         }
-        catch {/**/ }
+        catch (Exception ex)
+        {
+            // `async void` COM event receiver: it runs on Explorer's own thread, so an exception that
+            // escapes is a process-killer (Application.UnhandledException cannot see it). Log it
+            // instead of silently swallowing (AUD-12).
+            Debug.WriteLine($"OnShellWindowRegistered failed: {ex}");
+        }
         finally
         {
             if (showAgain)
             {
-                await Helper.DoUntilNotDefaultAsync(() => Helper.ShowWindow(hWnd, removeCache: false), 1_500, 200);
+                // The finally body itself is guarded: the await below can throw, and an exception
+                // escaping a `finally` in an async void COM callback terminates the process (AUD-12).
+                try
+                {
+                    await Helper.DoUntilNotDefaultAsync(() => Helper.ShowWindow(hWnd, removeCache: false), 1_500, 200);
 
-                Helper.UpdateWindowLayered(hWnd, remove: true);
+                    Helper.UpdateWindowLayered(hWnd, remove: true);
 
-                // OnWindowShown might fire after ShellWindowRegistered and hide it again, keep the cache, wait a bit, then remove it.
-                _ = Task.Delay(3000).ContinueWith(t => Helper.HiddenWindows.TryRemove(hWnd, out _), TaskScheduler.Default);
+                    // OnWindowShown might fire after ShellWindowRegistered and hide it again, keep the cache, wait a bit, then remove it.
+                    _ = Task.Delay(3000).ContinueWith(t => Helper.HiddenWindows.TryRemove(hWnd, out _), TaskScheduler.Default);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"OnShellWindowRegistered cleanup failed: {ex}");
+                }
             }
         }
     }
@@ -485,8 +565,9 @@ public class ExplorerWatcher : IHook
             var windowRecord = new WindowRecord(location, new IntPtr(window.HWND), name: locationName);
             lock (_closedWindowsLock) _closedWindows.Add(windowRecord);
 
-            // Home, This PC, etc
-            if (location == _defaultLocation)
+            // Home, This PC, etc (compared the same case-insensitive way as every other
+            // location comparison in this class)
+            if (string.Equals(location, _defaultLocation, StringComparison.OrdinalIgnoreCase))
             {
                 RemoveWindowAndUnhookEvents(window, windowInfo);
                 return;
@@ -521,6 +602,10 @@ public class ExplorerWatcher : IHook
         {
             lock (_windowEntryDictLock)
                 _windowEntryDict.Remove(window);
+
+            // The window died mid-subscription. ExplorerWindow has no finalizer, so without an explicit
+            // Dispose here the advised connection point and its COM reference leak forever (AUD-05).
+            window.Dispose();
         }
     }
     private void RemoveWindowAndUnhookEvents(ExplorerWindow window, WindowInfo windowInfo, bool useLock = true)
@@ -566,19 +651,35 @@ public class ExplorerWatcher : IHook
 
     private async Task RestorePreviousWindows()
     {
-        var result = await RunInStaThread(() => _dialogService.Show(
-            LocalizationService.Get("RestoreWindowsPrompt"),
-            Constants.AppName,
-            DialogButton.YesNo,
-            DialogIcon.Question));
-
-        foreach (var record in _closedWindows.Where(record => record.Restore))
+        // Called as `_ = RestorePreviousWindows()`: the returned task is never awaited, so an escaped
+        // exception would only show up as an unobserved-task event. Contain it here (AUD-14).
+        try
         {
-            record.Restore = false;
+            var result = await RunInStaThread(() => _dialogService.Show(
+                LocalizationService.Get("RestoreWindowsPrompt"),
+                Constants.AppName,
+                DialogButton.YesNo,
+                DialogIcon.Question));
 
-            if (result != DialogResult.Yes) continue;
+            // Snapshot under the lock, then iterate outside it: OnQuit and OnExplorerProcessTerminated
+            // append to _closedWindows from other threads, and the previous unguarded foreach threw
+            // InvalidOperationException mid-enumeration (AUD-14).
+            WindowRecord[] toRestore;
+            lock (_closedWindowsLock)
+                toRestore = _closedWindows.Where(record => record.Restore).ToArray();
 
-            _ = OpenTabNavigateWithSelection(record);
+            foreach (var record in toRestore)
+            {
+                record.Restore = false;
+
+                if (result != DialogResult.Yes) continue;
+
+                _ = OpenTabNavigateWithSelection(record);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"RestorePreviousWindows failed: {ex}");
         }
     }
     private async Task OpenNewWindowWithSelection(WindowRecord windowToOpen, bool duplicate = true, bool lockToOpenWindows = true)
@@ -717,7 +818,7 @@ public class ExplorerWatcher : IHook
                 for (var i = _closedWindows.Count - 1; i >= 0; i--)
                 {
                     var record = _closedWindows[i];
-                    if (Environment.TickCount - record.CreatedAt > maxAge) break;
+                    if (Environment.TickCount64 - record.CreatedAt > maxAge) break;
                     if (!_shellPathComparer.IsEquivalent(location, record.Location, targetPidl)) continue;
                     _closedWindows.RemoveAt(i);
                     closedWindow = record;
@@ -813,7 +914,14 @@ public class ExplorerWatcher : IHook
     private void StartExplorerProcessCheck() => _explorerCheckTimer = new Timer(CheckForMainExplorer, null, 0, 1000);
     private void CheckForMainExplorer(object? state)
     {
-        var process = Helper.GetMainExplorerProcess();
+        // A timer tick can already be in flight when Dispose() runs; without this the callback would
+        // re-initialise the shell objects on a disposed watcher and leak the freshly created global
+        // hooks / COM subscriptions (AUD-04).
+        if (_disposed) return;
+
+        // The returned Process holds an open process handle (StartTime was read); release it once
+        // the id is captured.
+        using var process = Helper.GetMainExplorerProcess();
         if (process == null) return;
 
         _explorerCheckTimer?.Dispose();
@@ -830,9 +938,18 @@ public class ExplorerWatcher : IHook
     }
     private void OnExplorerProcessTerminated(object? s, ProcessEventArgs e)
     {
+        // The ProcessWatcher is disposed alongside this watcher, but a termination event can
+        // already be queued (posted to the captured sync context) when Dispose runs. Without this
+        // guard the handler would call StartExplorerProcessCheck on a disposed instance and create
+        // a timer that is never released again.
+        if (_disposed) return;
+
         // Main explorer.exe process (_shellWindows must be restarted)
         lock (_processLock)
         {
+            // Re-check inside the lock: Dispose may have run between the guard above and here.
+            if (_disposed) return;
+
             if (e.ProcessId == _mainExplorerProcessId)
             {
                 _mainExplorerProcessId = 0;
@@ -884,8 +1001,21 @@ public class ExplorerWatcher : IHook
         }
     }
 
+    /// <summary>
+    /// A "created long ago" <see cref="Stopwatch"/> timestamp for windows that were already open when
+    /// the watcher started. <see cref="SearchForTab"/> suppresses reuse for windows younger than 2s, so
+    /// stamping such windows "now" made the first hotkey press after launch open a duplicate (AUD-27).
+    /// </summary>
+    private static long PreExistingWindowTimestamp => Stopwatch.GetTimestamp() - 60L * Stopwatch.Frequency;
+
     private void InitializeShellObjects()
     {
+        // Idempotence + post-dispose guards. The shell is initialized from a timer callback and rebuilt
+        // after an Explorer restart; without these the method could run twice over (duplicate global
+        // hooks) or resurrect a disposed watcher (AUD-04).
+        if (_disposed) return;
+        if (_shellInitialized) return;
+
         _shellPathComparer = new ShellPathComparer();
         _staTaskScheduler = new StaTaskScheduler();
         _shellWindows = new ShellWindows();
@@ -893,7 +1023,17 @@ public class ExplorerWatcher : IHook
         _defaultLocation = Helper.GetDefaultExplorerLocation(_shellPathComparer);
 
         if (SettingsManager.ClosedWindows != null)
-            lock (_closedWindowsLock) _closedWindows.AddRange(SettingsManager.ClosedWindows);
+            lock (_closedWindowsLock)
+            {
+                // A persisted record carries a TickCount64 from a previous session (older builds:
+                // a 32-bit TickCount) that is meaningless against the current boot's clock. Stamp
+                // them "ancient" so TryGetRecentlyClosedWindow can never mistake restored history
+                // for a just-detached tab.
+                foreach (var record in SettingsManager.ClosedWindows)
+                    record.CreatedAt = 0;
+
+                _closedWindows.AddRange(SettingsManager.ClosedWindows);
+            }
 
         // Hook the global "WindowRegistered" event
         _windowRegisteredHandler = OnShellWindowRegistered;
@@ -903,21 +1043,43 @@ public class ExplorerWatcher : IHook
         _eventObjectShowHookCallback = OnWindowShown;
         _eventObjectShowHookId = WinApi.SetWinEventHook(WinApi.EVENT_OBJECT_SHOW, WinApi.EVENT_OBJECT_SHOW, 0, _eventObjectShowHookCallback, 0, 0, 0);
 
+        // If a previous instance died (or the shell was torn down) between Helper.HideWindow and
+        // the matching ShowWindow, an Explorer window can be stranded fully transparent. Anything
+        // still recorded as hidden gets one restore attempt; dead handles simply no-op.
+        foreach (var hWnd in Helper.HiddenWindows.Keys)
+        {
+            Helper.ShowWindow(hWnd, removeCache: true);
+            Helper.UpdateWindowLayered(hWnd, remove: true);
+        }
+
         // Hook the event handlers for already-open windows
         var hasOpen = false;
         var count = _shellWindows.Count;
         for (var i = 0; i < count; i++)
         {
-            var window = _shellWindows.Item(i);
-            if (window is null) continue;
-            hasOpen = true;
+            try
+            {
+                var window = _shellWindows.Item(i);
+                if (window is null) continue;
+                hasOpen = true;
 
-            var windowInfo = new WindowInfo();
-            _windowEntryDict.Add(window, windowInfo);
-            window.PutProperty("seenBefore", true);
+                var windowInfo = new WindowInfo(PreExistingWindowTimestamp);
 
-            _ = GetTabHandle(window);
-            HookWindowEvents(window, windowInfo);
+                // TryAdd, not Add: this runs on a thread-pool Timer callback, and a duplicate primary
+                // key used to throw ArgumentException that escaped the callback and killed the process
+                // (the "resident tray app just disappears" symptom) (AUD-01).
+                if (!_windowEntryDict.TryAdd(window, windowInfo)) continue;
+
+                window.PutProperty("seenBefore", true);
+
+                _ = GetTabHandle(window);
+                HookWindowEvents(window, windowInfo);
+            }
+            catch (Exception ex)
+            {
+                // Keep a bad window from aborting the whole rebuild (and thus the process).
+                Debug.WriteLine($"InitializeShellObjects: window #{i} failed: {ex}");
+            }
         }
 
         // Restore flags are only meaningful when the shell was rebuilt (explorer.exe restart) or
@@ -930,9 +1092,16 @@ public class ExplorerWatcher : IHook
                 foreach (var window in _closedWindows) window.Restore = false;
 
         _shellTornDown = false;
+        _shellInitialized = true;
     }
     private void DisposeShellObjects()
     {
+        // Nothing was initialised (e.g. no main Explorer was ever found): every field below is still
+        // null! and releasing it would NRE on the SessionEnding path. Also makes this idempotent, so a
+        // second Dispose (SessionEnding arrives on a SystemEvents thread and again on UI exit) is a
+        // harmless no-op instead of an ObjectDisposedException (AUD-04).
+        if (!_shellInitialized) return;
+
         PersistWindows();
 
         // Unhook global event
@@ -962,6 +1131,8 @@ public class ExplorerWatcher : IHook
 
         _shellPathComparer.Dispose();
         _staTaskScheduler.Dispose();
+
+        _shellInitialized = false;
     }
 
     private void PersistWindows()
@@ -994,8 +1165,22 @@ public class ExplorerWatcher : IHook
 
     public void Dispose()
     {
+        // Idempotent: SessionEnding (a SystemEvents thread) and the UI-exit path both call this.
+        if (_disposed) return;
+        _disposed = true;
+
+        // Stop the shell-discovery timer first. It is the only remaining reference that could
+        // re-initialise the shell objects (and therefore re-create global hooks) on an instance that
+        // has already been disposed — a real leak of WinEvent hooks and COM subscriptions (AUD-04).
+        _explorerCheckTimer?.Dispose();
+        _explorerCheckTimer = null;
+
         DisposeShellObjects();
         _instanceRunning = false;
+
+        // Unsubscribe BEFORE disposing the watcher: a termination event queued behind the dispose
+        // would otherwise reach OnExplorerProcessTerminated and resurrect the explorer-check timer.
+        _processWatcher.ProcessTerminated -= OnExplorerProcessTerminated;
         _processWatcher.Dispose();
         GC.SuppressFinalize(this);
     }

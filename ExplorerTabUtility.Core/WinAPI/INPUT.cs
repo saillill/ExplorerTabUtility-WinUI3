@@ -61,7 +61,5 @@ public enum KeyEventFlags : uint
 {
     KeyDown = 0,
     ExtendedKey = 1,
-    KeyUp = 2,
-    ScanCode = 8,
-    Unicode = 4
+    KeyUp = 2
 }

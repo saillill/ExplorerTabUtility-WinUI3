@@ -32,7 +32,10 @@
                 <!-- Top, not Center: centring the text block against the 64px icon pushed the title
                      lower than the icon's top edge, which read as misalignment. -->
                 <StackPanel VerticalAlignment="Top" Spacing="2">
-                    <TextBlock x:Name="AppTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+                    <!-- Wrap so the full title survives the 540 epx window floor (the plain
+                         single-line Title style clipped at the content edge). -->
+                    <TextBlock x:Name="AppTitleText" Style="{StaticResource TitleTextBlockStyle}"
+                               TextWrapping="Wrap" />
                     <TextBlock x:Name="VersionText"
                                Style="{StaticResource BodyTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

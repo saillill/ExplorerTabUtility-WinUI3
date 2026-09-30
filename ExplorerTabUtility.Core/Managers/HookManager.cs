@@ -21,10 +21,11 @@ namespace ExplorerTabUtility.Managers;
 /// </summary>
 public sealed class HookManager
 {
-    private readonly Mouse _mouseHook;
-    private readonly Keyboard _keyboardHook;
-    private readonly ExplorerWatcher _windowHook;
+    private readonly Mouse _mouseHook = null!;
+    private readonly Keyboard _keyboardHook = null!;
+    private readonly ExplorerWatcher _windowHook = null!;
     private readonly IUiDispatcher _uiDispatcher;
+    private bool _disposed;
 
     public event Action? OnVisibilityToggled;
     public event Action? OnWindowHookToggled;
@@ -43,22 +44,38 @@ public sealed class HookManager
     {
         _uiDispatcher = uiDispatcher ?? throw new ArgumentNullException(nameof(uiDispatcher));
 
-        _windowHook = new ExplorerWatcher(dialogService);
-        _mouseHook = new Mouse(profileManager.GetProfiles());
-        _keyboardHook = new Keyboard(profileManager.GetProfiles());
+        try
+        {
+            _windowHook = new ExplorerWatcher(dialogService);
+            // Pass the snapshot *provider*, not a materialised list: the hook threads then always read the
+            // most recent immutable snapshot the UI thread published (AUD-02).
+            _mouseHook = new Mouse(profileManager.GetProfilesSnapshot);
+            _keyboardHook = new Keyboard(profileManager.GetProfilesSnapshot);
 
-        profileManager.KeybindingsHookStarted += KeybindingStarted;
-        profileManager.KeybindingsHookStopped += KeybindingStopped;
-        _keyboardHook.OnHotKeyProfileTriggered += OnHotKeyProfileTriggered;
-        _mouseHook.OnHotKeyProfileTriggered += OnHotKeyProfileTriggered;
+            profileManager.KeybindingsHookStarted += KeybindingStarted;
+            profileManager.KeybindingsHookStopped += KeybindingStopped;
+            _keyboardHook.OnHotKeyProfileTriggered += OnHotKeyProfileTriggered;
+            _mouseHook.OnHotKeyProfileTriggered += OnHotKeyProfileTriggered;
 
-        // ExplorerWatcher raises this from a System.Threading.Timer callback, i.e. a thread-pool
-        // thread. WinUI 3 XAML objects are strictly single-threaded, so every UI-facing event must
-        // be marshalled — touching a control off-thread throws a COMException that kills the
-        // process (it arrives on a pool thread, so it cannot even be marked handled).
-        _windowHook.OnShellInitialized += () => _uiDispatcher.Post(() => OnShellInitialized?.Invoke());
+            // ExplorerWatcher raises this from a System.Threading.Timer callback, i.e. a thread-pool
+            // thread. WinUI 3 XAML objects are strictly single-threaded, so every UI-facing event must
+            // be marshalled — touching a control off-thread throws a COMException that kills the
+            // process (it arrives on a pool thread, so it cannot even be marked handled).
+            // TryPost: this is a UI notification, not shutdown-critical work (see IUiDispatcher).
+            _windowHook.OnShellInitialized += () => _uiDispatcher.TryPost(() => OnShellInitialized?.Invoke());
 
-        _uiDispatcher.SessionEnding += (_, _) => Dispose();
+            _uiDispatcher.SessionEnding += (_, _) => Dispose();
+        }
+        catch
+        {
+            // Roll back whatever was already constructed: a half-built manager that escapes the
+            // AppServices guard would leave an ExplorerWatcher (process watcher, 1s shell-discovery
+            // timer, later the global COM/WinEvent hooks) running with no owner to ever dispose it.
+            SafeDispose(() => _keyboardHook?.Dispose());
+            SafeDispose(() => _mouseHook?.Dispose());
+            SafeDispose(() => _windowHook?.Dispose());
+            throw;
+        }
     }
 
     public void StartMouseHook() => ChangeHookStatus(_mouseHook, true);
@@ -121,19 +138,19 @@ public sealed class HookManager
                 break;
 
             case HotKeyAction.ToggleReuseTabs:
-                _uiDispatcher.Post(() => OnReuseTabsToggled?.Invoke());
+                _uiDispatcher.TryPost(() => OnReuseTabsToggled?.Invoke());
                 break;
 
             case HotKeyAction.ToggleWinHook:
-                _uiDispatcher.Post(() => OnWindowHookToggled?.Invoke());
+                _uiDispatcher.TryPost(() => OnWindowHookToggled?.Invoke());
                 break;
 
             case HotKeyAction.ToggleVisibility:
-                _uiDispatcher.Post(() => OnVisibilityToggled?.Invoke());
+                _uiDispatcher.TryPost(() => OnVisibilityToggled?.Invoke());
                 break;
 
             case HotKeyAction.TabSearch:
-                _uiDispatcher.Post(() => OnTabSearchRequested?.Invoke());
+                _uiDispatcher.TryPost(() => OnTabSearchRequested?.Invoke());
                 break;
 
             case HotKeyAction.SnapRight:
@@ -242,8 +259,20 @@ public sealed class HookManager
 
     public void Dispose()
     {
-        _keyboardHook.Dispose();
-        _mouseHook.Dispose();
-        _windowHook.Dispose();
+        // Idempotent and fault-tolerant: SessionEnding (a SystemEvents thread) and the UI-exit path both
+        // reach here, and the SessionEnding lambda has no try/catch of its own — an exception escaping
+        // it during logoff would surface as a shutdown error (AUD-04).
+        if (_disposed) return;
+        _disposed = true;
+
+        SafeDispose(_keyboardHook.Dispose);
+        SafeDispose(_mouseHook.Dispose);
+        SafeDispose(_windowHook.Dispose);
+    }
+
+    private static void SafeDispose(Action dispose)
+    {
+        try { dispose(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"HookManager.Dispose failed: {ex}"); }
     }
 }

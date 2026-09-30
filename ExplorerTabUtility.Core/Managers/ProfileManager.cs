@@ -16,13 +16,21 @@ namespace ExplorerTabUtility.Managers;
 /// <c>System.Windows.Controls.Panel</c> field with <see cref="IProfilesHost"/> plus a
 /// <see cref="ProfileCardFactory"/> that the shell supplies.
 /// </para>
+/// <para>
+/// <b>Threading contract.</b> The hook threads only ever read the immutable snapshot published by
+/// <see cref="GetProfilesSnapshot"/>; the UI thread builds a brand-new array and swaps it in with a
+/// single atomic write. Neither side shares a mutable collection, so a keystroke in the settings
+/// window can no longer tear the list the low-level keyboard hook is walking (AUD-02). <b>Never</b>
+/// mutate a published snapshot in place.
+/// </para>
 /// </summary>
 public class ProfileManager
 {
-    // Saved state (persistent)
-    private readonly List<HotKeyProfile> _savedProfiles = [];
+    // Published snapshot: read by the hook threads, replaced atomically by the UI thread. Volatile so
+    // a hook thread always observes the most recent array reference.
+    private volatile IReadOnlyList<HotKeyProfile> _profilesSnapshot = [];
 
-    // Temporary state (for editing)
+    // Temporary state (for editing). Touched only on the UI thread.
     private readonly List<HotKeyProfile> _tempProfiles = [];
 
     private readonly IProfilesHost _profilesHost;
@@ -31,6 +39,14 @@ public class ProfileManager
 
     public event Action? KeybindingsHookStarted;
     public event Action? KeybindingsHookStopped;
+
+    /// <summary>
+    /// Raised (on the UI thread) whenever the profile list or any profile's user-visible state
+    /// changes — add, remove, rename, enable toggle, import. Shells use it to rebuild derived
+    /// views such as the tray profile menus; without it the tray showed a stale list for the
+    /// whole session.
+    /// </summary>
+    public event Action? ProfilesChanged;
 
     public ProfileManager(IProfilesHost profilesHost, ProfileCardFactory cardFactory)
     {
@@ -59,15 +75,7 @@ public class ProfileManager
 
             MigrateLegacyNames(profiles);
 
-            _savedProfiles.Clear();
-            _savedProfiles.AddRange(profiles);
-
-            // Create temporary copies
-            _tempProfiles.Clear();
-            foreach (var p in _savedProfiles)
-            {
-                _tempProfiles.Add(p.Clone());
-            }
+            ReplaceTempProfiles(profiles);
         }
         catch
         {
@@ -77,15 +85,7 @@ public class ProfileManager
             {
                 var defaults = JsonSerializer.Deserialize<List<HotKeyProfile>>(Constants.DefaultHotKeyProfiles);
                 if (defaults != null)
-                {
-                    _savedProfiles.Clear();
-                    _savedProfiles.AddRange(defaults);
-                    _tempProfiles.Clear();
-                    foreach (var p in _savedProfiles)
-                    {
-                        _tempProfiles.Add(p.Clone());
-                    }
-                }
+                    ReplaceTempProfiles(defaults);
             }
             catch
             {
@@ -120,11 +120,46 @@ public class ProfileManager
             SettingsManager.HotKeyProfiles = JsonSerializer.Serialize(profiles);
     }
 
+    /// <summary>Resets the editing list from <paramref name="profiles"/> and republishes the snapshot.</summary>
+    private void ReplaceTempProfiles(IEnumerable<HotKeyProfile> profiles)
+    {
+        _tempProfiles.Clear();
+        foreach (var profile in profiles)
+            _tempProfiles.Add(profile.Clone());
+
+        PublishSnapshot(_tempProfiles);
+    }
+
+    /// <summary>
+    /// Builds a fresh snapshot from <paramref name="profiles"/> and swaps it in atomically.
+    /// <para>
+    /// The array is fully materialised (and cloned) <b>before</b> the write, so a hook thread sees
+    /// either the whole previous snapshot or the whole new one — never a half-cleared list. The clones
+    /// keep later in-place edits of <see cref="_tempProfiles"/> from being observed by the hook thread.
+    /// </para>
+    /// </summary>
+    private void PublishSnapshot(IEnumerable<HotKeyProfile> profiles)
+    {
+        var snapshot = profiles.Select(profile => profile.Clone()).ToArray();
+
+        // A plain assignment to a volatile field is itself a release barrier — semantically identical to
+        // Volatile.Write(ref _profilesSnapshot, snapshot), but without the CS0420 "reference to a volatile
+        // field will not be treated as volatile" warning that passing it by ref produces.
+        _profilesSnapshot = snapshot;
+    }
+
     public void AddProfile(HotKeyProfile? profile = null)
     {
-        var newProfile = profile?.Clone() ?? new HotKeyProfile();
+        // A new row starts with the localized placeholder name rather than an empty one: an empty
+        // name makes the collapsed row fall back to showing the hotkey, which reads as though the
+        // row had already been filled in. The name is never taken from the mapped action either —
+        // that is what the old WPF build did, and why upgraded files carry names like "显示/隐藏"
+        // (see MigrateLegacyNames).
+        var newProfile = profile?.Clone() ??
+                         new HotKeyProfile { Name = LocalizationService.DefaultProfileName };
         _tempProfiles.Add(newProfile);
         _profilesHost.Add(_cardFactory(newProfile, _callbacks));
+        ProfilesChanged?.Invoke();
     }
 
     private void Remove(HotKeyProfile profile)
@@ -134,6 +169,10 @@ public class ProfileManager
         var card = FindCardByProfile(profile);
         if (card != null)
             _profilesHost.Remove(card);
+
+        // Publish the removal at once so the hook threads stop matching a deleted profile.
+        PublishSnapshot(_tempProfiles);
+        ProfilesChanged?.Invoke();
     }
 
     private void RefreshPanel()
@@ -162,9 +201,13 @@ public class ProfileManager
 
     public void SetProfileEnabledFromTray(HotKeyProfile profile, bool enabled)
     {
-        // Find and update in saved profiles (for tray menu)
-        var savedProfile = _savedProfiles.First(p => p.Id == profile.Id);
-        savedProfile.IsEnabled = enabled;
+        // FirstOrDefault, not First: a profile removed from the panel between the tray menu being built
+        // and the click would otherwise throw InvalidOperationException (AUD-02).
+        var savedProfile = _profilesSnapshot.FirstOrDefault(p => p.Id == profile.Id);
+
+        // If the hooks already hold this snapshot, flipping the flag on the element takes effect at once
+        // (a bool write is atomic). It is then superseded by the republished snapshot below.
+        if (savedProfile != null) savedProfile.IsEnabled = enabled;
 
         // Find and update in temp profiles (for panel)
         var tempProfile = _tempProfiles.FirstOrDefault(p => p.Id == profile.Id);
@@ -178,9 +221,17 @@ public class ProfileManager
         SaveProfiles();
     }
 
-    public IReadOnlyList<HotKeyProfile> GetProfiles() => _savedProfiles.AsReadOnly();
-    public IEnumerable<HotKeyProfile> GetKeyboardProfiles() => _savedProfiles.Where(p => !p.IsMouse);
-    public IEnumerable<HotKeyProfile> GetMouseProfiles() => _savedProfiles.Where(p => p.IsMouse);
+    /// <summary>
+    /// The published snapshot. Safe to read, hold or enumerate from any thread: it is replaced
+    /// atomically and never mutated in place (AUD-02).
+    /// </summary>
+    public IReadOnlyList<HotKeyProfile> GetProfiles() => _profilesSnapshot;
+
+    /// <summary>Explicit-name alias of <see cref="GetProfiles"/>, used by the hook constructors.</summary>
+    public IReadOnlyList<HotKeyProfile> GetProfilesSnapshot() => _profilesSnapshot;
+
+    public IEnumerable<HotKeyProfile> GetKeyboardProfiles() => _profilesSnapshot.Where(p => !p.IsMouse);
+    public IEnumerable<HotKeyProfile> GetMouseProfiles() => _profilesSnapshot.Where(p => p.IsMouse);
 
     public void SaveProfiles()
     {
@@ -189,15 +240,14 @@ public class ProfileManager
         // the row the user is working on. Cleanup moved to PruneUntouchedProfiles, which runs only
         // when the settings window is dismissed.
 
-        // Update saved profiles
-        _savedProfiles.Clear();
-        foreach (var profile in _tempProfiles)
-        {
-            _savedProfiles.Add(profile.Clone());
-        }
+        // Publish a fresh snapshot from the editing list. This replaces the old in-place
+        // Clear()+Add() that raced the hook threads (AUD-02).
+        PublishSnapshot(_tempProfiles);
 
         // Save to settings
-        SettingsManager.HotKeyProfiles = JsonSerializer.Serialize(_savedProfiles);
+        SettingsManager.HotKeyProfiles = JsonSerializer.Serialize(_profilesSnapshot);
+
+        ProfilesChanged?.Invoke();
     }
 
     /// <summary>
@@ -209,9 +259,13 @@ public class ProfileManager
     /// </summary>
     public void PruneUntouchedProfiles()
     {
+        // "Untouched" now also covers a row whose name is still the placeholder it was created
+        // with — a new row is no longer nameless, so the old blank-name test alone would keep every
+        // abandoned row forever.
+        var localization = LocalizationService.Instance;
         var untouched = _tempProfiles
             .Where(profile => (profile.HotKeys == null || profile.HotKeys.Length == 0)
-                              && string.IsNullOrWhiteSpace(profile.Name))
+                              && localization.IsDefaultProfileName(profile.Name))
             .ToList();
 
         if (untouched.Count == 0) return;
@@ -227,13 +281,10 @@ public class ProfileManager
             var importedList = JsonSerializer.Deserialize<List<HotKeyProfile>>(jsonString);
             if (importedList == null) return;
 
-            _tempProfiles.Clear();
-            foreach (var profile in importedList)
-            {
-                _tempProfiles.Add(profile.Clone());
-            }
+            ReplaceTempProfiles(importedList);
 
             RefreshPanel();
+            ProfilesChanged?.Invoke();
         }
         catch
         {
@@ -241,7 +292,7 @@ public class ProfileManager
         }
     }
 
-    public string ExportProfiles() => JsonSerializer.Serialize(_savedProfiles);
+    public string ExportProfiles() => JsonSerializer.Serialize(_profilesSnapshot);
 
     private IProfileCardView? FindCardByProfile(HotKeyProfile profile)
     {

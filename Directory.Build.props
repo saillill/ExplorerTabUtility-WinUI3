@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    跨项目共享的构建属性（由 MSBuild 自动导入到全部子项目）。
+
+    版本号单一来源 = 本文件的 <AppVersion>。修改产品版本时，必须同步核对以下
+    "已登记的同步点"（它们无法在构建期自动派生，只能手工对齐）：
+
+      * installers/installer.iss                                              #define MyAppVersion
+      * pack-portable.py                                                      产物文件名里的版本号
+      * ExplorerTabUtility.App.WinUI/app.manifest                             assemblyIdentity version
+      * ExplorerTabUtility.App.WinUI/Pages/AboutPage.xaml.cs                  ShowAbout 的回退版本常量
+
+    注意：Core 是独立程序集，其 <Version> 与产品版本 <AppVersion> 有意分开，见 Core 的 csproj。
+  -->
+
+  <PropertyGroup>
+    <!-- 产品版本单一来源：App 程序集版本（进而 About 页显示的版本）均取自此处。 -->
+    <AppVersion>1.0.1</AppVersion>
+
+    <!-- 以下四项原本在两个 csproj 中完全重复且取值相同，上移到这里统一维护。 -->
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- 两个项目各自提供的 UI 语言。不要删减：列表里没有的语言，卫星程序集会被生成
+         但不会复制到发布目录，运行时只能回落英文。
+         该列表必须与 LocalizationService.SupportedLanguages 及 Core 里的
+         Resources.<code>.resx 保持对齐。 -->
+    <SatelliteResourceLanguages>en;zh-CN;zh-Hant;ja;ko;de;fr;es;ru</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

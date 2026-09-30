@@ -32,6 +32,9 @@ public sealed class ExplorerWindow : IDisposable
     private Action<object?, object?>? _navigateComplete2;
     private bool _disposed;
 
+    /// <summary>Serializes event advising and teardown so a connection point is never advised twice.</summary>
+    private readonly object _eventsLock = new();
+
     private ExplorerWindow(object rcw)
     {
         _rcw = rcw;
@@ -53,8 +56,28 @@ public sealed class ExplorerWindow : IDisposable
         }
 
         var wrapper = new ExplorerWindow(rcw);
-        Cache.Add(rcw, wrapper);
-        return wrapper;
+
+        try
+        {
+            Cache.Add(rcw, wrapper);
+            return wrapper;
+        }
+        catch (ArgumentException)
+        {
+            // TryGetValue → Add is not atomic, and ConditionalWeakTable.Add throws ArgumentException when
+            // the key already exists. If a concurrent Wrap inserted the same COM object first, read the
+            // winner back and return it — the equivalent of GetOrAdd. Letting this exception escape (it
+            // surfaced as `null` from ShellWindows.Item) is exactly what silently dropped the window so
+            // that new windows stopped folding into tabs (AUD-05).
+            if (Cache.TryGetValue(rcw, out var winner) && !winner._disposed)
+                return winner;
+
+            // The winner was disposed in the meantime; retry once so we never return null for a live COM object.
+            Cache.Remove(rcw);
+            try { Cache.Add(rcw, wrapper); }
+            catch (ArgumentException) { /* raced again — still return the usable wrapper */ }
+            return wrapper;
+        }
     }
 
     public object ComObject => _rcw;
@@ -212,8 +235,20 @@ public sealed class ExplorerWindow : IDisposable
 
     private void EnsureEventsAdvised()
     {
-        if (_disposed || _connectionToken is not null) return;
-        _connectionToken = ComEventHelper.AdviseAll(_rcw, _sink);
+        // Whole read/advise/assign is atomic. A bare check-then-act let two subscriptions arriving from
+        // different threads both see a null token, both call AdviseAll, and the second overwrite the
+        // first — so the first connection point was never Unadvised (a COM reference leaked on every
+        // repeat) (AUD-05).
+        lock (_eventsLock)
+        {
+            if (_disposed || _connectionToken is not null) return;
+
+            var previous = _connectionToken;
+            _connectionToken = ComEventHelper.AdviseAll(_rcw, _sink);
+
+            // Defensive: never leave a prior token unadvised.
+            previous?.Dispose();
+        }
     }
 
     // ---- Identity ------------------------------------------------------------
@@ -229,13 +264,20 @@ public sealed class ExplorerWindow : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        _disposed = true;
 
-        _onQuit = null;
-        _navigateComplete2 = null;
+        // Release the connection token under the same lock EnsureEventsAdvised uses, so advising cannot
+        // be re-entered (and leak) after teardown has started (AUD-05).
+        lock (_eventsLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
 
-        _connectionToken?.Dispose();
-        _connectionToken = null;
+            _onQuit = null;
+            _navigateComplete2 = null;
+
+            _connectionToken?.Dispose();
+            _connectionToken = null;
+        }
 
         try { Marshal.ReleaseComObject(_rcw); } catch { /* already released */ }
     }

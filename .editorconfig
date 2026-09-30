@@ -1,0 +1,23 @@
+# 仅基础、非强制的风格约定（字符集 / 缩进 / 行尾）。
+# 本项目构建门禁为 "0 警告 0 错误"，因此这里刻意不设置任何会在构建期产生新警告的
+# 规则，也不启用 EnforceCodeStyleInBuild —— 这些约定仅供编辑器与人工参考。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{props,targets,csproj,slnx,xml,xaml,resx,json,yml,yaml}]
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

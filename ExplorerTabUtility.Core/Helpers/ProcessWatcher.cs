@@ -16,7 +16,6 @@ public class ProcessEventArgs(int processId, string processName, int sessionId) 
 
 public enum SessionFilter
 {
-    All,
     Current
 }
 
@@ -33,10 +32,10 @@ public class ProcessWatcher : IDisposable
     private readonly Timer _scanTimer;
     private readonly object _scanLock = new();
     private readonly SynchronizationContext? _syncContext;
-    private bool _isMonitoring = true;
-    private bool _disposed;
+    // Cross-thread flags: set on the disposing thread, read on timer / process-exit threads (AUD-23).
+    private volatile bool _isMonitoring = true;
+    private volatile bool _disposed;
 
-    public event EventHandler<ProcessEventArgs>? ProcessCreated;
     public event EventHandler<ProcessEventArgs>? ProcessTerminated;
 
     /// <summary>
@@ -55,26 +54,6 @@ public class ProcessWatcher : IDisposable
 
         // Start scanning immediately, then at regular intervals
         _scanTimer = new Timer(ScanForProcesses, null, TimeSpan.Zero, _scanInterval);
-    }
-
-    /// <summary>
-    /// Pauses the monitoring of processes
-    /// </summary>
-    public void Pause()
-    {
-        if (_disposed) return;
-        _isMonitoring = false;
-        _scanTimer.Change(Timeout.Infinite, Timeout.Infinite);
-    }
-
-    /// <summary>
-    /// Resumes the monitoring of processes
-    /// </summary>
-    public void Resume()
-    {
-        if (_disposed) return;
-        _isMonitoring = true;
-        _scanTimer.Change(TimeSpan.Zero, _scanInterval);
     }
 
     private void ScanForProcesses(object? state)
@@ -134,11 +113,14 @@ public class ProcessWatcher : IDisposable
                     process.Exited += OnProcessExited;
                     process.EnableRaisingEvents = true;
 
-                    if (!_trackedProcesses.TryAdd(processId, (process, sessionId))) continue;
-
-                    // Successfully added - raise ProcessCreated event
-                    var args = new ProcessEventArgs(processId, _processName, sessionId);
-                    RaiseEvent(ProcessCreated, args);
+                    if (!_trackedProcesses.TryAdd(processId, (process, sessionId)))
+                    {
+                        // Lost the race to a concurrent scan: this instance is now redundant, but it
+                        // still has Exited subscribed and EnableRaisingEvents set — release it rather
+                        // than leaking a live Process that holds a back-reference to this watcher (AUD-22).
+                        SafeDisposeProcess(process);
+                        continue;
+                    }
                 }
                 catch (Exception)
                 {
@@ -247,21 +229,27 @@ public class ProcessWatcher : IDisposable
             // ignored
         }
 
-        // Clean up tracked processes
-        foreach (var kvp in _trackedProcesses)
+        // Clean up tracked processes. Take the SAME lock as ScanForProcesses: a scan that already
+        // passed its `_disposed` guard could otherwise reach its TryAdd just as we clear the dictionary,
+        // leaving a subscribed Process (and its reverse reference to this watcher) behind with no
+        // further scan to ever clean it up (AUD-22).
+        lock (_scanLock)
         {
-            try
+            foreach (var kvp in _trackedProcesses)
             {
-                kvp.Value.Process.Exited -= OnProcessExited;
-            }
-            catch
-            {
-                // ignored
+                try
+                {
+                    kvp.Value.Process.Exited -= OnProcessExited;
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                SafeDisposeProcess(kvp.Value.Process);
             }
 
-            SafeDisposeProcess(kvp.Value.Process);
+            _trackedProcesses.Clear();
         }
-
-        _trackedProcesses.Clear();
     }
 }

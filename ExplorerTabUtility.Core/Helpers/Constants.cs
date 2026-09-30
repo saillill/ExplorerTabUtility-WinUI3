@@ -17,7 +17,11 @@ public static class Constants
     public const string NotifyIconText = "Explorer Tab Utility: Force new windows to tabs.";
     public const string SettingsFileName = "settings.json";
     public const string HotKeyProfilesFileName = "HotKeyProfiles.json";
-    public const string JsonFileFilter = "JSON files (*.json)|*.json|All Files|*.*";
-    public const string UpdateUrl = "https://api.github.com/repos/w4po/ExplorerTabUtility/releases/latest";
+
+    /// <summary>
+    /// Built-in profiles shipped to first-run users. The numeric <c>Action</c> values are resolved
+    /// through the LEGACY mapping in <see cref="HotKeyActionJsonConverter"/> — if the
+    /// <c>HotKeyAction</c> enum is ever reordered again, both sides must be updated together.
+    /// </summary>
     public const string DefaultHotKeyProfiles = "[{\"Name\":\"Home\",\"HotKeys\":[91,69],\"Scope\":0,\"Action\":0,\"Path\":\"\",\"IsHandled\":true,\"IsEnabled\":true,\"Delay\":0},{\"Name\":\"Duplicate\",\"HotKeys\":[17,68],\"Scope\":1,\"Action\":1,\"Path\":null,\"IsHandled\":true,\"IsEnabled\":true,\"Delay\":0},{\"Name\":\"ReopenClosed\",\"HotKeys\":[16,17,84],\"Scope\":1,\"Action\":2,\"Path\":null,\"IsHandled\":true,\"IsEnabled\":true,\"Delay\":0}]";
 }

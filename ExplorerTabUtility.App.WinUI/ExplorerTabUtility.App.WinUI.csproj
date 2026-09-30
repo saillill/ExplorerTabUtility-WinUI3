@@ -7,13 +7,12 @@
     <RootNamespace>ExplorerTabUtility.App</RootNamespace>
     <AssemblyName>ExplorerTabUtility</AssemblyName>
     <ApplicationIcon>Assets\Icon.ico</ApplicationIcon>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
 
-    <!-- About 页显示的版本号；发布 Release 时与此保持一致 -->
-    <Version>1.0.1</Version>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <Platforms>x64;ARM64</Platforms>
+    <!-- 版本号单一来源：产品版本定义在根 Directory.Build.props 的 <AppVersion>，
+         公共属性 Nullable/LangVersion/ImplicitUsings/SatelliteResourceLanguages 亦在该文件统一声明。 -->
+    <Version>$(AppVersion)</Version>
+    <!-- 仅 x64；ARM64 通过 x64 模拟运行，安装器已放行（ArchitecturesAllowed=x64compatible arm64）。 -->
+    <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
     <!-- 非打包（unpackaged）模型：保留 HKCU Run 开机自启、便携 zip 与现有安装器链路 -->
@@ -32,10 +31,9 @@
     <EnableMsixTooling>false</EnableMsixTooling>
     <UseWinUI>true</UseWinUI>
 
-    <!-- 只保留本应用真正提供的语言，避免把 .NET / WinAppSDK 的全部附属程序集打进发布目录。
-         列表必须与 LocalizationService.SupportedLanguages 及 Core 里的 Resources.<code>.resx 对齐，
+    <!-- SatelliteResourceLanguages 已上移到根 Directory.Build.props：该列表必须与
+         LocalizationService.SupportedLanguages 及 Core 里的 Resources.<code>.resx 保持对齐，
          否则卫星程序集会被生成却不复制到发布目录（表现为"选了某语言但还是英文"）。 -->
-    <SatelliteResourceLanguages>en;zh-CN;zh-Hant;ja;ko;de;fr;es;ru</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

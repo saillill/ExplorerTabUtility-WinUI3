@@ -8,7 +8,9 @@ namespace ExplorerTabUtility.Helpers;
 
 public class HotKeyActionJsonConverter : JsonConverter<HotKeyAction>
 {
-    // Map old numeric values to their corresponding enum values after reordering
+    // Map old numeric values to their corresponding enum values after reordering.
+    // NOTE: Constants.DefaultHotKeyProfiles still serialises Action numerically and depends on
+    // this table — if the HotKeyAction enum is reordered again, update both together.
     private static readonly Dictionary<int, HotKeyAction> LegacyMapping = new()
     {
         { 0, HotKeyAction.Open },

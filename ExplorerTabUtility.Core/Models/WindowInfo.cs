@@ -12,7 +12,22 @@ namespace ExplorerTabUtility.Models;
 /// </summary>
 public class WindowInfo
 {
-    public long CreatedAt { get; } = Stopwatch.GetTimestamp();
+    public WindowInfo() : this(Stopwatch.GetTimestamp())
+    {
+    }
+
+    /// <summary>
+    /// Creates a record with an explicit creation timestamp.
+    /// <para>
+    /// Windows that already existed when the watcher started are <b>not</b> freshly created; stamping
+    /// them "<see cref="Stopwatch.GetTimestamp"/> now" made <c>SearchForTab</c>'s 2-second
+    /// reuse-suppression window treat them as new and skip them, so the first hotkey press after
+    /// launch opened a duplicate tab instead of reusing (AUD-27).
+    /// </para>
+    /// </summary>
+    public WindowInfo(long createdAt) => CreatedAt = createdAt;
+
+    public long CreatedAt { get; }
     public string? Location { get; set; }
     public string? Name { get; set; }
 

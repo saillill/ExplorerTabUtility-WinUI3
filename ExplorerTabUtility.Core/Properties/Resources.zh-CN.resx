@@ -5,18 +5,13 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <data name="AppTitle" xml:space="preserve"><value>Explorer Tab Utility</value></data>
-  <data name="AppTitleWithDesc" xml:space="preserve"><value>Explorer Tab Utility - 文件夹标签合并工具</value></data>
   <data name="AppDescription" xml:space="preserve"><value>增强 Windows 文件资源管理器体验</value></data>
-  <data name="MenuShortcuts" xml:space="preserve"><value>⌨  快捷键</value></data>
-  <data name="MenuPreferences" xml:space="preserve"><value>⚙  偏好设置</value></data>
-  <data name="MenuAbout" xml:space="preserve"><value>ℹ  关于</value></data>
   <data name="TabShortcuts" xml:space="preserve"><value>快捷键</value></data>
   <data name="TabPreferences" xml:space="preserve"><value>偏好设置</value></data>
   <data name="TabAbout" xml:space="preserve"><value>关于</value></data>
   <data name="BtnNewProfile" xml:space="preserve"><value>新建</value></data>
   <data name="BtnImport" xml:space="preserve"><value>导入</value></data>
   <data name="BtnExport" xml:space="preserve"><value>导出</value></data>
-  <data name="GroupAppSettings" xml:space="preserve"><value>应用设置</value></data>
   <data name="Theme" xml:space="preserve"><value>主题</value></data>
   <data name="ThemeFollowSystem" xml:space="preserve"><value>跟随系统</value></data>
   <data name="ThemeDark" xml:space="preserve"><value>深色</value></data>
@@ -28,32 +23,19 @@
   <data name="HideTrayIcon" xml:space="preserve"><value>隐藏托盘图标</value></data>
   <data name="HideTrayIconTooltip" xml:space="preserve"><value>隐藏系统托盘图标</value></data>
   <data name="Language" xml:space="preserve"><value>语言</value></data>
-  <data name="StatusWindowHook" xml:space="preserve"><value>窗口拦截</value></data>
-  <data name="StatusReuseTabs" xml:space="preserve"><value>标签复用</value></data>
-  <data name="StatusKeyboardHook" xml:space="preserve"><value>键盘快捷键</value></data>
-  <data name="StatusMouseHook" xml:space="preserve"><value>鼠标快捷键</value></data>
-  <data name="MenuOpen" xml:space="preserve"><value>打开菜单</value></data>
-  <data name="ScopeTooltip" xml:space="preserve"><value>快捷键作用域：全局（任意位置）或仅限资源管理器窗口时生效</value></data>
-  <data name="ActionTooltip" xml:space="preserve"><value>快捷键触发时执行的操作</value></data>
-  <data name="ProfileEnabledTooltip" xml:space="preserve"><value>启用或禁用此配置方案</value></data>
-  <data name="ProfileNameTooltip" xml:space="preserve"><value>配置方案名称</value></data>
-  <data name="HotKeysTooltip" xml:space="preserve"><value>要监听的键盘或鼠标按键。点击此处录制新的按键组合</value></data>
-  <data name="ExpanderTooltip" xml:space="preserve"><value>显示更多选项</value></data>
+  <data name="LanguageFollowSystem" xml:space="preserve">
+    <value>跟随系统</value>
+  </data>
   <data name="DeleteProfileTooltip" xml:space="preserve"><value>删除此配置方案</value></data>
-  <data name="PathTooltip" xml:space="preserve"><value>按下快捷键时要打开的路径（文件夹、文件、网站、CLSID）</value></data>
-  <data name="DelayTooltip" xml:space="preserve"><value>执行操作前的延迟时间（毫秒）</value></data>
   <data name="HandledTooltip" xml:space="preserve"><value>阻止其他应用继续处理此快捷键</value></data>
   <data name="TabTooltip" xml:space="preserve"><value>以标签页方式打开，而非新窗口</value></data>
   <data name="Delay" xml:space="preserve"><value>执行操作前等待的毫秒数</value></data>
-  <data name="Handled" xml:space="preserve"><value>拦截</value></data>
-  <data name="Tab" xml:space="preserve"><value>标签页</value></data>
   <data name="SupportProject" xml:space="preserve"><value>支持本项目</value></data>
   <data name="SupportDescription" xml:space="preserve"><value>如果您觉得这个工具好用，可以通过以下方式支持开发：</value></data>
   <data name="Developer" xml:space="preserve"><value>开发者</value></data>
   <data name="CurrentSupporters" xml:space="preserve"><value>当前支持者</value></data>
   <data name="SupportersThanks" xml:space="preserve"><value>感谢所有支持本项目的朋友们！</value></data>
   <data name="BeFirst" xml:space="preserve"><value>成为第一个支持本项目的人！</value></data>
-  <data name="SupportHelps" xml:space="preserve"><value>您的支持让这个项目得以持续</value></data>
   <data name="StarOnGitHub" xml:space="preserve"><value>在 GitHub 上标星</value></data>
   <data name="KeyboardShortcut" xml:space="preserve"><value>键盘快捷键</value></data>
   <data name="MouseShortcut" xml:space="preserve"><value>鼠标快捷键</value></data>
@@ -96,21 +78,24 @@
   <data name="Scope" xml:space="preserve"><value>生效范围</value></data>
   <data name="Action" xml:space="preserve"><value>按快捷键时执行的操作</value></data>
   <data name="Path" xml:space="preserve"><value>按快捷键时要打开的位置</value></data>
-  <data name="Advanced" xml:space="preserve"><value>高级</value></data>
   <data name="Version" xml:space="preserve"><value>版本</value></data>
   <data name="SelectHotKey" xml:space="preserve"><value>按下组合键…</value></data>
   <data name="ClearHistory" xml:space="preserve"><value>清除已关闭窗口的历史</value></data>
   <data name="ShortcutsHeader" xml:space="preserve"><value>作用于资源管理器标签页的全局热键。</value></data>
   <data name="PreferencesHeader" xml:space="preserve"><value>应用程序的行为与外观。</value></data>
   <data name="TabSearchPlaceholder" xml:space="preserve"><value>搜索已打开与最近关闭的标签页</value></data>
-  <data name="ClosedWindows" xml:space="preserve"><value>最近关闭</value></data>
   <data name="ToggleOn" xml:space="preserve"><value>开</value></data>
   <data name="ToggleOff" xml:space="preserve"><value>关</value></data>
-  <data name="BasicSettings" xml:space="preserve"><value>基本</value></data>
-  <data name="BehaviourSettings" xml:space="preserve"><value>行为</value></data>
   <data name="ExpandProfile" xml:space="preserve"><value>展开高级设置</value></data>
   <data name="TogglePane" xml:space="preserve"><value>缩放侧栏</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>开机自启时不显示主窗口</value></data>
   <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>勾选后，由系统启动项拉起时只在托盘运行，不弹出窗口</value></data>
   <data name="HideTrayIconUnavailable" xml:space="preserve"><value>此设置仅在已配置“显示/隐藏”快捷键时可用。</value></data>
+  <data name="TabSearchTitle" xml:space="preserve"><value>切换到标签页</value></data>
+  <data name="TabSearchNoResults" xml:space="preserve"><value>没有匹配的标签页</value></data>
+  <data name="TabSearchHint" xml:space="preserve"><value>Enter：切换 · Shift：新窗口 · Ctrl：强制复制</value></data>
+  <data name="ImportFailed" xml:space="preserve"><value>导入配置失败，文件可能不是有效的配置格式。</value></data>
+  <data name="ExportFailed" xml:space="preserve"><value>导出配置失败，请检查目标文件夹是否可写。</value></data>
+  <data name="DefaultProfileName" xml:space="preserve"><value>新建快捷键</value></data>
+  <data name="NoHotKeyBound" xml:space="preserve"><value>未绑定</value></data>
 </root>

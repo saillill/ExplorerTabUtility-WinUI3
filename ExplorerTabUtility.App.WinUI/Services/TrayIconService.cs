@@ -56,9 +56,12 @@ public sealed class TrayIconService : IDisposable
         // PopupMenu is H.NotifyIcon's default and the most compatible mode: it delegates to a real
         // Win32 tray menu. "SecondWindow" (a WinUI-rendered overlay) is documented as preview-stage
         // and behaves differently for unpackaged apps.
+        // IMPORTANT (BUG-01): in this mode the library rebuilds the MenuFlyout as a native Win32 popup
+        // and only executes each item's Command — the XAML Click event is never raised, so every menu
+        // entry in BuildMenu must be wired via Command, never via Click.
         _trayIcon.ContextMenuMode = ContextMenuMode.PopupMenu;
 
-        _trayIcon.DoubleClickCommand = new RelayCommand(() => _uiDispatcher.Post(() => ShowRequested?.Invoke()));
+        _trayIcon.DoubleClickCommand = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
 
         // Unpackaged apps have no package-relative icon; load it straight off disk.
         try
@@ -83,7 +86,14 @@ public sealed class TrayIconService : IDisposable
             hooks.OnWindowHookToggled += OnWindowHookToggled;
             hooks.OnReuseTabsToggled += OnReuseTabsToggled;
         }
+
+        // Rebuild the profile submenus on every profile change (add / remove / rename / enable
+        // toggle / import). Without this the menu showed the startup snapshot for the whole
+        // session — the settings page and the tray disagreed about names and check states.
+        _profileManager.ProfilesChanged += OnProfilesChanged;
     }
+
+    private void OnProfilesChanged() => RefreshProfileMenus();
 
     /// <summary>Raised when the user asks for the settings window (double-click, or "Open settings").</summary>
     public event Action? ShowRequested;
@@ -108,7 +118,7 @@ public sealed class TrayIconService : IDisposable
     private void RunOnUi(Action action)
     {
         if (_uiDispatcher.HasThreadAccess) action();
-        else _uiDispatcher.Post(action);
+        else _uiDispatcher.TryPost(action);
     }
 
     private void BuildMenu()
@@ -118,23 +128,37 @@ public sealed class TrayIconService : IDisposable
 
         _windowHookItem.Text = LocalizationService.Get("WindowIntercept");
         _windowHookItem.IsChecked = SettingsManager.IsWindowHookActive;
-        _windowHookItem.Click += (_, _) => ToggleWindowHook();
+        // BUG-01: ContextMenuMode.PopupMenu rebuilds this MenuFlyout into a native Win32 popup and only
+        // executes each item's Command — it never raises the XAML Click event. Menu behaviour must be a
+        // Command, not a Click handler. WinUI also no longer auto-flips IsChecked on click, so the
+        // toggle is done explicitly here before the existing logic runs.
+        _windowHookItem.Command = new RelayCommand(() => RunOnUi(() =>
+        {
+            _windowHookItem.IsChecked = !_windowHookItem.IsChecked;
+            ToggleWindowHook();
+        }));
 
         _reuseTabsItem.Text = LocalizationService.Get("TabReuse");
         _reuseTabsItem.IsChecked = SettingsManager.ReuseTabs;
-        _reuseTabsItem.Click += (_, _) => ToggleReuseTabs();
+        _reuseTabsItem.Command = new RelayCommand(() => RunOnUi(() =>
+        {
+            _reuseTabsItem.IsChecked = !_reuseTabsItem.IsChecked;
+            ToggleReuseTabs();
+        }));
 
         _startupItem.Text = LocalizationService.Get("AddToStartup");
         _startupItem.IsChecked = RegistryManager.IsStartupEnabled;
-        _startupItem.Click += (_, _) => ToggleStartup();
+        // ToggleStartup re-reads the registry, so it does not depend on a pre-flipped IsChecked.
+        _startupItem.Command = new RelayCommand(() => RunOnUi(ToggleStartup));
 
         var settingsItem = new MenuFlyoutItem { Text = LocalizationService.Get("Settings") };
         // Post rather than invoke inline: the click arrives while the Win32 tray popup still owns
         // the foreground, and the window cannot be activated until that popup has finished closing.
-        settingsItem.Click += (_, _) => _uiDispatcher.Post(() => ShowRequested?.Invoke());
+        // (Command, not Click — see BUG-01 note above.)
+        settingsItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
 
         var exitItem = new MenuFlyoutItem { Text = LocalizationService.Get("Exit") };
-        exitItem.Click += (_, _) => ExitRequested?.Invoke();
+        exitItem.Command = new RelayCommand(() => ExitRequested?.Invoke());
 
         _menu.Items.Add(_keyboardMenu);
         _menu.Items.Add(_mouseMenu);
@@ -173,11 +197,14 @@ public sealed class TrayIconService : IDisposable
                 Tag = profile
             };
 
-            item.Click += (_, _) =>
+            // Command, not Click: PopupMenu mode only executes the Command (BUG-01). The native popup
+            // does not flip IsChecked, so toggle it explicitly to mirror WinUI's click behaviour.
+            item.Command = new RelayCommand(() => RunOnUi(() =>
             {
+                item.IsChecked = !item.IsChecked;
                 _profileManager.SetProfileEnabledFromTray(profile, item.IsChecked);
                 SyncParentFromChildren(parent);
-            };
+            }));
 
             parent.Items.Add(item);
         }
@@ -221,6 +248,15 @@ public sealed class TrayIconService : IDisposable
 
             _windowHookItem.IsChecked = false;
             ApplyWindowHook(false);
+
+            // Match the menu path (ToggleWindowHook): reuse-tabs must actually stop too. Leaving
+            // it running meant windows kept folding into tabs even though the user had just turned
+            // interception "off" — the fold condition is (_isForcingTabs || _reuseTabs).
+            if (_reuseTabsItem.IsChecked)
+            {
+                _reuseTabsItem.IsChecked = false;
+                ApplyReuseTabs(false);
+            }
             return;
         }
 
@@ -284,6 +320,7 @@ public sealed class TrayIconService : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        _profileManager.ProfilesChanged -= OnProfilesChanged;
         _trayIcon.Dispose();
     }
 }

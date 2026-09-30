@@ -34,8 +34,11 @@ public partial class App : Application
         {
             1 => ApplicationTheme.Dark,
             2 => ApplicationTheme.Light,
-            // "Follow system": leave the default, which already tracks Windows.
-            _ => Current.RequestedTheme
+            // "Follow system": resolve the OS app theme explicitly. WinUI 3 desktop does NOT
+            // track the OS by default — unlike UWP, Application.RequestedTheme starts at Light
+            // and stays there — so keeping the default here is what made "Follow system" come
+            // up light on a dark system. SystemTheme is the one place that knows how to ask.
+            _ => SystemTheme.IsDark() ? ApplicationTheme.Dark : ApplicationTheme.Light
         };
     }
 
@@ -104,6 +107,12 @@ public partial class App : Application
                 $"{ex.GetType().Name}: {ex.Message}\n\n{StartupLog.FilePath}",
                 "Explorer Tab Utility - startup failed",
                 NativeMessageBox.Icon.Error);
+
+            // Do NOT stay in the message loop: a windowless process still owns the single-instance
+            // mutex and the show-request event, so every later launch would "successfully" signal
+            // this zombie and exit silently — the app could never be opened again until the process
+            // was killed by hand. Exit and let the OS release both handles.
+            Current.Exit();
         }
     }
 }

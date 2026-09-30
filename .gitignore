@@ -35,7 +35,9 @@ project.fragment.lock.json
 *.nupkg
 *.snupkg
 packages/*.nupkg
-!packages/**/chocolatey/*.nuspec
+# 注：packages/chocolatey/templates/*.nuspec 有意保持被跟踪。旧规则
+# `!packages/**/chocolatey/*.nuspec` 因实际路径多一层 templates/ 而永不匹配，
+# 且 packages/ 目录本身从未被忽略（只忽略 packages/*.nupkg），属 no-op，已删除。
 
 # ---- 其它 ----
 *.tmp

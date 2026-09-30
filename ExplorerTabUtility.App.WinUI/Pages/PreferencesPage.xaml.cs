@@ -32,6 +32,13 @@ public sealed partial class PreferencesPage : Page
     private const double DescriptionTopGap = 4;
     private bool _loading;
 
+    /// <summary>
+    /// Set once the <see cref="CardHideTrayIcon"/> IsEnabled callback has been registered. The page is
+    /// cached (<c>NavigationCacheMode=Required</c>) and <c>OnNavigatedTo</c> runs on every navigation, so
+    /// this guard keeps the handler from being attached more than once.
+    /// </summary>
+    private bool _trayIconHeaderHooked;
+
     public PreferencesPage()
     {
         InitializeComponent();
@@ -63,9 +70,16 @@ public sealed partial class PreferencesPage : Page
                 CbTheme.SelectedIndex = Math.Clamp(SettingsManager.ThemeMode, 0, themes.Length - 1);
 
                 // Native names come from the service (they must not be translated), and the order is
-                // the picker's order.
-                var languages = LocalizationService.SupportedLanguages
-                    .Select(l => new DisplayItem<string>(l.NativeName, l.Code))
+                // the picker's order. "Follow system" leads it: without that entry there was no way
+                // back to auto-detection once a concrete language had been stored.
+                var languages = new[]
+                    {
+                        new DisplayItem<string>(
+                            LocalizationService.Get(LocalizationService.FollowSystemLanguageKey),
+                            LocalizationService.FollowSystemLanguage)
+                    }
+                    .Concat(LocalizationService.SupportedLanguages
+                        .Select(l => new DisplayItem<string>(l.NativeName, l.Code)))
                     .ToArray();
 
                 CbLanguage.ItemsSource = languages;
@@ -92,6 +106,16 @@ public sealed partial class PreferencesPage : Page
                 _loading = false;
             }
 
+            // Attach the callback exactly once. Driving the colour swap from the IsEnabled change itself
+            // means it can never be left stale by a navigation-timed re-evaluation: whichever code flips
+            // IsEnabled, and whenever, the header follows immediately — in both directions.
+            if (!_trayIconHeaderHooked)
+            {
+                _trayIconHeaderHooked = true;
+                CardHideTrayIcon.RegisterPropertyChangedCallback(
+                    Control.IsEnabledProperty, (_, _) => ApplyTrayIconHeader(CardHideTrayIcon.IsEnabled));
+            }
+
             UpdateTrayIconCardState();
         }
         catch (Exception ex)
@@ -109,7 +133,10 @@ public sealed partial class PreferencesPage : Page
         CardLanguage.Header = LocalizationService.Get("Language");
         SetToggleCard(CardSaveClosedHistory, "SaveClosedHistory", "SaveClosedHistoryTooltip");
         SetToggleCard(CardRestorePreviousWindows, "RestorePreviousWindows", "RestorePreviousWindowsTooltip");
-        SetToggleCard(CardHideTrayIcon, "HideTrayIcon", "HideTrayIconTooltip");
+        // 这一行的标题与说明完全由 ApplyTrayIconHeader / ApplyTrayIconRequirement 管理
+        // （可用态：纯文本标题、无说明；不可用态：禁用色标题 + ⓘ 原因），所以这里只设标题，
+        // 不再引用 HideTrayIconTooltip。其余设置卡仍走 SetToggleCard。
+        CardHideTrayIcon.Header = LocalizationService.Get("HideTrayIcon");
 
         CardStartup.Header = LocalizationService.Get("AddToStartup");
         SetToggleCard(CardHideWindowOnStartup, "HideWindowOnStartup", "HideWindowOnStartupTooltip");
@@ -137,11 +164,18 @@ public sealed partial class PreferencesPage : Page
         }
     }
 
-    /// <summary>Index of the language currently in effect, falling back to the first entry.</summary>
+    /// <summary>
+    /// Index of the picker entry matching the stored setting, falling back to "follow system".
+    /// <para>
+    /// Matches on the <b>setting</b>, not on the language in effect: an unset setting still resolves
+    /// to a concrete culture for display purposes, and indexing by that would show 简体中文 while
+    /// the app is actually auto-detecting. Same distinction the language change handler relies on.
+    /// </para>
+    /// </summary>
     private static int FindLanguageIndex(DisplayItem<string>[] languages)
     {
-        var current = LocalizationService.Instance.Language;
-        var index = Array.FindIndex(languages, item => item.Value == current);
+        var saved = SettingsManager.Language;
+        var index = Array.FindIndex(languages, item => item.Value == saved);
         return index < 0 ? 0 : index;
     }
 
@@ -186,9 +220,15 @@ public sealed partial class PreferencesPage : Page
     /// </summary>
     private void ApplyTrayIconRequirement(bool canToggle)
     {
+        // The header is rebuilt here as well (not only from the IsEnabled callback), because a language
+        // switch re-runs Localize() -> UpdateTrayIconCardState() and the title text has to be re-localised.
+        ApplyTrayIconHeader(canToggle);
+
         if (canToggle)
         {
-            CardHideTrayIcon.Description = LocalizationService.Get("HideTrayIconTooltip");
+            // 标题「隐藏托盘图标」已经说明了用途，启用态不再挂一行冗余描述。
+            // null! —— SettingsCard.Description 是非空引用类型，但「没有描述」正是把内容清空。
+            CardHideTrayIcon.Description = null!;
             ToolTipService.SetToolTip(CardHideTrayIcon, null);
             return;
         }
@@ -238,15 +278,22 @@ public sealed partial class PreferencesPage : Page
             Style = ResolveStyle("PrimaryCaptionTextStyle")
         };
 
-        var description = new StackPanel
+        // Grid, not a horizontal StackPanel: a StackPanel measures the TextBlock with infinite
+        // width, so its TextWrapping.Wrap never engages and the sentence CLIPS at the card edge
+        // once the window is at the 540 epx floor. The star column gives the text a real width
+        // constraint so it wraps instead.
+        var description = new Grid
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
+            ColumnSpacing = 6,
             VerticalAlignment = VerticalAlignment.Center,
             // The badge's filled disc makes this row look tighter than a plain text description, so
             // give the block a little more air under the header.
             Margin = new Thickness(0, DescriptionTopGap, 0, 0)
         };
+        description.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        description.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(badge, 0);
+        Grid.SetColumn(text, 1);
         description.Children.Add(badge);
         description.Children.Add(text);
 
@@ -254,6 +301,35 @@ public sealed partial class PreferencesPage : Page
         ToolTipService.SetToolTip(CardHideTrayIcon, reason);
     }
 
+    /// <summary>
+    /// Paints the row's own title for the row's current availability.
+    /// <para>
+    /// The title is always given an explicit foreground rather than inheriting one from the card's
+    /// header presenter. The toolkit template hands the presenter the disabled brush from its
+    /// <c>Disabled</c> visual state, and that hold is NOT released when <c>IsEnabled</c> is set back to
+    /// true while the cached page is being re-attached (measured: the presenter sat on the disabled
+    /// brush while <c>IsEnabled</c> was already true). A plain-string header inherits that stuck grey,
+    /// which is exactly why the title stayed grey after the row became available again. An explicit
+    /// style beats inheritance, so the colour is right in both directions. The styles use
+    /// <c>{ThemeResource}</c> so the brush follows the theme actually in effect (a brush fetched in
+    /// code would resolve against the application theme instead).
+    /// </para>
+    /// <para>
+    /// Driven from an IsEnabled-changed callback as well as from the page's navigation / localisation
+    /// pass: the header follows the row's state immediately, however and whenever that changes.
+    /// </para>
+    /// </summary>
+    private void ApplyTrayIconHeader(bool available)
+    {
+        var title = LocalizationService.Get("HideTrayIcon");
+
+        CardHideTrayIcon.Header = new TextBlock
+        {
+            Text = title,
+            TextWrapping = TextWrapping.Wrap,
+            Style = ResolveStyle(available ? "EnabledSettingHeaderTextStyle" : "DisabledSettingHeaderTextStyle")
+        };
+    }
 
     /// <summary>Fetches an application-level style (its {ThemeResource} setters follow the theme).</summary>
     private static Style? ResolveStyle(string key) =>
@@ -263,12 +339,16 @@ public sealed partial class PreferencesPage : Page
     {
         if (_loading || CbTheme.SelectedItem is not DisplayItem<int> item) return;
 
-        // No-op writes are skipped: a regenerated item list can re-raise SelectionChanged with the
-        // same or a reset item, and persisting that would silently change the user's setting.
-        if (SettingsManager.ThemeMode == item.Value) return;
+        // Persist only when the value actually changed: a regenerated item list can re-raise
+        // SelectionChanged with the same or a reset item, and writing that back would silently
+        // change the user's setting.
+        if (SettingsManager.ThemeMode != item.Value)
+            SettingsManager.ThemeMode = item.Value;
 
-        SettingsManager.ThemeMode = item.Value;
-
+        // Re-apply even when the value did NOT change. "Follow system" depends on external state
+        // (the OS theme), so re-selecting it has to re-resolve that state — the old early-return
+        // made picking "Follow system" while it was already the setting a complete no-op, which is
+        // why the window stayed in the wrong theme until something else forced a repaint.
         // The window owns the one place that maps ThemeMode to an ElementTheme, so the picker and
         // the startup path can never drift apart.
         App.MainWindowInstance?.ApplySavedTheme();
@@ -278,13 +358,17 @@ public sealed partial class PreferencesPage : Page
     {
         if (_loading || CbLanguage.SelectedItem is not DisplayItem<string> item) return;
 
-        // Compare against the language that is actually in effect, not the raw setting. With the
-        // setting unset ("" = follow the system) the two differ, so a SelectionChanged the user did
-        // not cause — the picker regenerating its items raises one — would pass the old guard,
-        // silently pin the language to a concrete value and reload the whole shell for nothing.
-        if (LocalizationService.Instance.Language == item.Value) return;
+        // Compare against the stored setting, which is what the picker now indexes by — comparing
+        // against the language in effect used to swallow a deliberate "pick Japanese while
+        // following the system" (the effective culture already matched, so nothing was pinned),
+        // and later, comparing against a setting the picker could not express is what silently
+        // pinned "en" onto installs nobody had touched. With a real "follow system" entry the two
+        // never disagree: the selection IS the setting, so any change is a real user choice.
+        if (SettingsManager.Language == item.Value) return;
 
         SettingsManager.Language = item.Value;
+
+        // An empty selection re-runs auto-detection inside SetLanguage rather than being ignored.
         LocalizationService.Instance.SetLanguage(item.Value);
 
         // Refresh visible strings, then rebuild the shell so the navigation labels and every page

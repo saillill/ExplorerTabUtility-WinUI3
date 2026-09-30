@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace ExplorerTabUtility.Interop.Com;
@@ -50,8 +51,11 @@ public sealed class ShellWindows : IDisposable
         {
             return ExplorerWindow.Wrap((object?)_dyn.Item(index));
         }
-        catch
+        catch (Exception ex)
         {
+            // At minimum log it. This catch used to swallow everything silently, which is why the Wrap
+            // race degrading into "new windows no longer fold into tabs" left no trace at all (AUD-05).
+            Debug.WriteLine($"ShellWindows.Item({index}) failed: {ex}");
             return null;
         }
     }

@@ -5,18 +5,13 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral</value></resheader>
   <data name="AppTitle" xml:space="preserve"><value>Explorer Tab Utility</value></data>
-  <data name="AppTitleWithDesc" xml:space="preserve"><value>Explorer Tab Utility — менеджер вкладок папок</value></data>
   <data name="AppDescription" xml:space="preserve"><value>Расширяет возможности Проводника Windows</value></data>
-  <data name="MenuShortcuts" xml:space="preserve"><value>⌨  Горячие клавиши</value></data>
-  <data name="MenuPreferences" xml:space="preserve"><value>⚙  Параметры</value></data>
-  <data name="MenuAbout" xml:space="preserve"><value>ℹ  О программе</value></data>
   <data name="TabShortcuts" xml:space="preserve"><value>Горячие клавиши</value></data>
   <data name="TabPreferences" xml:space="preserve"><value>Параметры</value></data>
   <data name="TabAbout" xml:space="preserve"><value>О программе</value></data>
   <data name="BtnNewProfile" xml:space="preserve"><value>СОЗДАТЬ</value></data>
   <data name="BtnImport" xml:space="preserve"><value>ИМПОРТ</value></data>
   <data name="BtnExport" xml:space="preserve"><value>ЭКСПОРТ</value></data>
-  <data name="GroupAppSettings" xml:space="preserve"><value>Параметры приложения</value></data>
   <data name="Theme" xml:space="preserve"><value>Тема</value></data>
   <data name="ThemeFollowSystem" xml:space="preserve"><value>Как в системе</value></data>
   <data name="ThemeDark" xml:space="preserve"><value>Тёмная</value></data>
@@ -28,32 +23,19 @@
   <data name="HideTrayIcon" xml:space="preserve"><value>Скрывать значок в области уведомлений</value></data>
   <data name="HideTrayIconTooltip" xml:space="preserve"><value>Скрывает значок в области уведомлений</value></data>
   <data name="Language" xml:space="preserve"><value>Язык</value></data>
-  <data name="StatusWindowHook" xml:space="preserve"><value>Перехват окон</value></data>
-  <data name="StatusReuseTabs" xml:space="preserve"><value>Повторное использование вкладок</value></data>
-  <data name="StatusKeyboardHook" xml:space="preserve"><value>Перехват клавиатуры</value></data>
-  <data name="StatusMouseHook" xml:space="preserve"><value>Перехват мыши</value></data>
-  <data name="MenuOpen" xml:space="preserve"><value>Открыть меню</value></data>
-  <data name="ScopeTooltip" xml:space="preserve"><value>Область: глобально или только когда активно окно Проводника</value></data>
-  <data name="ActionTooltip" xml:space="preserve"><value>Действие, выполняемое при нажатии горячих клавиш</value></data>
-  <data name="ProfileEnabledTooltip" xml:space="preserve"><value>Включить или отключить этот профиль</value></data>
-  <data name="ProfileNameTooltip" xml:space="preserve"><value>Имя профиля</value></data>
-  <data name="HotKeysTooltip" xml:space="preserve"><value>Клавиши или кнопки мыши для отслеживания. Нажмите, чтобы записать.</value></data>
-  <data name="ExpanderTooltip" xml:space="preserve"><value>Показать другие параметры</value></data>
+  <data name="LanguageFollowSystem" xml:space="preserve">
+    <value>Как в системе</value>
+  </data>
   <data name="DeleteProfileTooltip" xml:space="preserve"><value>Удалить этот профиль</value></data>
-  <data name="PathTooltip" xml:space="preserve"><value>Открываемое расположение (папка, файл, URL, CLSID)</value></data>
-  <data name="DelayTooltip" xml:space="preserve"><value>Задержка в миллисекундах перед действием</value></data>
   <data name="HandledTooltip" xml:space="preserve"><value>Запрещает другим приложениям обрабатывать эти клавиши</value></data>
   <data name="TabTooltip" xml:space="preserve"><value>Открывать в новой вкладке, а не в окне</value></data>
   <data name="Delay" xml:space="preserve"><value>Время ожидания перед выполнением действия, в миллисекундах</value></data>
-  <data name="Handled" xml:space="preserve"><value>Перехвачено</value></data>
-  <data name="Tab" xml:space="preserve"><value>Вкладка</value></data>
   <data name="SupportProject" xml:space="preserve"><value>Поддержать проект</value></data>
   <data name="SupportDescription" xml:space="preserve"><value>Если инструмент оказался полезен, поддержите проект:</value></data>
   <data name="Developer" xml:space="preserve"><value>Разработчик</value></data>
   <data name="CurrentSupporters" xml:space="preserve"><value>Текущие сторонники</value></data>
   <data name="SupportersThanks" xml:space="preserve"><value>Спасибо всем, кто поддержал проект!</value></data>
   <data name="BeFirst" xml:space="preserve"><value>Станьте первым сторонником проекта!</value></data>
-  <data name="SupportHelps" xml:space="preserve"><value>Ваша поддержка помогает проекту жить</value></data>
   <data name="StarOnGitHub" xml:space="preserve"><value>Поставить звезду на GitHub</value></data>
   <data name="KeyboardShortcut" xml:space="preserve"><value>Сочетание клавиш</value></data>
   <data name="MouseShortcut" xml:space="preserve"><value>Сочетание кнопок мыши</value></data>
@@ -96,21 +78,24 @@
   <data name="Scope" xml:space="preserve"><value>Применяется</value></data>
   <data name="Action" xml:space="preserve"><value>Действие при нажатии сочетания</value></data>
   <data name="Path" xml:space="preserve"><value>Открываемое расположение при нажатии</value></data>
-  <data name="Advanced" xml:space="preserve"><value>Дополнительно</value></data>
   <data name="Version" xml:space="preserve"><value>Версия</value></data>
   <data name="SelectHotKey" xml:space="preserve"><value>Нажмите сочетание клавиш…</value></data>
   <data name="ClearHistory" xml:space="preserve"><value>Удалить историю закрытых окон</value></data>
   <data name="ShortcutsHeader" xml:space="preserve"><value>Глобальные сочетания клавиш для вкладок Проводника.</value></data>
   <data name="PreferencesHeader" xml:space="preserve"><value>Поведение и внешний вид приложения.</value></data>
   <data name="TabSearchPlaceholder" xml:space="preserve"><value>Поиск открытых и недавно закрытых вкладок</value></data>
-  <data name="ClosedWindows" xml:space="preserve"><value>Недавно закрытые</value></data>
   <data name="ToggleOn" xml:space="preserve"><value>Вкл</value></data>
   <data name="ToggleOff" xml:space="preserve"><value>Выкл</value></data>
-  <data name="BasicSettings" xml:space="preserve"><value>Основные</value></data>
-  <data name="BehaviourSettings" xml:space="preserve"><value>Поведение</value></data>
   <data name="ExpandProfile" xml:space="preserve"><value>Показать дополнительные параметры</value></data>
   <data name="TogglePane" xml:space="preserve"><value>Переключить панель</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>Запускать в области уведомлений при входе</value></data>
   <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>Если включено, при входе приложение работает в области уведомлений без окна</value></data>
   <data name="HideTrayIconUnavailable" xml:space="preserve"><value>Этот параметр доступен только при настроенном сочетании «Показать/скрыть».</value></data>
+  <data name="TabSearchTitle" xml:space="preserve"><value>Перейти к вкладке</value></data>
+  <data name="TabSearchNoResults" xml:space="preserve"><value>Нет подходящих вкладок</value></data>
+  <data name="TabSearchHint" xml:space="preserve"><value>Enter: перейти · Shift: новое окно · Ctrl: дублировать</value></data>
+  <data name="ImportFailed" xml:space="preserve"><value>Не удалось импортировать профили. Возможно, файл не является допустимым.</value></data>
+  <data name="ExportFailed" xml:space="preserve"><value>Не удалось экспортировать профили. Проверьте, доступна ли папка назначения для записи.</value></data>
+  <data name="DefaultProfileName" xml:space="preserve"><value>Новое сочетание</value></data>
+  <data name="NoHotKeyBound" xml:space="preserve"><value>Не назначено</value></data>
 </root>

@@ -12,6 +12,20 @@ Windows 11 File Explorer tab manager — rebuilt on the Windows App SDK.
   French, Russian, German, Japanese and Korean — switchable at runtime, following the system language
   by default. The installer picks its language the same way. Language names are shown in their own
   script so the picker is readable whichever language is active.
+- **Light and dark themes.** Follows the system theme by default, or can be pinned to light or dark.
+  The chosen theme applies to the whole window *and* to dialogs and menus, and switches immediately
+  without a restart.
+
+<table>
+<tr>
+<td width="50%"><img src="Assets/Dark.png" alt="Explorer Tab Utility in dark theme"></td>
+<td width="50%"><img src="Assets/Light.png" alt="Explorer Tab Utility in light theme"></td>
+</tr>
+<tr>
+<td align="center"><sub>Dark</sub></td>
+<td align="center"><sub>Light</sub></td>
+</tr>
+</table>
 
 # Explorer Tab Utility
 

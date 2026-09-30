@@ -4,6 +4,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage.Streams;
 using Microsoft.UI.Xaml;
@@ -28,6 +30,67 @@ public sealed partial class AboutPage : Page
 {
     private const string RepositoryUrl = "https://github.com/saillill/ExplorerTabUtility-WinUI3";
 
+    // ---------------------------------------------------------------------------------------------
+    // Decoded-image cache (ENH-01b)
+    //
+    // HttpByteCache (Core) already stops the bytes being re-downloaded, but this page still built a
+    // brand-new BitmapImage and re-decoded those bytes on every visit — which is exactly what reads
+    // as "the icons reload every time the About page opens". The supporter avatars arrive from the
+    // sponsors SVG as data:image/webp;base64 payloads, so the DECODE is the expensive part and the
+    // one worth caching.
+    //
+    // ImageSource is thread-affine, so entries are only ever created and consumed on the UI thread:
+    // TryLoadImageAsync resumes on the UI thread because only ExplorerTabUtility.Core is
+    // ConfigureAwait-woven (FodyWeavers.xml) — the App assembly keeps its synchronization context.
+    // The lock is belt-and-braces: it guards the dictionary, not the UI objects themselves.
+    // ---------------------------------------------------------------------------------------------
+    private static readonly Dictionary<string, ImageSource> _decodedImages = new(StringComparer.Ordinal);
+    private static readonly Queue<string> _decodedImageOrder = new();
+    private static readonly object _decodedImagesLock = new();
+    private const int MaxDecodedImages = 64;
+
+    /// <summary>
+    /// Cache key for a source URL. The <c>data:</c> payloads are tens of KB each, so they are keyed
+    /// by a hash rather than held as dictionary keys.
+    /// </summary>
+    private static string DecodedCacheKey(string url) =>
+        url.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
+            ? "data:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(url)))
+            : url;
+
+    private static bool TryGetDecodedImage(string key, out ImageSource image)
+    {
+        lock (_decodedImagesLock)
+            return _decodedImages.TryGetValue(key, out image!);
+    }
+
+    private static void RememberDecodedImage(string key, ImageSource image)
+    {
+        lock (_decodedImagesLock)
+        {
+            if (!_decodedImages.TryAdd(key, image)) return;
+
+            _decodedImageOrder.Enqueue(key);
+
+            // Bounded FIFO: the avatar set is small and stable, but never let this grow unchecked.
+            while (_decodedImageOrder.Count > MaxDecodedImages)
+                _decodedImages.Remove(_decodedImageOrder.Dequeue());
+        }
+    }
+
+    /// <summary>
+    /// Caches an image the page produces itself (the app icon read off disk), so navigating back to
+    /// this page reuses the already-decoded bitmap instead of building — and re-decoding — another.
+    /// </summary>
+    private static ImageSource? GetOrCreateLocalImage(string key, Func<ImageSource> factory)
+    {
+        if (TryGetDecodedImage(key, out var cached)) return cached;
+
+        var created = factory();
+        RememberDecodedImage(key, created);
+        return created;
+    }
+
     public AboutPage()
     {
         InitializeComponent();
@@ -44,7 +107,7 @@ public sealed partial class AboutPage : Page
     {
         try
         {
-            AppIcon.Source = new BitmapImage(new Uri(App.IconPath));
+            AppIcon.Source = GetOrCreateLocalImage($"icon:{App.IconPath}", () => new BitmapImage(new Uri(App.IconPath)));
         }
         catch
         {
@@ -62,7 +125,9 @@ public sealed partial class AboutPage : Page
 
     private void Localize()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(3, 0, 0);
+        // Fallback only (the assembly version is set from Directory.Build.props <AppVersion>). Keep it in
+        // sync with that single source of truth — it previously still said 3.0.0 (A-12).
+        var version = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 1);
 
         AppTitleText.Text = LocalizationService.Get("AppTitle");
         VersionText.Text = $"{LocalizationService.Get("Version")} {version.ToString(3)}";
@@ -181,6 +246,11 @@ public sealed partial class AboutPage : Page
     {
         try
         {
+            // Decoded-image cache first: a hit skips both the download AND the decode, so the
+            // avatars are already paint-ready when the page is opened again (ENH-01b).
+            var cacheKey = DecodedCacheKey(url);
+            if (TryGetDecodedImage(cacheKey, out var cachedImage)) return cachedImage;
+
             byte[] bytes;
 
             if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
@@ -192,8 +262,9 @@ public sealed partial class AboutPage : Page
             }
             else
             {
-                using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                bytes = await client.GetByteArrayAsync(url);
+                // Session cache (ENH-01): reopening the About page reuses the previously downloaded
+                // bytes instead of hitting the network again. A failure still throws and is caught below.
+                bytes = await HttpByteCache.GetBytesAsync(url);
             }
 
             var bitmap = new BitmapImage();
@@ -214,7 +285,11 @@ public sealed partial class AboutPage : Page
             // SetSourceAsync can complete without throwing yet yield an empty bitmap — which is what
             // the embedded WebP did here. PersonPicture then painted its generic placeholder, so the
             // entry looked like a missing avatar. Treat "no pixels" as a failure and fall back.
-            return bitmap.PixelWidth > 0 && bitmap.PixelHeight > 0 ? bitmap : null;
+            // Only real bitmaps are remembered: a failure must stay retryable on the next visit.
+            if (bitmap.PixelWidth <= 0 || bitmap.PixelHeight <= 0) return null;
+
+            RememberDecodedImage(cacheKey, bitmap);
+            return bitmap;
         }
         catch (Exception ex)
         {

@@ -32,6 +32,24 @@
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
             </Style>
 
+            <!--
+                设置卡「标题」的前景：可用态主色、不可用态禁用色。
+                标题必须自带前景，不能靠继承 —— SettingsCard 模板的 Disabled 视觉状态会把
+                PART_HeaderPresenter.Foreground 顶成禁用色，而这个保持在「IsEnabled 被重新置回
+                true、但页面正处于缓存页重挂载窗口」时不会被释放（实测：IsEnabled 已为 true，
+                presenter 仍停在禁用色）。纯字符串标题会继承到这份残留的灰，于是「变成可用后标题
+                还是灰的」。显式 Style 的优先级高于继承，两个方向都正确。
+                用 {ThemeResource} 让画刷随实际生效的主题解析（代码里直接取画刷会落到「应用主题」，
+                可能与根元素覆盖的主题不一致）。画刷本身是框架既有资源（与 CommunityToolkit 的
+                SettingsCardForeground* 同源），未新增任何色值。
+            -->
+            <Style x:Key="EnabledSettingHeaderTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="DisabledSettingHeaderTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
+            </Style>
+
             <Style x:Key="AccentBadgeFillStyle" TargetType="Ellipse">
                 <Setter Property="Fill" Value="{ThemeResource AccentFillColorDefaultBrush}" />
             </Style>
@@ -46,15 +64,41 @@
                 只剩一个孤立圆点，看不出这是个开关。这里按官方禁用描边令牌补回描边，
                 只覆盖这一个主题资源，不动模板、不改其他状态。
             -->
+            <!--
+                下拉列表的材质。
+                WinUI 模板本来就给 ComboBoxDropDownBackground 指向 AcrylicInAppFillColorDefaultBrush，
+                但那支官方画刷的 TintOpacity 只有 0.15（深色）/ 0.0（浅色）—— 换句话说官方"亚克力"
+                在纯色卡片上几乎不可见，下拉看着就是一块实心板。
+
+                本来更该用 Popup.SystemBackdrop，但它在窗口化 Popup 上不生效：
+                该属性只在 popup 由独立 Composition target 支撑时才渲染，而 ComboBox 的下拉恰恰是
+                ShouldConstrainToRootBounds=false 的窗口化 Popup。WinAppSDK 1.6.1 / 1.7.3 均有此问题，
+                官方把后者标记为前者的重复且未修（microsoft-ui-xaml#10087、#10677）。
+                实测印证：属性赋值成功并返回，屏幕像素却一个都没变。
+
+                所以走平台设计文档给出的回退路径 —— 用 in-app Acrylic 模拟。只覆盖这一个键，
+                不动控件模板，也不影响其他控件；透明度参照官方 AcrylicBackgroundFillColorBaseBrush
+                （0.5，即标准亚克力强度），让它在深色卡片上真正看得出来。
+                高对比度下官方改用纯色，这里保持一致。
+            -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="#37000000" />
+                    <AcrylicBrush x:Key="ComboBoxDropDownBackground"
+                                  TintColor="{ThemeResource SolidBackgroundFillColorTertiary}"
+                                  TintOpacity="0.5"
+                                  FallbackColor="{ThemeResource SolidBackgroundFillColorTertiary}" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="#37FFFFFF" />
+                    <AcrylicBrush x:Key="ComboBoxDropDownBackground"
+                                  TintColor="{ThemeResource SolidBackgroundFillColorTertiary}"
+                                  TintOpacity="0.5"
+                                  FallbackColor="{ThemeResource SolidBackgroundFillColorTertiary}" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="ToggleSwitchStrokeOffDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

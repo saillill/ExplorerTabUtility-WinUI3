@@ -28,6 +28,26 @@ public readonly struct DualKeyEntry<TPrimaryKey, TOptionalKey, TValue>(TPrimaryK
     }
 }
 
+/// <summary>
+/// A dictionary keyed by a required primary key and an optional secondary key.
+/// <para>
+/// <b>Synchronization is internal to this type.</b> The backing
+/// <see cref="Dictionary{TKey,TValue}"/> pair is guarded by a single <c>_sync</c> lock, so every
+/// caller (notably <c>ExplorerWatcher</c>) is free of the burden — and the bugs — of remembering to
+/// lock around it (AUD-01). The lock the caller used to hold
+/// (<c>ExplorerWatcher._windowEntryDictLock</c>) is now redundant but harmless.
+/// </para>
+/// <para>
+/// Enumeration is <b>snapshotted</b>: <see cref="GetEnumerator"/>, <see cref="Keys"/> and
+/// <see cref="Values"/> return data copied under the lock. Two consequences matter:
+/// </para>
+/// <list type="bullet">
+/// <item>a <c>foreach</c> can no longer throw <c>InvalidOperationException</c> when another thread
+/// mutates the dictionary mid-loop;</item>
+/// <item><b>no user callback ever runs while the lock is held</b> — callers routinely execute COM
+/// calls inside the loop, and doing that under the lock is what could stall every other operation.</item>
+/// </list>
+/// </summary>
 public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     IDictionary<TPrimaryKey, TValue>,
     IEnumerable<TValue>,
@@ -38,6 +58,9 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     // Optional key → primary key
     private readonly Dictionary<TPrimaryKey, Entry> _primaryDict;
     private readonly Dictionary<TOptionalKey, TPrimaryKey> _optionalDict;
+
+    /// <summary>Guards <see cref="_primaryDict"/> and <see cref="_optionalDict"/>. See class remarks.</summary>
+    private readonly object _sync = new();
 
     private class Entry(TValue value, TOptionalKey? optionalKey)
     {
@@ -77,63 +100,67 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     public DualKeyEntry<TPrimaryKey, TOptionalKey, TValue> this[TOptionalKey optionalKey] =>
         TryGetValue(optionalKey, out DualKeyEntry<TPrimaryKey, TOptionalKey, TValue> value) ? value : throw new KeyNotFoundException($"The optional key '{optionalKey}' was not found.");
 
+    /// <summary>Core insert routine. Always called with <see cref="_sync"/> held.</summary>
     private bool TryInsert(TPrimaryKey primaryKey, TValue value, TOptionalKey? optionalKey, InsertionBehavior behavior)
     {
-        var primaryExists = _primaryDict.TryGetValue(primaryKey, out var existingEntry);
-        if (primaryExists)
+        lock (_sync)
         {
-            if (behavior == InsertionBehavior.None) return false;
-            if (behavior == InsertionBehavior.ThrowOnExisting)
-                throw new ArgumentException(@"Primary key already exists", nameof(primaryKey));
-        }
-
-        var sameOptionalKey = primaryExists && EqualityComparer<TOptionalKey?>.Default.Equals(optionalKey, existingEntry!.OptionalKey);
-
-        // Check for optional key conflict if the new optional key is different and not null
-        if (!sameOptionalKey && optionalKey is not null && _optionalDict.TryGetValue(optionalKey, out var existingPrimaryForOptionalKey))
-        {
-            if (behavior == InsertionBehavior.None) return false;
-            if (behavior == InsertionBehavior.ThrowOnExisting)
-                throw new ArgumentException(@"Optional key already exists", nameof(optionalKey));
-
-            // Check if the existing optional key belongs to a different primary key
-            if (!EqualityComparer<TPrimaryKey>.Default.Equals(primaryKey, existingPrimaryForOptionalKey))
+            var primaryExists = _primaryDict.TryGetValue(primaryKey, out var existingEntry);
+            if (primaryExists)
             {
-                if (behavior == InsertionBehavior.ThrowOnOptionalKeyConflict)
-                    throw new ArgumentException(@"Optional key is already used by another primary key", nameof(optionalKey));
-
-                // Resolve the conflict by removing the optional key from the other primary key (will update _optionalDict below)
-                _primaryDict[existingPrimaryForOptionalKey].OptionalKey = default;
+                if (behavior == InsertionBehavior.None) return false;
+                if (behavior == InsertionBehavior.ThrowOnExisting)
+                    throw new ArgumentException(@"Primary key already exists", nameof(primaryKey));
             }
-        }
 
-        if (!primaryExists)
-        {
-            // Create the entry and store in both dictionaries
-            var entry = new Entry(value, optionalKey);
+            var sameOptionalKey = primaryExists && EqualityComparer<TOptionalKey?>.Default.Equals(optionalKey, existingEntry!.OptionalKey);
 
-            _primaryDict[primaryKey] = entry;
+            // Check for optional key conflict if the new optional key is different and not null
+            if (!sameOptionalKey && optionalKey is not null && _optionalDict.TryGetValue(optionalKey, out var existingPrimaryForOptionalKey))
+            {
+                if (behavior == InsertionBehavior.None) return false;
+                if (behavior == InsertionBehavior.ThrowOnExisting)
+                    throw new ArgumentException(@"Optional key already exists", nameof(optionalKey));
+
+                // Check if the existing optional key belongs to a different primary key
+                if (!EqualityComparer<TPrimaryKey>.Default.Equals(primaryKey, existingPrimaryForOptionalKey))
+                {
+                    if (behavior == InsertionBehavior.ThrowOnOptionalKeyConflict)
+                        throw new ArgumentException(@"Optional key is already used by another primary key", nameof(optionalKey));
+
+                    // Resolve the conflict by removing the optional key from the other primary key (will update _optionalDict below)
+                    _primaryDict[existingPrimaryForOptionalKey].OptionalKey = default;
+                }
+            }
+
+            if (!primaryExists)
+            {
+                // Create the entry and store in both dictionaries
+                var entry = new Entry(value, optionalKey);
+
+                _primaryDict[primaryKey] = entry;
+
+                if (optionalKey is not null)
+                    _optionalDict[optionalKey] = primaryKey;
+
+                return true;
+            }
+
+            existingEntry!.Value = value;
+            if (sameOptionalKey)
+                return true;
+
+            // Remove the old optional key from the dictionary if it exists
+            if (existingEntry.OptionalKey is not null)
+                _optionalDict.Remove(existingEntry.OptionalKey);
+
+            existingEntry.OptionalKey = optionalKey;
 
             if (optionalKey is not null)
                 _optionalDict[optionalKey] = primaryKey;
 
             return true;
         }
-
-        existingEntry!.Value = value;
-        if (sameOptionalKey)
-            return true;
-
-        // Remove the old optional key from the dictionary if it exists
-        if (existingEntry.OptionalKey is not null)
-            _optionalDict.Remove(existingEntry.OptionalKey);
-
-        existingEntry.OptionalKey = optionalKey;
-
-        if (optionalKey is not null)
-            _optionalDict[optionalKey] = primaryKey;
-
-        return true;
     }
 
     /// <summary>
@@ -162,15 +189,18 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     /// <returns>True if the primary key was found, false otherwise.</returns>
     public bool TryGetByPrimary(TPrimaryKey primaryKey, out TValue value, out TOptionalKey? optionalKey)
     {
-        if (_primaryDict.TryGetValue(primaryKey, out var entry))
+        lock (_sync)
         {
-            value = entry.Value;
-            optionalKey = entry.OptionalKey;
-            return true;
+            if (_primaryDict.TryGetValue(primaryKey, out var entry))
+            {
+                value = entry.Value;
+                optionalKey = entry.OptionalKey;
+                return true;
+            }
+            value = default!;
+            optionalKey = default;
+            return false;
         }
-        value = default!;
-        optionalKey = default;
-        return false;
     }
 
     /// <summary>
@@ -179,24 +209,27 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     /// <returns>True if the optional key was found, false otherwise.</returns>
     public bool TryGetByOptional(TOptionalKey optionalKey, out TPrimaryKey primaryKey, out TValue value)
     {
-        if (optionalKey is null)
+        lock (_sync)
         {
+            if (optionalKey is null)
+            {
+                primaryKey = default!;
+                value = default!;
+                return false;
+            }
+
+            if (_optionalDict.TryGetValue(optionalKey, out var primary) &&
+                _primaryDict.TryGetValue(primary, out var entry))
+            {
+                primaryKey = primary;
+                value = entry.Value;
+                return true;
+            }
+
             primaryKey = default!;
             value = default!;
             return false;
         }
-
-        if (_optionalDict.TryGetValue(optionalKey, out var primary) &&
-            _primaryDict.TryGetValue(primary, out var entry))
-        {
-            primaryKey = primary;
-            value = entry.Value;
-            return true;
-        }
-
-        primaryKey = default!;
-        value = default!;
-        return false;
     }
 
     /// <summary>
@@ -208,25 +241,28 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     /// <exception cref="ArgumentException">Thrown if the new optional key already exists.</exception>
     public void UpdateOptionalKey(TPrimaryKey primaryKey, TOptionalKey? newOptionalKey)
     {
-        if (!_primaryDict.TryGetValue(primaryKey, out var entry)) throw new ArgumentException(@"Primary key not found", nameof(primaryKey));
+        lock (_sync)
+        {
+            if (!_primaryDict.TryGetValue(primaryKey, out var entry)) throw new ArgumentException(@"Primary key not found", nameof(primaryKey));
 
-        if (EqualityComparer<TOptionalKey?>.Default.Equals(newOptionalKey, entry.OptionalKey))
-            return;
+            if (EqualityComparer<TOptionalKey?>.Default.Equals(newOptionalKey, entry.OptionalKey))
+                return;
 
-        // Check uniqueness of new optional key if not null
-        if (newOptionalKey is not null && _optionalDict.ContainsKey(newOptionalKey))
-            throw new ArgumentException(@"Optional key is already used by another primary key", nameof(newOptionalKey));
+            // Check uniqueness of new optional key if not null
+            if (newOptionalKey is not null && _optionalDict.ContainsKey(newOptionalKey))
+                throw new ArgumentException(@"Optional key is already used by another primary key", nameof(newOptionalKey));
 
-        // Remove old optional key mapping if it existed
-        if (entry.OptionalKey is not null)
-            _optionalDict.Remove(entry.OptionalKey);
+            // Remove old optional key mapping if it existed
+            if (entry.OptionalKey is not null)
+                _optionalDict.Remove(entry.OptionalKey);
 
-        // Update the entry
-        entry.OptionalKey = newOptionalKey;
+            // Update the entry
+            entry.OptionalKey = newOptionalKey;
 
-        // Add new optional key mapping if not null
-        if (newOptionalKey is not null)
-            _optionalDict[newOptionalKey] = primaryKey;
+            // Add new optional key mapping if not null
+            if (newOptionalKey is not null)
+                _optionalDict[newOptionalKey] = primaryKey;
+        }
     }
 
     /// <summary>
@@ -235,14 +271,17 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     /// <returns>True if removal was successful, false otherwise.</returns>
     public bool RemoveByPrimary(TPrimaryKey primaryKey)
     {
-        if (!_primaryDict.TryGetValue(primaryKey, out var entry)) return false;
+        lock (_sync)
+        {
+            if (!_primaryDict.TryGetValue(primaryKey, out var entry)) return false;
 
-        // Remove optional key if exists
-        if (entry.OptionalKey is not null) _optionalDict.Remove(entry.OptionalKey);
+            // Remove optional key if exists
+            if (entry.OptionalKey is not null) _optionalDict.Remove(entry.OptionalKey);
 
-        // Remove from primary dict
-        _primaryDict.Remove(primaryKey);
-        return true;
+            // Remove from primary dict
+            _primaryDict.Remove(primaryKey);
+            return true;
+        }
     }
 
     /// <summary>
@@ -251,49 +290,77 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     /// <returns>True if removal was successful, false otherwise.</returns>
     public bool RemoveByOptional(TOptionalKey optionalKey)
     {
-        if (!_optionalDict.TryGetValue(optionalKey, out var primaryKey)) return false;
+        lock (_sync)
+        {
+            if (!_optionalDict.TryGetValue(optionalKey, out var primaryKey)) return false;
 
-        // Remove the entry from the primary dictionary
-        _primaryDict.Remove(primaryKey);
+            // Remove the entry from the primary dictionary
+            _primaryDict.Remove(primaryKey);
 
-        // Remove from optional dict
-        _optionalDict.Remove(optionalKey);
-        return true;
+            // Remove from optional dict
+            _optionalDict.Remove(optionalKey);
+            return true;
+        }
     }
     public void Clear()
     {
-        _primaryDict.Clear();
-        _optionalDict.Clear();
+        lock (_sync)
+        {
+            _primaryDict.Clear();
+            _optionalDict.Clear();
+        }
     }
 
     public IEnumerator<DualKeyEntry<TPrimaryKey, TOptionalKey, TValue>> GetEnumerator()
     {
-        foreach (var kvp in _primaryDict)
-            yield return new DualKeyEntry<TPrimaryKey, TOptionalKey, TValue>(kvp.Key, kvp.Value.Value, kvp.Value.OptionalKey);
+        // Snapshot under the lock, then hand out the snapshot's enumerator. Never yield while the
+        // lock is held: the loop body runs arbitrary (COM) code that must not block other threads.
+        DualKeyEntry<TPrimaryKey, TOptionalKey, TValue>[] snapshot;
+        lock (_sync)
+            snapshot = _primaryDict
+                .Select(kvp => new DualKeyEntry<TPrimaryKey, TOptionalKey, TValue>(kvp.Key, kvp.Value.Value, kvp.Value.OptionalKey))
+                .ToArray();
+
+        return ((IEnumerable<DualKeyEntry<TPrimaryKey, TOptionalKey, TValue>>)snapshot).GetEnumerator();
     }
     IEnumerator<TValue> IEnumerable<TValue>.GetEnumerator()
     {
-        foreach (var entry in _primaryDict.Values)
-            yield return entry.Value;
+        TValue[] snapshot;
+        lock (_sync)
+            snapshot = _primaryDict.Values.Select(entry => entry.Value).ToArray();
+
+        return ((IEnumerable<TValue>)snapshot).GetEnumerator();
     }
     IEnumerator<KeyValuePair<TPrimaryKey, TValue>> IEnumerable<KeyValuePair<TPrimaryKey, TValue>>.GetEnumerator()
     {
-        foreach (var kvp in _primaryDict)
-            yield return new KeyValuePair<TPrimaryKey, TValue>(kvp.Key, kvp.Value.Value);
+        KeyValuePair<TPrimaryKey, TValue>[] snapshot;
+        lock (_sync)
+            snapshot = _primaryDict
+                .Select(kvp => new KeyValuePair<TPrimaryKey, TValue>(kvp.Key, kvp.Value.Value))
+                .ToArray();
+
+        return ((IEnumerable<KeyValuePair<TPrimaryKey, TValue>>)snapshot).GetEnumerator();
     }
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    public bool Contains(KeyValuePair<TPrimaryKey, TValue> item) =>
-        _primaryDict.TryGetValue(item.Key, out var value) && EqualityComparer<TValue?>.Default.Equals(value.Value, item.Value);
+    public bool Contains(KeyValuePair<TPrimaryKey, TValue> item)
+    {
+        lock (_sync)
+            return _primaryDict.TryGetValue(item.Key, out var value) && EqualityComparer<TValue?>.Default.Equals(value.Value, item.Value);
+    }
     public void CopyTo(KeyValuePair<TPrimaryKey, TValue>[] array, int index)
     {
-        if (index > array.Length) throw new ArgumentOutOfRangeException(nameof(index));
+        if (array is null) throw new ArgumentNullException(nameof(array));
+        if (index < 0 || index > array.Length) throw new ArgumentOutOfRangeException(nameof(index));
 
-        if (array.Length - index < Count) throw new ArgumentException("Not enough space in the array to copy the elements.");
+        lock (_sync)
+        {
+            if (array.Length - index < Count) throw new ArgumentException("Not enough space in the array to copy the elements.");
 
-        var i = index;
-        foreach (var kvp in _primaryDict)
-            array[i++] = new KeyValuePair<TPrimaryKey, TValue>(kvp.Key, kvp.Value.Value);
+            var i = index;
+            foreach (var kvp in _primaryDict)
+                array[i++] = new KeyValuePair<TPrimaryKey, TValue>(kvp.Key, kvp.Value.Value);
+        }
     }
     public bool TryGetValue(TPrimaryKey primaryKey, out DualKeyEntry<TPrimaryKey, TOptionalKey, TValue> value)
     {
@@ -317,7 +384,11 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     }
     public bool TryGetValue(TPrimaryKey primaryKey, out TValue value) => TryGetByPrimary(primaryKey, out value, out _);
     public bool TryGetValue(TOptionalKey optionalKey, out TValue value) => TryGetByOptional(optionalKey, out _, out value);
-    public bool TryGetValue(TOptionalKey optionalKey, out TPrimaryKey? primaryKey) => _optionalDict.TryGetValue(optionalKey, out primaryKey);
+    public bool TryGetValue(TOptionalKey optionalKey, out TPrimaryKey? primaryKey)
+    {
+        lock (_sync)
+            return _optionalDict.TryGetValue(optionalKey, out primaryKey);
+    }
     public void Add(TPrimaryKey primaryKey, TValue value) => Add(primaryKey, value, default);
     public void Add(KeyValuePair<TPrimaryKey, TValue> item) => Add(item.Key, item.Value);
     public bool Remove(KeyValuePair<TPrimaryKey, TValue> item) => Remove(item.Key);
@@ -325,37 +396,35 @@ public class DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> :
     public bool Remove(TOptionalKey optionalKey) => RemoveByOptional(optionalKey);
     public bool ContainsKey(TPrimaryKey primaryKey) => ContainsPrimary(primaryKey);
     public bool ContainsKey(TOptionalKey optionalKey) => ContainsOptional(optionalKey);
-    public bool ContainsPrimary(TPrimaryKey primaryKey) => _primaryDict.ContainsKey(primaryKey);
-    public bool ContainsOptional(TOptionalKey optionalKey) => optionalKey is not null && _optionalDict.ContainsKey(optionalKey);
-    public int Count => _primaryDict.Count;
-    public bool IsReadOnly => false;
-    public ICollection<TPrimaryKey> Keys => _primaryDict.Keys;
-    public ICollection<TValue> Values => new ValueCollection(this);
-    public ICollection<TOptionalKey> OptionalKeys => _optionalDict.Keys;
-    public ICollection<TValue> OptionalValues => new ValueCollection(this);
-
-    private class ValueCollection(DualKeyDictionary<TPrimaryKey, TOptionalKey, TValue> dict) : ICollection<TValue>
+    public bool ContainsPrimary(TPrimaryKey primaryKey)
     {
-        public int Count => dict.Count;
-        public bool IsReadOnly => true;
-        public void Add(TValue item) => throw new NotSupportedException("Cannot add to a read-only collection.");
-        public void Clear() => throw new NotSupportedException("Cannot clear a read-only collection.");
-        public bool Contains(TValue item) => dict._primaryDict.Values.Any(e => EqualityComparer<TValue>.Default.Equals(e.Value, item));
-        public void CopyTo(TValue[] array, int arrayIndex)
-        {
-            if (array is null) throw new ArgumentNullException(nameof(array));
-            if (arrayIndex < 0 || arrayIndex > array.Length) throw new ArgumentOutOfRangeException(nameof(arrayIndex), @"Index is out of range.");
-            if (array.Length - arrayIndex < dict.Count)
-                throw new ArgumentException("The number of elements in the collection is greater than the available space from arrayIndex to the end of the destination array.");
-
-            foreach (var entry in dict._primaryDict.Values) array[arrayIndex++] = entry.Value;
-        }
-        public IEnumerator<TValue> GetEnumerator()
-        {
-            foreach (var entry in dict._primaryDict.Values)
-                yield return entry.Value;
-        }
-        public bool Remove(TValue item) => throw new NotSupportedException("Cannot remove from a read-only collection.");
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        lock (_sync)
+            return _primaryDict.ContainsKey(primaryKey);
     }
+    public bool ContainsOptional(TOptionalKey optionalKey)
+    {
+        lock (_sync)
+            return optionalKey is not null && _optionalDict.ContainsKey(optionalKey);
+    }
+    public int Count
+    {
+        get { lock (_sync) return _primaryDict.Count; }
+    }
+    public bool IsReadOnly => false;
+
+    // Snapshot collections: callers enumerate these outside any lock, so they must not view live
+    // dictionary state (AUD-01).
+    public ICollection<TPrimaryKey> Keys
+    {
+        get { lock (_sync) return _primaryDict.Keys.ToArray(); }
+    }
+    public ICollection<TValue> Values
+    {
+        get { lock (_sync) return _primaryDict.Values.Select(entry => entry.Value).ToArray(); }
+    }
+    public ICollection<TOptionalKey> OptionalKeys
+    {
+        get { lock (_sync) return _optionalDict.Keys.ToArray(); }
+    }
+    public ICollection<TValue> OptionalValues => Values;
 }

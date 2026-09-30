@@ -379,8 +379,9 @@ internal sealed class ProfileCardView : IProfileCardView
         SetRowVisible(_delayCard, HotKeyActionCatalog.UsesDelay(action));
         SetRowVisible(_asTabCard, HotKeyActionCatalog.UsesAsTab(action));
 
-        // IsHandled is read by the keyboard hook only; a mouse-triggered profile has nothing to
-        // swallow, so the option would be a no-op.
+        // IsHandled only governs keyboard profiles. The mouse hook needs no per-profile option:
+        // it swallows XButton1/2 automatically (they carry shell-default back/forward behaviour)
+        // and never swallows LMB/RMB/MMB, so the checkbox would change nothing a mouse profile does.
         SetRowVisible(_handledCard, !Profile.IsMouse);
 
         ApplyCornerRadii();
@@ -624,10 +625,7 @@ internal sealed class ProfileCardView : IProfileCardView
         {
             _enabled.IsOn = Profile.IsEnabled;
             _name.Text = Profile.Name ?? string.Empty;
-            _hotKeys.PlaceholderText = Loc("SelectHotKey");
-            _hotKeys.Text = Profile.HotKeys is { Length: > 0 }
-                ? Profile.HotKeys.HotKeysToString(Profile.IsDoubleClick)
-                : string.Empty;
+            UpdateHotKeyField();
 
             RebuildScopes();
             RebuildActions(Profile.Action);
@@ -675,7 +673,7 @@ internal sealed class ProfileCardView : IProfileCardView
     {
         var hotKey = Profile.HotKeys is { Length: > 0 }
             ? Profile.HotKeys.HotKeysToString(Profile.IsDoubleClick)
-            : Loc("SelectHotKey");
+            : Loc("NoHotKeyBound");
 
         var action = HotKeyActionCatalog.GetActionDisplay(Profile.Action);
 
@@ -685,6 +683,48 @@ internal sealed class ProfileCardView : IProfileCardView
         // UpdateSummary runs on every change that can affect which fields apply — action, scope,
         // recorded trigger (keyboard vs mouse) and language — so the row set is refreshed here.
         ApplyOptionVisibility();
+
+        // ...and so is whether the row can be switched on at all: this method is the single funnel
+        // every validity-affecting entry point already goes through.
+        UpdateEnabledAvailability();
+    }
+
+    /// <summary>
+    /// Refreshes the trigger field: the recorded keys, or a placeholder saying what the field needs.
+    /// <para>
+    /// The placeholder doubles as the state text. <c>SelectHotKey</c> ("按下组合键…") is a recording
+    /// prompt, so it is only shown from <see cref="StartCapture"/> until <see cref="StopCapture"/>.
+    /// At rest an unbound profile reads <c>NoHotKeyBound</c> ("未绑定") instead — a statement about
+    /// the profile rather than an instruction the user has not asked for yet. The capture
+    /// interaction itself is untouched: focus in the field still starts recording.
+    /// </para>
+    /// </summary>
+    private void UpdateHotKeyField()
+    {
+        var hasHotKey = Profile.HotKeys is { Length: > 0 };
+
+        _hotKeys.Text = hasHotKey
+            ? Profile.HotKeys!.HotKeysToString(Profile.IsDoubleClick)
+            : string.Empty;
+
+        _hotKeys.PlaceholderText = hasHotKey || _keyboardHook is not null
+            ? Loc("SelectHotKey")
+            : Loc("NoHotKeyBound");
+    }
+
+    /// <summary>
+    /// Makes the enable toggle unavailable while the profile could not fire anyway.
+    /// <para>
+    /// A profile with no trigger never fires, so an "on" toggle would promise something the app
+    /// cannot deliver. The switch keeps its 开/关 label (set in <c>BuildSummaryRow</c> and
+    /// <c>RefreshLocalization</c>) so its state stays readable while unavailable, and
+    /// <c>App.xaml</c> restores the off-state track outline WinUI drops — so it never renders as
+    /// a bare dot.
+    /// </para>
+    /// </summary>
+    private void UpdateEnabledAvailability()
+    {
+        _enabled.IsEnabled = Profile.HotKeys is { Length: > 0 };
     }
 
     public void RefreshLocalization()
@@ -692,7 +732,7 @@ internal sealed class ProfileCardView : IProfileCardView
         foreach (var apply in _localizers)
             apply();
 
-        _hotKeys.PlaceholderText = Loc("SelectHotKey");
+        UpdateHotKeyField();
         _enabled.OnContent = Loc("ToggleOn");
         _enabled.OffContent = Loc("ToggleOff");
 
@@ -746,6 +786,9 @@ internal sealed class ProfileCardView : IProfileCardView
         _mouseHook = new LowLevelMouseHook { Handling = true, AddKeyboardKeys = true };
         _mouseHook.Down += OnMouseDown;
         _mouseHook.Start();
+
+        // The field now reads the recording prompt instead of the "unbound" state text.
+        UpdateHotKeyField();
     }
 
     private void StopCapture()
@@ -765,6 +808,8 @@ internal sealed class ProfileCardView : IProfileCardView
         }
 
         _callbacks.CaptureStopped();
+
+        UpdateHotKeyField();
     }
 
     private void OnKeyboardDown(object? sender, KeyboardEventArgs e)
@@ -823,9 +868,7 @@ internal sealed class ProfileCardView : IProfileCardView
 
         _queue.TryEnqueue(() =>
         {
-            _hotKeys.Text = Profile.HotKeys is { Length: > 0 }
-                ? Profile.HotKeys.HotKeysToString(isDoubleClick)
-                : string.Empty;
+            UpdateHotKeyField();
             UpdateSummary();
         });
 

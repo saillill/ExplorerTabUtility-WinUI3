@@ -34,6 +34,16 @@ public sealed class WinUiDispatcher : IUiDispatcher, IDisposable
             action();
     }
 
+    public void TryPost(Action action)
+    {
+        if (action is null) return;
+
+        // No inline fallback: the callers are UI-touching notifications, and running them on a
+        // hook/pool thread while the queue shuts down would violate XAML's thread affinity.
+        // Dropping a "toggle window visibility" request during process exit is harmless.
+        _queue.TryEnqueue(() => action());
+    }
+
     public event EventHandler? SessionEnding;
 
     private void OnSessionEnding(object sender, SessionEndingEventArgs e)

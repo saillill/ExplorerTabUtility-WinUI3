@@ -2,9 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Reflection;
 using System.Diagnostics;
-using System.ComponentModel;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
@@ -18,34 +16,13 @@ namespace ExplorerTabUtility.Helpers;
 
 public static class Helper
 {
-    private static int _lastCtrlShiftCheckAt;
-    private static bool _lastCtrlShiftCheckValue;
+    // Cached Ctrl+Shift probe. Written from hook / pool threads and read from several others, so both
+    // fields are volatile: without a barrier the JIT may hoist the read out of a loop and keep acting
+    // on a stale verdict. A lock would be overkill here — this is only a 1-second cache, so a stale
+    // read is self-correcting (AUD-23).
+    private static volatile int _lastCtrlShiftCheckAt;
+    private static volatile bool _lastCtrlShiftCheckValue;
     public static readonly ConcurrentDictionary<nint, RECT?> HiddenWindows = new();
-
-    public static Task DoDelayedBackgroundAsync(Action action, int delayMs = 2_000, CancellationToken cancellationToken = default)
-    {
-        return Task.Run(async () =>
-        {
-            await Task.Delay(delayMs, cancellationToken);
-            action();
-        }, cancellationToken);
-    }
-    public static Task DoDelayedBackgroundAsync(Func<Task> action, int delayMs = 2_000, CancellationToken cancellationToken = default)
-    {
-        return Task.Run(async () =>
-        {
-            await Task.Delay(delayMs, cancellationToken);
-            await action();
-        }, cancellationToken);
-    }
-    public static Task<T> DoDelayedBackgroundAsync<T>(Func<Task<T>> action, int delayMs = 2_000, CancellationToken cancellationToken = default)
-    {
-        return Task.Run(async () =>
-        {
-            await Task.Delay(delayMs, cancellationToken);
-            return await action();
-        }, cancellationToken);
-    }
 
     public static T DoUntilNotDefault<T>(Func<T> action, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
     {
@@ -55,23 +32,6 @@ public static class Helper
             timeMs,
             sleepMs,
             cancellationToken);
-    }
-    public static void DoUntilTimeEnd(Action action, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        DoUntilCondition(action, static () => false, timeMs, sleepMs, cancellationToken);
-    }
-    public static void DoUntilCondition(Action action, Func<bool> predicate, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        var startTicks = Stopwatch.GetTimestamp();
-
-        while (!cancellationToken.IsCancellationRequested && !IsTimeUp(startTicks, timeMs))
-        {
-            action();
-            if (predicate())
-                return;
-
-            Thread.Sleep(sleepMs);
-        }
     }
     public static T DoUntilCondition<T>(Func<T> action, Predicate<T> predicate, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
     {
@@ -88,30 +48,6 @@ public static class Helper
 
         return action();
     }
-    public static void DoIfCondition(Action action, Func<bool> predicate, bool justOnce = false, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        var startTicks = Stopwatch.GetTimestamp();
-
-        while (!cancellationToken.IsCancellationRequested && !IsTimeUp(startTicks, timeMs))
-        {
-            if (predicate())
-            {
-                action();
-
-                if (justOnce) return;
-            }
-            Thread.Sleep(sleepMs);
-        }
-    }
-    public static Task<T> DoUntilNotDefaultAsync<T>(Func<Task<T>> action, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        return DoUntilConditionAsync(
-            action,
-            result => !EqualityComparer<T?>.Default.Equals(result, default),
-            timeMs,
-            sleepMs,
-            cancellationToken);
-    }
     public static Task<T> DoUntilNotDefaultAsync<T>(Func<T> action, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
     {
         return DoUntilConditionAsync(
@@ -120,23 +56,6 @@ public static class Helper
             timeMs,
             sleepMs,
             cancellationToken);
-    }
-    public static Task DoUntilTimeEndAsync(Func<Task> action, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        return DoUntilConditionAsync(action, static () => false, timeMs, sleepMs, cancellationToken);
-    }
-    public static async Task DoUntilConditionAsync(Func<Task> action, Func<bool> predicate, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        var startTicks = Stopwatch.GetTimestamp();
-
-        while (!cancellationToken.IsCancellationRequested && !IsTimeUp(startTicks, timeMs))
-        {
-            await action();
-            if (predicate())
-                return;
-
-            await Task.Delay(sleepMs);
-        }
     }
     public static async Task<T> DoUntilConditionAsync<T>(Func<T> action, Predicate<T> predicate, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
     {
@@ -153,64 +72,13 @@ public static class Helper
 
         return action();
     }
-    public static async Task<T> DoUntilConditionAsync<T>(Func<Task<T>> action, Predicate<T> predicate, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        var startTicks = Stopwatch.GetTimestamp();
-
-        while (!cancellationToken.IsCancellationRequested && !IsTimeUp(startTicks, timeMs))
-        {
-            var result = await action();
-            if (predicate(result))
-                return result;
-
-            await Task.Delay(sleepMs);
-        }
-
-        return await action();
-    }
-    public static async Task DoIfConditionAsync(Func<Task> action, Func<bool> predicate, bool justOnce = false, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
-    {
-        var startTicks = Stopwatch.GetTimestamp();
-
-        while (!cancellationToken.IsCancellationRequested && !IsTimeUp(startTicks, timeMs))
-        {
-            if (predicate())
-            {
-                await action();
-
-                if (justOnce) return;
-            }
-            await Task.Delay(sleepMs);
-        }
-    }
 
     public static bool IsTimeUp(long startTicks, int timeMs)
     {
-
-#if NET7_0_OR_GREATER
+        // Every target framework this solution builds for satisfies NET7_0_OR_GREATER, so the former
+        // #if/#else fallback to a hand-rolled GetElapsedTime helper was unreachable dead code (S0-5).
         var elapsedTime = Stopwatch.GetElapsedTime(startTicks);
-#else
-        var elapsedTime = GetElapsedTime(startTicks);
-#endif
-
         return elapsedTime.TotalMilliseconds >= timeMs;
-    }
-    public static TimeSpan GetElapsedTime(long startTicks)
-    {
-        var tickFrequency = (double)10_000_000 / Stopwatch.Frequency;
-        return new TimeSpan((long)((Stopwatch.GetTimestamp() - startTicks) * tickFrequency));
-    }
-    public static T Clamp<T>(this T val, T min, T max) where T : IComparable<T>
-    {
-        if (val.CompareTo(min) < 0) return min;
-        if (val.CompareTo(max) > 0) return max;
-        return val;
-    }
-
-    public static string GetEnumDescription(Enum value)
-    {
-        var fieldInfo = value.GetType().GetField(value.ToString());
-        return fieldInfo?.GetCustomAttribute<DescriptionAttribute>()?.Description ?? value.ToString();
     }
     public static string HotKeysToString(this IEnumerable<Key> keys, bool isDoubleClick = false)
     {
@@ -264,14 +132,21 @@ public static class Helper
     public static bool IsExplorerEmptySpace(PixelPoint point)
     {
         var hr = WinApi.AccessibleObjectFromPoint(point, out var accObj, out var childId);
-        if (hr != 0 || childId is not 0) return false;
 
-        var role = accObj.get_accRole(0);
-        return role is 0x21; //IAccessible.Role:list (ROLE_SYSTEM_LIST 0x21)
-    }
-    public static bool IsFileExplorerTab(nint tab)
-    {
-        return tab != 0 && WinApi.IsWindowHasClassName(tab, "ShellTabWindowClass");
+        // AccessibleObjectFromPoint hands back a COM object. Without an explicit release the runtime
+        // holds that reference until the RCW is finalized; this runs on the mouse-navigation hot path,
+        // so the stable fix is to release it deterministically here (AUD-11).
+        try
+        {
+            if (hr != 0 || childId is not 0 || accObj is null) return false;
+
+            var role = accObj.get_accRole(0);
+            return role is 0x21; //IAccessible.Role:list (ROLE_SYSTEM_LIST 0x21)
+        }
+        finally
+        {
+            if (accObj is not null) Marshal.ReleaseComObject(accObj);
+        }
     }
     public static bool IsFileExplorerWindow(nint window)
     {
@@ -281,13 +156,6 @@ public static class Helper
     {
         foregroundWindow = WinApi.GetForegroundWindow();
         return IsFileExplorerWindow(foregroundWindow);
-    }
-    public static nint GetAnotherExplorerWindow(nint currentWindow)
-    {
-        return currentWindow == 0
-            ? WinApi.FindWindow("CabinetWClass", null)
-            : GetAllExplorerWindows()
-                .FirstOrDefault(window => window != currentWindow);
     }
     public static Task<nint> ListenForNewExplorerWindowAsync(IReadOnlyCollection<nint> currentWindows, int searchTimeMs = 1000)
     {
@@ -339,6 +207,10 @@ public static class Helper
     {
         return WinApi.FindAllWindowsEx("CabinetWClass");
     }
+    /// <summary>
+    /// Finds the main (taskbar-owning) explorer.exe process. The caller owns the returned
+    /// <see cref="Process"/> and must dispose it — reading <c>StartTime</c> opens a process handle.
+    /// </summary>
     public static Process? GetMainExplorerProcess()
     {
         Process? best = null;
@@ -349,22 +221,29 @@ public static class Helper
         foreach (var hWnd in WinApi.FindAllWindowsEx("Shell_TrayWnd")) // Taskbar
         {
             if (WinApi.GetWindowThreadProcessId(hWnd, out var pid) <= 0) continue;
-        
+
             var processPath = WinApi.GetProcessPath((int)pid);
             if (!string.Equals(processPath, expectedPath, StringComparison.OrdinalIgnoreCase))
                 continue;
 
+            Process? proc = null;
             try
             {
                 // Pick the earliest start
-                var proc = Process.GetProcessById((int)pid);
+                proc = Process.GetProcessById((int)pid);
                 if (proc.StartTime < bestStart)
                 {
                     bestStart = proc.StartTime;
+                    best?.Dispose(); // the previous candidate lost — release its handle
                     best = proc;
+                    proc = null;     // ownership moved to `best`
                 }
             }
             catch { /* The Process might have terminated */ }
+            finally
+            {
+                proc?.Dispose();
+            }
         }
         return best;
     }
@@ -382,24 +261,32 @@ public static class Helper
     }
     public static void HideWindow(nint hWnd, bool keepTheme = false)
     {
-        HiddenWindows.GetOrAdd(hWnd, static (hWnd, keepTheme) =>
+        // Deliberately NOT ConcurrentDictionary.GetOrAdd: the value factory here performs real side
+        // effects (moving the window off-screen, or flipping its layered/alpha attributes), and
+        // GetOrAdd may run that factory more than once when several threads miss the key at the same
+        // moment — i.e. the window got moved / made transparent twice. Check first, do the work, then
+        // TryAdd; a lost race simply keeps whatever the winner already recorded (AUD-19).
+        if (HiddenWindows.ContainsKey(hWnd)) return;
+
+        RECT? originalPos = null;
+
+        if (keepTheme)
         {
-            if (keepTheme)
-            {
-                WinApi.GetWindowRect(hWnd, out var originalPos);
-                HiddenWindows[hWnd] = originalPos;
+            WinApi.GetWindowRect(hWnd, out var rect);
+            originalPos = rect;
 
-                // Move it off-screen
-                const uint flags = WinApi.SWP_HIDEWINDOW | WinApi.SWP_NOSIZE | WinApi.SWP_NOZORDER | WinApi.SWP_NOACTIVATE | WinApi.SWP_FRAMECHANGED;
-                WinApi.SetWindowPos(hWnd, 0, -32_000, -32_000, 0, 0, flags);
-                return originalPos;
-            }
-
+            // Move it off-screen
+            const uint flags = WinApi.SWP_HIDEWINDOW | WinApi.SWP_NOSIZE | WinApi.SWP_NOZORDER | WinApi.SWP_NOACTIVATE | WinApi.SWP_FRAMECHANGED;
+            WinApi.SetWindowPos(hWnd, 0, -32_000, -32_000, 0, 0, flags);
+        }
+        else
+        {
             // Set the transparency (alpha value) of the window (0 = transparent, 255 = opaque)
             UpdateWindowLayered(hWnd, remove: false);
             WinApi.SetLayeredWindowAttributes(hWnd, 0, 0, WinApi.LWA_ALPHA);
-            return null;
-        }, keepTheme);
+        }
+
+        HiddenWindows.TryAdd(hWnd, originalPos);
     }
     public static bool ShowWindow(nint hWnd, bool removeCache)
     {
@@ -439,8 +326,27 @@ public static class Helper
         KeyboardSimulator.SendKeyPress(VirtualKey.F23);
     }
 
+    /// <summary>
+    /// Normalizes a location string for comparison, persistence and navigation.
+    /// <para>
+    /// Note: the <c>file:///C:/…</c> URL form that <c>GetLocation</c> reads back from a window is
+    /// intentionally <b>not</b> rewritten here. It is fed to the Shell's <c>ParseDisplayName</c> via
+    /// <c>Navigate2</c>, which tolerates the resulting <c>file:\\\C:\…</c> shape; changing that shape
+    /// must be verified against a real Explorer before it is touched (AUD-17). This is also why the
+    /// <c>file:</c> scheme is deliberately excluded from the URL pass-through below.
+    /// </para>
+    /// </summary>
     public static string NormalizeLocation(string location)
     {
+        if (string.IsNullOrWhiteSpace(location))
+            return location;
+
+        // Web-style URLs are returned verbatim: the file-path normalisation below (back-slash
+        // rewriting in particular) would turn "https://host/path" into "https:\\host\path" and break
+        // the very URL that Open()'s StartsWith("http") test then hands to ShellExecute (AUD-07).
+        if (IsNonFileUrl(location))
+            return location.Trim();
+
         if (location.IndexOf('%') > -1)
             location = Environment.ExpandEnvironmentVariables(location);
 
@@ -450,9 +356,37 @@ public static class Helper
         else if (location.StartsWith("{", StringComparison.Ordinal))
             location = $"shell:::{location}";
 
-        location = location.Trim(' ', '/', '\\', '\n', '\'', '"');
+        // Strip surrounding whitespace/quotes on both ends — these never carry path meaning. But
+        // strip the separators from the END only: a leading "\\" is the UNC marker and "\\?\" the
+        // extended-length prefix, so trimming the front destroys them (AUD-03).
+        location = location.Trim(' ', '\t', '\r', '\n', '\'', '"');
+        location = location.TrimEnd('/', '\\');
+
+        // A bare "C:" means "current directory on drive C", not its root; restore the trailing
+        // separator so the meaning does not depend on the process working directory.
+        if (location.Length == 2 && char.IsLetter(location[0]) && location[1] == ':')
+            location += '\\';
 
         return location.Replace('/', '\\');
+    }
+
+    /// <summary>
+    /// True for <c>scheme://…</c> URLs whose scheme is a web/network one — everything except
+    /// <c>file:</c>, which must keep the legacy path normalisation (AUD-17).
+    /// </summary>
+    private static bool IsNonFileUrl(string location)
+    {
+        var separator = location.IndexOf("://", StringComparison.Ordinal);
+        if (separator <= 0) return false;
+
+        // A scheme is ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ); reject anything else so a Windows
+        // path that merely happens to contain "://" is not mistaken for a URL.
+        if (!char.IsLetter(location[0])) return false;
+        for (var i = 1; i < separator; i++)
+            if (!(char.IsLetterOrDigit(location[i]) || location[i] is '+' or '-' or '.'))
+                return false;
+
+        return !location.AsSpan(0, separator).Equals("file", StringComparison.OrdinalIgnoreCase);
     }
     public static string GetDefaultExplorerLocation(ShellPathComparer? shellPathComparer = null)
     {
@@ -485,8 +419,10 @@ public static class Helper
     {
         try
         {
-            using var client = new System.Net.Http.HttpClient();
-            var svgContent = await client.GetStringAsync("https://cdn.jsdelivr.net/gh/w4po/sponsors/sponsors.svg");
+            // Session cache (ENH-01): the sponsors SVG is identical for the whole run, so reopening
+            // the About page must not fetch it again.
+            var svgBytes = await HttpByteCache.GetBytesAsync("https://cdn.jsdelivr.net/gh/w4po/sponsors/sponsors.svg");
+            var svgContent = System.Text.Encoding.UTF8.GetString(svgBytes);
 
             var supporters = new List<SupporterInfo>();
             var xmlDoc = new System.Xml.XmlDocument();

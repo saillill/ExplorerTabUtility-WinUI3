@@ -6,7 +6,12 @@ namespace ExplorerTabUtility.Models;
 
 public class HotKeyProfile
 {
-    public Guid Id { get; private set; } = Guid.NewGuid();
+    /// <summary>
+    /// Stable identity, persisted in settings.json. Must have a public setter: System.Text.Json
+    /// ignores private setters, so a private one made every load silently mint NEW ids and the
+    /// persisted value was noise.
+    /// </summary>
+    public Guid Id { get; set; } = Guid.NewGuid();
     public string? Name { get; set; }
     public Key[]? HotKeys { get; set; }
     public HotkeyScope Scope { get; set; }
@@ -20,15 +25,6 @@ public class HotKeyProfile
     public int Delay { get; set; }
 
     public HotKeyProfile() { }
-    public HotKeyProfile(string name, Key[] hotKeys, HotKeyAction action, string? path = null, HotkeyScope scope = HotkeyScope.Global, int delay = 0)
-    {
-        Name = name;
-        HotKeys = hotKeys;
-        Action = action;
-        Path = path;
-        Scope = scope;
-        Delay = delay;
-    }
 
     public HotKeyProfile Clone()
     {

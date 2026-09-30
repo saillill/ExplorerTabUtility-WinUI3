@@ -1,10 +1,8 @@
 using System;
 using System.Linq;
-using System.ComponentModel;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Resources;
-using System.Runtime.CompilerServices;
 
 namespace ExplorerTabUtility.Helpers;
 
@@ -17,7 +15,7 @@ namespace ExplorerTabUtility.Helpers;
 /// </summary>
 public sealed record SupportedLanguage(string Code, string NativeName);
 
-public class LocalizationService : INotifyPropertyChanged
+public class LocalizationService
 {
     private static LocalizationService? _instance;
     public static LocalizationService Instance => _instance ??= new LocalizationService();
@@ -55,15 +53,34 @@ public class LocalizationService : INotifyPropertyChanged
     /// <summary>Language used when the requested culture has no translation.</summary>
     public const string FallbackLanguage = "en";
 
+    /// <summary>Value stored for "follow the system"; anything else is an explicit user choice.</summary>
+    public const string FollowSystemLanguage = "";
+
+    /// <summary>Localised label of the <see cref="FollowSystemLanguage"/> entry in the picker.</summary>
+    public const string FollowSystemLanguageKey = "LanguageFollowSystem";
+
+    /// <summary>
+    /// The language Windows itself is set to, mapped onto one we ship resources for.
+    /// <para>
+    /// Sampled once here rather than read from <see cref="CultureInfo.CurrentUICulture"/> later:
+    /// setting <see cref="Language"/> overwrites that culture, so "follow the system" asked after an
+    /// explicit choice would otherwise follow the previous choice instead of the OS.
+    /// </para>
+    /// </summary>
+    public static string SystemLanguage { get; } = ResolveSupported(CultureInfo.CurrentUICulture.Name);
+
+    /// <summary>Key of the placeholder name a brand-new hotkey profile starts with.</summary>
+    public const string DefaultProfileNameKey = "DefaultProfileName";
+
+    /// <summary>The placeholder name a brand-new hotkey profile starts with, in the current UI language.</summary>
+    public static string DefaultProfileName => Get(DefaultProfileNameKey);
+
     private readonly ResourceManager _resourceManager;
 
     private LocalizationService()
     {
         _resourceManager = new ResourceManager("ExplorerTabUtility.Properties.Resources", typeof(LocalizationService).Assembly);
     }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-    public static event Action? LanguageChanged;
 
     public string this[string key]
     {
@@ -77,23 +94,6 @@ public class LocalizationService : INotifyPropertyChanged
     public static string Get(string key) => Instance[key];
 
     /// <summary>
-    /// Reads a string for an explicit culture rather than the active one.
-    /// Used by the legacy-name migration, which must produce English names regardless of the UI
-    /// language the user happens to be running.
-    /// </summary>
-    public static string Get(string key, string cultureName)
-    {
-        try
-        {
-            return Instance._resourceManager.GetString(key, new CultureInfo(cultureName)) ?? key;
-        }
-        catch (MissingManifestResourceException)
-        {
-            return key;
-        }
-    }
-
-    /// <summary>
     /// The language the UI is actually showing right now, as a code from
     /// <see cref="SupportedLanguages"/>. Reflects the effective culture rather than the stored
     /// setting, so an unset setting (follow the system) reports what the system resolved to.
@@ -103,12 +103,14 @@ public class LocalizationService : INotifyPropertyChanged
         get => ResolveSupported(CultureInfo.CurrentUICulture.Name);
         set
         {
-            var culture = CreateCulture(ResolveSupported(value));
+            // An empty value is "follow the system", so it has to be resolved against the OS
+            // language before it can become a CultureInfo. ResolveSupported("") would only hand
+            // back the fallback, which is why that mapping cannot be done by the resolver alone.
+            var resolved = string.IsNullOrWhiteSpace(value) ? SystemLanguage : ResolveSupported(value);
+
+            var culture = CreateCulture(resolved);
             CultureInfo.CurrentUICulture = culture;
             CultureInfo.CurrentCulture = culture;
-            OnPropertyChanged("Item[]");
-            OnPropertyChanged("");
-            LanguageChanged?.Invoke();
         }
     }
 
@@ -161,10 +163,35 @@ public class LocalizationService : INotifyPropertyChanged
         catch (CultureNotFoundException) { return CultureInfo.InvariantCulture; }
     }
 
+    /// <summary>
+    /// True when <paramref name="name"/> is blank or still the placeholder a new profile starts with.
+    /// <para>
+    /// A placeholder written under one language is still a placeholder after the UI switches to
+    /// another, so every supported culture is compared — not just the one currently in effect.
+    /// </para>
+    /// </summary>
+    public bool IsDefaultProfileName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return true;
+
+        foreach (var language in SupportedLanguages)
+        {
+            string? value;
+            try { value = _resourceManager.GetString(DefaultProfileNameKey, CreateCulture(language.Code)); }
+            catch (MissingManifestResourceException) { continue; }
+            catch (CultureNotFoundException) { continue; }
+
+            if (string.Equals(value, name, StringComparison.Ordinal)) return true;
+        }
+
+        return false;
+    }
+
     public void SetLanguage(string lang) => Language = lang;
 
     /// <summary>
-    /// Applies the language stored in settings; leaves the system culture in place when unset.
+    /// Points the process at the language the user chose, auto-detecting Windows' own language when
+    /// nothing has been chosen.
     /// <para>
     /// Must be callable before any UI exists: the "already running" notice is shown before the XAML
     /// application is created, and it used to come out in the system language even when the user had
@@ -174,13 +201,24 @@ public class LocalizationService : INotifyPropertyChanged
     public static void ApplySavedLanguage()
     {
         var saved = Managers.SettingsManager.Language;
-        if (string.IsNullOrWhiteSpace(saved)) return;
 
+        if (!Managers.SettingsManager.LanguageMigrated)
+        {
+            // One-time correction. Builds before the picker had a "follow system" entry could only
+            // ever write one of the concrete codes, so an install nobody touched still carried the
+            // fallback ("en") — and that pinned value defeats detection for everyone whose Windows
+            // is not English. Dropping it once restores detection; from then on any explicit
+            // choice, English included, is left alone.
+            Managers.SettingsManager.LanguageMigrated = true;
+
+            if (string.Equals(saved, FallbackLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                saved = FollowSystemLanguage;
+                Managers.SettingsManager.Language = FollowSystemLanguage;
+            }
+        }
+
+        // Empty is meaningful: it routes through SystemLanguage rather than being ignored.
         Instance.Language = saved;
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string? name = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }

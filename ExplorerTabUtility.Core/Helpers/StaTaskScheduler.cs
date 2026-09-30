@@ -11,6 +11,7 @@ public sealed class StaTaskScheduler : TaskScheduler, IDisposable
 {
     private readonly Thread _staThread;
     private readonly BlockingCollection<Task> _tasks = new();
+    private bool _disposed;
 
     public StaTaskScheduler()
     {
@@ -63,8 +64,19 @@ public sealed class StaTaskScheduler : TaskScheduler, IDisposable
 
     public void Dispose()
     {
+        // Idempotent: a second call would run CompleteAdding() on an already-disposed
+        // BlockingCollection and throw ObjectDisposedException (AUD-04).
+        if (_disposed) return;
+        _disposed = true;
+
         _tasks.CompleteAdding();
-        _staThread.Join();
+
+        // Bounded join. The STA thread can be blocked waiting on the UI thread (for instance the
+        // "restore previous windows?" dialog), and Dispose runs on the UI thread — an unbounded Join
+        // is the two-way wait that hangs the exit with a leftover tray icon (AUD-13). Wait briefly,
+        // then let the (IsBackground) thread be reclaimed with the process.
+        _staThread.Join(TimeSpan.FromSeconds(5));
+
         _tasks.Dispose();
     }
 }

@@ -8,12 +8,13 @@ using Microsoft.UI.Xaml.Media.Animation;
 namespace ExplorerTabUtility.App.Services;
 
 /// <summary>
-/// Native-only tuning for the two gaps in the stock <see cref="ComboBox"/>:
+/// Native-only tuning for the three gaps in the stock <see cref="ComboBox"/>:
 /// <list type="number">
 /// <item>its dropdown items are as tall as a settings row;</item>
-/// <item>its dropdown snaps open with no transition.</item>
+/// <item>its dropdown snaps open with no transition;</item>
+/// <item>its dropdown has no material, so it opens as a flat panel on a window that has Mica.</item>
 /// </list>
-/// Both are handled with official WinUI pieces — a <c>BasedOn</c> named style and the stock
+/// All three are handled with official WinUI pieces — a <c>BasedOn</c> named style and the stock
 /// <see cref="Popup"/> part — so no control template is replaced.
 /// </summary>
 internal static class ComboBoxAssist
@@ -42,8 +43,8 @@ internal static class ComboBoxAssist
         ApplyCompactItems(comboBox);
 
         // The template is applied lazily, so try at Loaded and again when the list first opens.
-        comboBox.Loaded += (_, _) => EnableDropDownTransition(comboBox);
-        comboBox.DropDownOpened += (_, _) => EnableDropDownTransition(comboBox);
+        comboBox.Loaded += (_, _) => ConfigureDropDown(comboBox);
+        comboBox.DropDownOpened += (_, _) => ConfigureDropDown(comboBox);
     }
 
     /// <summary>
@@ -80,6 +81,59 @@ internal static class ComboBoxAssist
         }
     }
 
+    private static void ConfigureDropDown(ComboBox comboBox)
+    {
+        try
+        {
+            comboBox.ApplyTemplate();
+
+            if (FindPopup(comboBox) is not { } popup)
+            {
+                StartupLog.Step("ComboBoxAssist: Popup part not found");
+                return;
+            }
+
+            ApplyDropDownMaterial(popup);
+            EnableDropDownTransition(popup);
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("ComboBoxAssist dropdown", ex);
+        }
+    }
+
+    /// <summary>
+    /// Puts a system material behind the dropdown, when the platform actually renders one.
+    /// <para>
+    /// The list is not part of the window: WinUI opens it as a
+    /// <c>ShouldConstrainToRootBounds=false</c> <see cref="Popup"/>, which gets a real top-level HWND
+    /// of its own. An <c>AcrylicBrush</c> inside it cannot blur anything beyond that window
+    /// (microsoft-ui-xaml#9523), so <see cref="Popup.SystemBackdrop"/> is the documented way to reach
+    /// the compositor across the boundary.
+    /// </para>
+    /// <para>
+    /// ⛔ It is a no-op on this kind of popup today. The property only renders when the popup is
+    /// backed by its own Composition target, and assignment still succeeds and returns normally
+    /// whether or not it renders — verified by grabbing the screen with the dropdown open and
+    /// closed: across the whole 3840×2160 desktop only a 22×22 pixel patch changed (the cursor),
+    /// while this very line had logged "applied". Reported as microsoft-ui-xaml#10087 and #10677
+    /// (1.6.1 and 1.7.3 respectively, the latter closed as a duplicate of the former and unfixed).
+    /// </para>
+    /// <para>
+    /// Kept deliberately: it costs nothing, and the moment the platform starts honouring it the
+    /// dropdown picks up true desktop-visible acrylic with no further change. The material the user
+    /// actually sees today comes from the <c>ComboBoxDropDownBackground</c> override in App.xaml,
+    /// which is the in-app acrylic fallback the platform design docs prescribe for this case.
+    /// </para>
+    /// </summary>
+    private static void ApplyDropDownMaterial(Popup popup)
+    {
+        if (popup.SystemBackdrop is not null) return;
+
+        popup.SystemBackdrop = new DesktopAcrylicBackdrop();
+        StartupLog.Step($"ComboBoxAssist: popup backdrop set (rootBound={popup.ShouldConstrainToRootBounds}, platform may not render it)");
+    }
+
     /// <summary>
     /// Gives the dropdown an open/close transition.
     /// <para>
@@ -95,18 +149,10 @@ internal static class ComboBoxAssist
     /// parts of this control (probed — it returns null even after <c>ApplyTemplate</c>).
     /// </para>
     /// </summary>
-    private static void EnableDropDownTransition(ComboBox comboBox)
+    private static void EnableDropDownTransition(Popup popup)
     {
         try
         {
-            comboBox.ApplyTemplate();
-
-            if (FindPopup(comboBox) is not { } popup)
-            {
-                StartupLog.Step("ComboBoxAssist: Popup part not found");
-                return;
-            }
-
             if (popup.ChildTransitions.Count > 0) return;
 
             popup.ChildTransitions = new TransitionCollection { new EntranceThemeTransition() };

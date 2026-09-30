@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage.Pickers;
+using ExplorerTabUtility.Abstractions;
 using ExplorerTabUtility.App.Services;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Managers;
@@ -106,36 +107,75 @@ public sealed partial class ShortcutsPage : Page
     {
         if (_services is null) return;
 
-        var picker = new FileOpenPicker();
-        InitializeWithWindow(picker);
+        try
+        {
+            var picker = new FileOpenPicker();
+            InitializeWithWindow(picker);
 
-        picker.FileTypeFilter.Add(".json");
+            picker.FileTypeFilter.Add(".json");
 
-        var file = await picker.PickSingleFileAsync();
-        if (file is null) return;
+            var file = await picker.PickSingleFileAsync();
+            if (file is null) return;
 
-        var json = await File.ReadAllTextAsync(file.Path);
-        _services.ProfileManager.ImportProfiles(json);
-        _services?.Tray?.RefreshProfileMenus();
+            var json = await File.ReadAllTextAsync(file.Path);
+            _services.ProfileManager.ImportProfiles(json);
+            _services.Tray?.RefreshProfileMenus();
+        }
+        catch (Exception ex)
+        {
+            // An async void handler with no local catch is invisible to the user and, on the wrong
+            // thread, fatal — mirror MainWindow's pattern and report the failure (AUD-12).
+            StartupLog.Fail("ShortcutsPage.OnImportClick", ex);
+            await ShowErrorAsync(LocalizationService.Get("ImportFailed"));
+        }
     }
 
     private async void OnExportClick(object sender, RoutedEventArgs e)
     {
         if (_services is null) return;
 
-        var picker = new FileSavePicker();
-        InitializeWithWindow(picker);
+        try
+        {
+            var picker = new FileSavePicker();
+            InitializeWithWindow(picker);
 
-        picker.SuggestedFileName = Constants.HotKeyProfilesFileName;
-        picker.FileTypeChoices.Add("JSON", new[] { ".json" });
+            picker.SuggestedFileName = Constants.HotKeyProfilesFileName;
+            picker.FileTypeChoices.Add("JSON", new[] { ".json" });
 
-        var file = await picker.PickSaveFileAsync();
-        if (file is null) return;
+            var file = await picker.PickSaveFileAsync();
+            if (file is null) return;
 
-        await File.WriteAllTextAsync(
-            file.Path,
-            _services.ProfileManager.ExportProfiles(),
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            await File.WriteAllTextAsync(
+                file.Path,
+                _services.ProfileManager.ExportProfiles(),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("ShortcutsPage.OnExportClick", ex);
+            await ShowErrorAsync(LocalizationService.Get("ExportFailed"));
+        }
+    }
+
+    /// <summary>Shows a non-fatal error to the user; never rethrows (the caller is an async void).</summary>
+    private async Task ShowErrorAsync(string message)
+    {
+        if (_services is null) return;
+
+        try
+        {
+            await _services.Dialogs.ShowAsync(
+                message,
+                LocalizationService.Get("AppTitle"),
+                DialogButton.OK,
+                DialogIcon.Error);
+        }
+        catch (Exception ex)
+        {
+            // Another ContentDialog may already be on screen; the service serializes them, but a
+            // failure here must still not escape this async void.
+            StartupLog.Fail("ShortcutsPage.ShowErrorAsync", ex);
+        }
     }
 
     /// <summary>

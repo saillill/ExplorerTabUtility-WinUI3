@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ExplorerTabUtility.Abstractions;
 using ExplorerTabUtility.Helpers;
+using ExplorerTabUtility.Managers;
 
 namespace ExplorerTabUtility.App.Services;
 
@@ -23,6 +24,12 @@ public sealed class ContentDialogService : IDialogService
 {
     private readonly IUiDispatcher _dispatcher;
     private readonly Func<XamlRoot?> _xamlRootProvider;
+
+    /// <summary>
+    /// Gate so only one <see cref="ContentDialog"/> is ever open. WinUI throws a COMException if a
+    /// second one is shown while the first is still up (AUD-20).
+    /// </summary>
+    private readonly System.Threading.SemaphoreSlim _dialogGate = new(1, 1);
 
     public ContentDialogService(IUiDispatcher dispatcher, Func<XamlRoot?> xamlRootProvider)
     {
@@ -64,32 +71,89 @@ public sealed class ContentDialogService : IDialogService
         DialogIcon icon = DialogIcon.None,
         DialogResult defaultResult = DialogResult.None)
     {
+        // Serialize: only one ContentDialog may be open at a time. Awaiting the gate on the UI thread
+        // simply returns to the message loop, so a queued dialog appears once the current one closes
+        // rather than throwing (AUD-20).
+        await _dialogGate.WaitAsync();
+        try
+        {
+            return await ShowCoreAsync(message, title, buttons, icon, defaultResult);
+        }
+        finally
+        {
+            _dialogGate.Release();
+        }
+    }
+
+    private async Task<DialogResult> ShowCoreAsync(
+        string message,
+        string title,
+        DialogButton buttons,
+        DialogIcon icon,
+        DialogResult defaultResult)
+    {
         var xamlRoot = _xamlRootProvider();
         if (xamlRoot is null)
         {
             // No window yet — nothing to host a ContentDialog on. Falling back to a native
             // message box keeps the caller informed instead of failing silently.
+            //
+            // Known limitation, deliberately not papered over: a Win32 MessageBox is drawn by the
+            // system and follows the Windows app theme, so it can never follow the theme this app
+            // applies. It is unreachable in practice — AppServices is built after Application.Start
+            // but before MainWindow, every dialog call is posted to the dispatcher queue, and no
+            // dialog is produced while MainWindow is being constructed (nothing subscribes to
+            // anything until WireServices returns, and the window is Activate()d after that). If a
+            // future call site ever fires before Activate(), its dialog comes out system-themed.
             NativeMessageBox.Show(message, title, ToNativeIcon(icon));
             return DialogResult.OK;
         }
 
-        var dialog = new ContentDialog
-        {
-            XamlRoot = xamlRoot,
-            Title = title,
-            DefaultButton = ToDefaultButton(buttons, defaultResult)
-        };
+        var dialog = new ContentDialog();
 
+        // Give the dialog the theme that is actually in effect, otherwise it resolves its own theme
+        // from Application.RequestedTheme and disagrees with the window.
+        //
+        // A ContentDialog is not a child of the window's XAML tree — it is hosted in its own popup
+        // with its own XamlRoot, so its visual parent is null and it never inherits the ElementTheme
+        // that MainWindow.ApplySavedTheme (MainWindow.xaml.cs) sets on the root element. Measured on
+        // this codebase: with Application.RequestedTheme=Light while the root was Dark, the dialog
+        // came up Light — the window and its dialog disagreed, which is what the user saw as "the
+        // dialog ignores the app theme". The two theme sources are independent:
+        //   App.ApplyApplicationTheme()  -> Application.RequestedTheme  (assigned once, in the ctor)
+        //   MainWindow.ApplySavedTheme() -> root element RequestedTheme  (re-applied at runtime)
+        // Setting the theme below is what makes ResolveTheme() — not Application.RequestedTheme — the
+        // dialog's source of truth, so the two agree for every ThemeMode rather than only when the
+        // ThemeMode setting and the OS theme coincide.
+        //
+        // Application.RequestedTheme cannot be used to fix this: it is only writable before the first
+        // window is created. RequestedTheme on the dialog itself is the native switch that works at
+        // runtime (ContentDialog has no ContentTheme property in WinAppSDK 2.5.1 — only
+        // ContentDialogButton does).
+        //
+        // Resolved per call, never cached: the user can switch theme while the app runs, and the next
+        // dialog must reflect the new theme immediately. It must also follow the OS when the app is on
+        // "follow system" — see ResolveTheme for why ElementTheme.Default cannot serve as the fallback.
+        dialog.RequestedTheme = ResolveTheme();
+
+        // Everything else is populated BEFORE XamlRoot/Title are assigned, because ShowAsync touches
+        // the root and activates the popup: changing Content after that makes the re-entrant popup
+        // throw "Cannot change the activation state of a popup that is already in the process of
+        // closing or activating" (0x80000019). Content, button text and DefaultButton first; the two
+        // that attach the dialog to the tree last.
         dialog.Content = BuildContent(message, icon);
+        dialog.DefaultButton = ToDefaultButton(buttons, defaultResult);
 
         switch (buttons)
         {
             case DialogButton.OK:
-                dialog.CloseButtonText = "OK";
+                // Use the resource key rather than a hard-coded "OK": the string is already translated in
+                // all 9 resource files, and hard-coding it left that key unused (AUD report §5.1).
+                dialog.CloseButtonText = LocalizationService.Get("OK");
                 break;
 
             case DialogButton.OKCancel:
-                dialog.PrimaryButtonText = "OK";
+                dialog.PrimaryButtonText = LocalizationService.Get("OK");
                 dialog.CloseButtonText = LocalizationService.Get("Cancel");
                 break;
 
@@ -98,6 +162,9 @@ public sealed class ContentDialogService : IDialogService
                 dialog.CloseButtonText = LocalizationService.Get("No");
                 break;
         }
+
+        dialog.XamlRoot = xamlRoot;
+        dialog.Title = title;
 
         var result = await dialog.ShowAsync();
 
@@ -152,6 +219,45 @@ public sealed class ContentDialogService : IDialogService
 
         return grid;
     }
+
+    /// <summary>
+    /// Maps the saved theme setting to the theme the dialog should be rendered in.
+    /// <para>
+    /// This mirrors <c>MainWindow.ApplySavedTheme</c> exactly on purpose: the dialog is a separate
+    /// popup tree, so the only way it can match the window is by resolving the same setting the same
+    /// way. Kept as its own method (rather than reusing the window's) because the window one writes to
+    /// an element and would drag the window into the service.
+    /// </para>
+    /// <para>
+    /// It is called on every show rather than once, so a theme change made while the app is running is
+    /// picked up by the very next dialog; nothing here may be cached.
+    /// </para>
+    /// <para>
+    /// "Follow system" (0) MUST ask the OS here rather than return <see cref="ElementTheme.Default"/>.
+    /// Default would inherit <c>Application.RequestedTheme</c>, which <c>App.ApplyApplicationTheme</c>
+    /// assigns exactly once in the Application constructor. That value is a snapshot: after it is set,
+    /// a later OS theme change never reaches it. Measured: with the OS on light at launch the app theme
+    /// is pinned to Light; flipping the OS to dark mid-session leaves <c>Application.RequestedTheme</c>
+    /// at Light while the window (whose theme <c>MainWindow.OnSystemThemeChanged</c> re-applies from
+    /// <see cref="SystemTheme"/>) goes dark — and a dialog on Default then renders light on a dark
+    /// window, which is precisely the mismatch this service exists to prevent. Resolving through
+    /// <see cref="SystemTheme"/> re-reads <c>UISettings</c> on every call, so it costs nothing to
+    /// resolve per show and keeps "follow system" following the system.
+    /// </para>
+    /// <para>
+    /// Note for anyone reproducing this: the mismatch is only visible when the application theme is
+    /// assigned EXPLICITLY, as this app does. Left untouched, WinAppSDK resolves the ambient app theme
+    /// from the OS on demand and Default appears to track the OS — so a probe that never assigns
+    /// <c>Application.RequestedTheme</c> will wrongly conclude there is no defect.
+    /// </para>
+    /// </summary>
+    private static ElementTheme ResolveTheme() => SettingsManager.ThemeMode switch
+    {
+        1 => ElementTheme.Dark,
+        2 => ElementTheme.Light,
+        // "Follow system": ask the OS now. Never ElementTheme.Default — see the remarks above.
+        _ => SystemTheme.IsDark() ? ElementTheme.Dark : ElementTheme.Light
+    };
 
     private static ContentDialogButton ToDefaultButton(DialogButton buttons, DialogResult defaultResult)
     {

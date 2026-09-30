@@ -1,8 +1,6 @@
 using System;
 using System.IO;
 using System.Text.Json;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using ExplorerTabUtility.Models;
 using ExplorerTabUtility.Helpers;
@@ -14,11 +12,8 @@ public static class SettingsManager
     private static readonly AppSettings Settings;
     private static readonly object SaveLock = new();
     private static Timer? DebounceTimer;
-    private static bool IsDirty;
+    private static volatile bool IsDirty;
     private const int DebounceMs = 500;
-
-    public static event EventHandler<PropertyChangedEventArgs>? StaticPropertyChanged;
-    public static bool WasRecoveredFromBackup { get; private set; }
 
     private static readonly string SettingsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -44,7 +39,6 @@ public static class SettingsManager
             if (File.Exists(BackupFilePath) && TryLoad(BackupFilePath, out var missingBackup))
             {
                 Settings = missingBackup;
-                WasRecoveredFromBackup = true;
                 try { WriteAtomic(SettingsFilePath, missingBackup); } catch { }
                 return;
             }
@@ -59,7 +53,6 @@ public static class SettingsManager
         if (File.Exists(BackupFilePath) && TryLoad(BackupFilePath, out var backup))
         {
             Settings = backup;
-            WasRecoveredFromBackup = true;
             try { WriteAtomic(SettingsFilePath, backup); } catch { }
             return;
         }
@@ -80,19 +73,16 @@ public static class SettingsManager
         catch { return false; }
     }
 
-    private static void NotifyStaticPropertyChanged([CallerMemberName] string propertyName = "")
-        => StaticPropertyChanged?.Invoke(null, new PropertyChangedEventArgs(propertyName));
-
     public static bool IsMouseHookActive
-    { get => Settings.MouseHook; set { Settings.MouseHook = value; DebounceSave(); NotifyStaticPropertyChanged(); } }
+    { get => Settings.MouseHook; set { Settings.MouseHook = value; DebounceSave(); } }
     public static bool IsKeyboardHookActive
-    { get => Settings.KeyboardHook; set { Settings.KeyboardHook = value; DebounceSave(); NotifyStaticPropertyChanged(); } }
+    { get => Settings.KeyboardHook; set { Settings.KeyboardHook = value; DebounceSave(); } }
     public static bool IsWindowHookActive
-    { get => Settings.WindowHook; set { Settings.WindowHook = value; DebounceSave(); NotifyStaticPropertyChanged(); } }
+    { get => Settings.WindowHook; set { Settings.WindowHook = value; DebounceSave(); } }
     public static bool ReuseTabs
-    { get => Settings.ReuseTabs; set { Settings.ReuseTabs = value; DebounceSave(); NotifyStaticPropertyChanged(); } }
+    { get => Settings.ReuseTabs; set { Settings.ReuseTabs = value; DebounceSave(); } }
     public static string HotKeyProfiles
-    { get => Settings.HotKeyProfiles; set { Settings.HotKeyProfiles = value; DebounceSave(); NotifyStaticPropertyChanged(); } }
+    { get => Settings.HotKeyProfiles; set { Settings.HotKeyProfiles = value; DebounceSave(); } }
     public static WindowSize FormSize
     { get => Settings.FormSize; set { Settings.FormSize = value; DebounceSave(); } }
     public static bool IsFirstRun
@@ -102,7 +92,7 @@ public static class SettingsManager
     public static int ThemeMode
     {
         get => Settings.ThemeMode;
-        set { Settings.ThemeMode = value; DebounceSave(); NotifyStaticPropertyChanged(); }
+        set { Settings.ThemeMode = value; DebounceSave(); }
     }
 
     public static bool SaveClosedHistory
@@ -115,26 +105,77 @@ public static class SettingsManager
     public static WindowRecord[]? ClosedWindows
     { get => Settings.ClosedWindows; set { Settings.ClosedWindows = value; DebounceSave(); } }
     public static string Language
-    { get => Settings.Language; set { Settings.Language = value; DebounceSave(); NotifyStaticPropertyChanged(); } }
+    { get => Settings.Language; set { Settings.Language = value; DebounceSave(); } }
+
+    /// <summary>
+    /// Set once the legacy language value has been re-evaluated. Without this the correction in
+    /// <c>LocalizationService.ApplySavedLanguage</c> would repeat on every launch and an explicit
+    /// "English" could never stick.
+    /// </summary>
+    public static bool LanguageMigrated
+    { get => Settings.LanguageMigrated; set { Settings.LanguageMigrated = value; DebounceSave(); } }
 
     private static void DebounceSave()
     {
-        IsDirty = true;
-        if (DebounceTimer == null)
-            DebounceTimer = new Timer(_ => { lock (SaveLock) { if (IsDirty) { IsDirty = false; DoSave(); } } }, null, DebounceMs, Timeout.Infinite);
-        else
-            DebounceTimer.Change(DebounceMs, Timeout.Infinite);
+        // Everything below shares SaveLock with ForceSave: the read/modify/Change of DebounceTimer is
+        // not atomic on its own, and ForceSave may Dispose the timer from the ProcessExit thread at any
+        // moment. A single lock removes the lost-update (two orphan timers) and the
+        // change-after-dispose races (AUD-15).
+        lock (SaveLock)
+        {
+            IsDirty = true;
+
+            try
+            {
+                if (DebounceTimer == null)
+                    DebounceTimer = new Timer(_ => FlushIfDirty(), null, DebounceMs, Timeout.Infinite);
+                else
+                    DebounceTimer.Change(DebounceMs, Timeout.Infinite);
+            }
+            catch (ObjectDisposedException)
+            {
+                // ForceSave disposed the timer between our read and our Change. Rebuild it so the
+                // pending change still flushes instead of throwing up into the caller (AUD-15).
+                DebounceTimer = new Timer(_ => FlushIfDirty(), null, DebounceMs, Timeout.Infinite);
+            }
+        }
+    }
+
+    private static void FlushIfDirty()
+    {
+        lock (SaveLock)
+        {
+            if (!IsDirty) return;
+            IsDirty = false;
+            DoSave();
+        }
     }
 
     public static void ForceSave()
     {
-        DebounceTimer?.Dispose(); DebounceTimer = null;
-        lock (SaveLock) { if (IsDirty) { IsDirty = false; DoSave(); } }
+        // Same lock as DebounceSave. ForceSave is invoked from the UI thread and from
+        // AppDomain.ProcessExit, so it can run concurrently with a setter's debounce (AUD-15).
+        lock (SaveLock)
+        {
+            DebounceTimer?.Dispose();
+            DebounceTimer = null;
+
+            if (!IsDirty) return;
+            IsDirty = false;
+            DoSave();
+        }
     }
 
-    public static void SaveSettings() => ForceSave();
-
-    private static void DoSave() { try { WriteAtomic(SettingsFilePath, Settings); } catch { } }
+    private static void DoSave()
+    {
+        try { WriteAtomic(SettingsFilePath, Settings); }
+        catch (Exception ex)
+        {
+            // A persistent IO failure (disk full, permissions) used to vanish without a trace and
+            // the user's settings were silently lost. Leave at least a diagnostic breadcrumb.
+            System.Diagnostics.Debug.WriteLine($"SettingsManager save failed: {ex}");
+        }
+    }
 
     private static void WriteAtomic(string path, AppSettings s)
     {
@@ -180,4 +221,5 @@ internal class AppSettings
     public bool HideWindowOnStartup { get; set; }
     public WindowRecord[]? ClosedWindows { get; set; }
     public string Language { get; set; } = "";
+    public bool LanguageMigrated { get; set; }
 }
