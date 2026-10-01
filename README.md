@@ -16,6 +16,26 @@ Windows 11 File Explorer tab manager — rebuilt on the Windows App SDK.
   The chosen theme applies to the whole window *and* to dialogs and menus, and switches immediately
   without a restart.
 
+### Relationship to upstream, and what this build does not have
+
+This project is a **WinUI 3 rewrite of [ExplorerTabUtility](https://github.com/w4po/ExplorerTabUtility)**
+by Abd-Alrahman Ghanem (w4po): the hook engine, shell integration and feature set come from there, the
+UI and the app shell were rebuilt on the Windows App SDK. Everything from the second heading onward in
+this README is **the upstream project's documentation** and describes the original WPF application;
+where the two disagree, the WinUI shell is what ships here. Known differences worth calling out:
+
+- **No auto-update.** Upstream checks for a new release on startup; this build does not (there is no
+  update check in the code, and no setting for one).
+- **No "I have theme issues" option.** Upstream can hide a new window by moving it off-screen instead of
+  fading it out, for users whose custom File Explorer theme breaks under the fade. The mechanism exists in
+  the code (`Helper.HideWindow(..., keepTheme: true)`) but is **not exposed in the WinUI shell**, so the
+  alternative hiding mode cannot be selected here.
+- **Window Hook, Reuse Tabs, Keyboard Hook and Mouse Hook are tray-menu settings**, not entries in the
+  settings window. If you hide the tray icon (Preferences), those four toggles are only reachable through
+  hotkeys.
+- **Do not install from winget/choco with the upstream package ids** — those install the WPF application.
+  Use the `Setup.exe` or the portable zip from this repository's Releases.
+
 <table>
 <tr>
 <td width="50%"><img src="Assets/Dark.png" alt="Explorer Tab Utility in dark theme"></td>
@@ -219,7 +239,9 @@ Say goodbye to cluttered desktops with multiple Explorer windows! Explorer Tab U
 <summary>⚙️ Preferences</summary>
 
 - **Auto update**: Automatically check for updates on startup to ensure you're always using the latest version
+  *Not in this build — see "Relationship to upstream" above.*
 - **I have theme issues**: Use an alternative window hiding method that preserves your custom File Explorer theme. Enable this if you experience theme-related issues
+  *The mechanism exists but is not exposed in this build — see "Relationship to upstream" above.*
 - **Save closed history**: Save recently closed windows for reopening later (ReopenClosed, Tab Search)
 - **Restore previous windows**: Restore previously opened windows after restart or crash
 - **Hide tray icon**: Hide the system tray icon for a cleaner taskbar experience.
@@ -276,6 +298,10 @@ Each profile contains the following settings:
 </details>
 
 ## 🔧 Technical Details
+
+> This section describes the **original WPF** implementation (the `.NET Framework 4.8.1` / `.NET 9` and
+> WPF stack below); the shell in this repository is WinUI 3 on .NET 10, and the COM/hook layer is shared
+> with upstream. See `docs/ARCHITECTURE.md` for the contracts that apply here.
 
 <details>
 <summary>Implementation Overview</summary>
@@ -430,6 +456,25 @@ Thank you to all the amazing people who support this project!
     <img src="https://cdn.jsdelivr.net/gh/w4po/sponsors/sponsors.svg" alt="Sponsors" />
   </a>
 </p>
+
+## Building from source
+
+Requires the .NET 10 SDK on Windows 11 (22H2 or later, build 22621+).
+
+```powershell
+dotnet build ExplorerTabUtility.slnx -c Release -warnaserror   # the gate is 0 warnings, 0 errors
+dotnet test  ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj -c Release
+python tools/release.py                                        # publish → portable zip → installer → verify
+python tools/release.py --ship                                 # …and update the GitHub release
+```
+
+`tools/release.py` is the supported way to produce a release: it cleans, builds, tests, publishes with
+the parameters this project needs, packs both artifacts, checks that the DLL inside the zip is
+byte-identical to the published one and that the assemblies' build stamp (`<version>+<commit>`) names a
+commit that matches HEAD. `docs/ARCHITECTURE.md` records the standing contracts — window-size units,
+the threading model, ownership rules — and indexes the `AUD-nn` references found in code comments.
+
+CI (`.github/workflows/build.yml`) only compiles and tests. It deliberately has no release step.
 
 ## Contributing
 

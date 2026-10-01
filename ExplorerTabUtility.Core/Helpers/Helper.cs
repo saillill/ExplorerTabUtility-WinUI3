@@ -259,6 +259,18 @@ public static class Helper
         if (!remove && !isLayered) // Add
             WinApi.SetWindowLong(hWnd, WinApi.GWL_EXSTYLE, exStyle | WinApi.WS_EX_LAYERED);
     }
+    /// <summary>
+    /// Hides a window until <see cref="ShowWindow"/> puts it back.
+    /// </summary>
+    /// <param name="hWnd">The window to hide.</param>
+    /// <param name="keepTheme">
+    /// Hides by moving the window off-screen instead of fading it out. The upstream WPF build exposed this
+    /// as an "I have theme issues" setting: a custom File Explorer theme can misbehave when the window is
+    /// made transparent, but it survives being parked at −32000. <b>Not reachable from the WinUI shell</b>
+    /// — no settings entry passes <c>true</c>, and the README says so. It is kept (rather than deleted)
+    /// because the mechanism itself is upstream's answer to a real problem; exposing it again means adding
+    /// a settings toggle and forwarding it from the two call sites in <c>ExplorerWatcher</c>.
+    /// </param>
     public static void HideWindow(nint hWnd, bool keepTheme = false)
     {
         // Deliberately NOT ConcurrentDictionary.GetOrAdd: the value factory here performs real side
@@ -341,6 +353,13 @@ public static class Helper
         if (string.IsNullOrWhiteSpace(location))
             return location;
 
+        // Trim FIRST — before the "is this a URL / a shell path?" tests rather than after them.
+        // Both edge characters are things a paste brings along, and every test below looks at the first
+        // character of the string: with the trim at the end, "  https://host/x  " failed the URL test
+        // (its first character is a space), fell through to the path rules and was rewritten into
+        // "https:\\host\x" — a URL destroyed by padding. "  {GUID}  " lost its shell:: prefix the same way.
+        location = TrimEdgeWhitespaceAndQuotes(location);
+
         // Web-style URLs are returned verbatim: the file-path normalisation below (back-slash
         // rewriting in particular) would turn "https://host/path" into "https:\\host\path" and break
         // the very URL that Open()'s StartsWith("http") test then hands to ShellExecute (AUD-07).
@@ -356,10 +375,9 @@ public static class Helper
         else if (location.StartsWith("{", StringComparison.Ordinal))
             location = $"shell:::{location}";
 
-        // Strip surrounding whitespace/quotes on both ends — these never carry path meaning. But
-        // strip the separators from the END only: a leading "\\" is the UNC marker and "\\?\" the
-        // extended-length prefix, so trimming the front destroys them (AUD-03).
-        location = location.Trim(' ', '\t', '\r', '\n', '\'', '"');
+        // Kept after the expansion as well: an environment variable's value can itself carry edge
+        // whitespace, which would otherwise survive into the rules below.
+        location = TrimEdgeWhitespaceAndQuotes(location);
         location = location.TrimEnd('/', '\\');
 
         // A bare "C:" means "current directory on drive C", not its root; restore the trailing
@@ -368,6 +386,35 @@ public static class Helper
             location += '\\';
 
         return location.Replace('/', '\\');
+    }
+
+    /// <summary>
+    /// Removes leading and trailing whitespace and quote characters — neither carries path meaning.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately <b>not</b> a separator trim: a leading <c>\\</c> is the UNC marker and <c>\\?\</c>
+    /// the extended-length prefix, so separators may only be stripped from the <em>end</em> — which the
+    /// caller does in its own step (AUD-03).
+    /// <para>
+    /// A hand-rolled loop rather than <see cref="string.Trim()"/> plus a second <c>Trim(char[])</c>: the
+    /// two would have to be applied in both orders to cover a value like <c>" ' C:\x ' "</c>, and
+    /// <see cref="char.IsWhiteSpace(char)"/> already covers the exotic spaces (a non-breaking space is a
+    /// common artefact of pasting from a web page) that a fixed character list would miss.
+    /// </para>
+    /// </remarks>
+    private static string TrimEdgeWhitespaceAndQuotes(string value)
+    {
+        var start = 0;
+        var end = value.Length - 1;
+
+        while (start <= end && IsEdgeCharacter(value[start])) start++;
+        while (end >= start && IsEdgeCharacter(value[end])) end--;
+
+        return start == 0 && end == value.Length - 1
+            ? value
+            : value[start..(end + 1)];
+
+        static bool IsEdgeCharacter(char c) => char.IsWhiteSpace(c) || c is '"' or '\'';
     }
 
     /// <summary>

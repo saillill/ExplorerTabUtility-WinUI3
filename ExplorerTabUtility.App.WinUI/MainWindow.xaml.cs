@@ -1233,6 +1233,11 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UnhideAndPresent(string reason, TopmostRelease releaseWhen)
     {
+        // The pre-state is logged HERE, before Show(), because that is the only moment it is still
+        // observable: PresentWindow's own line always runs after the window is up again and used to
+        // report "wasHidden=False" for a genuine tray restore.
+        StartupLog.Step($"{reason}: restoring from the tray (was hidden)");
+
         AppWindow.Show();
         PresentWindow(reason, releaseWhen);
     }
@@ -1272,9 +1277,10 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private void PresentWindow(string reason, TopmostRelease releaseWhen)
     {
-        // Sampled before anything is touched: this is what tells a genuine tray restore apart from a
-        // window that was already on screen but covered.
-        var wasHidden = !AppWindow.IsVisible;
+        // NB: "was the window hidden?" is deliberately NOT sampled here. Every caller that restores from
+        // the tray (UnhideAndPresent) has already called AppWindow.Show() by the time this runs, so the
+        // answer would always be "no" — which is exactly what the log used to report, and it made a
+        // genuine tray restore look like a plain re-raise. That path logs the pre-state itself.
 
         // A tray popup menu owns the foreground while its click handler runs, so the OS silently
         // ignores a plain Activate(). ForceToTop restores, promotes the Z-order band and then takes the
@@ -1290,7 +1296,7 @@ public sealed partial class MainWindow : Window
 
         // Logged after the call, so a window that failed to come forward is diagnosable from the log
         // rather than assumed. `foreground=False` is the signature of the fullscreen case above.
-        StartupLog.Step($"{reason}: wasHidden={wasHidden} visible={AppWindow.IsVisible} foreground={foreground}");
+        StartupLog.Step($"{reason}: visible={AppWindow.IsVisible} foreground={foreground}");
     }
 
     /// <summary>

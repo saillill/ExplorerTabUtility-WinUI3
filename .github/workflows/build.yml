@@ -1,0 +1,50 @@
+name: build
+
+# ⛔ 本工作流只做「编译 + 测试」。它**不允许**包含任何发布动作：
+#    v1.0.1 的资产由 tools/release.py 在本地产出并 `gh release upload --clobber` 覆盖，
+#    历史上一个 tag 触发的 CI 曾在推 tag 时把线上资产覆盖成 CI 自己编的版本，
+#    所以这里既不监听 tag，也绝不出现 dotnet publish / gh release / upload-artifact 之类步骤。
+#    要放宽这条之前先读 docs/ARCHITECTURE.md「发布链路」。
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    # WinUI 3 / WindowsAppSDK 需要 Windows runner。
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 构建期会执行 `git rev-parse --short HEAD` 写入程序集版本（Directory.Build.props），
+          # 完整历史还能让"这份二进制来自哪次提交"可核对。
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # -warnaserror：本仓库的门禁就是 0 警告 0 错误，把测试项目的分析器警告也算进去。
+      - name: Build
+        run: dotnet build ExplorerTabUtility.slnx -c Release -warnaserror
+
+      - name: Test
+        run: dotnet test ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj -c Release --no-build
+
+      # 可见性：让"资源键九语言齐全 + 构建戳"这两条不变量在 CI 日志里直接可见，
+      # 而不是等到用户界面出现原始 key 才发现。
+      - name: Verify satellite resources and build stamp
+        shell: pwsh
+        run: |
+          $stamp = (Select-String -Path ExplorerTabUtility.App.WinUI/obj/Release/*/win-x64/ExplorerTabUtility.App.WinUI.AssemblyInfo.cs -Pattern 'AssemblyInformationalVersion\("([^"]+)"\)').Matches[0].Groups[1].Value
+          Write-Host "build stamp: $stamp"
+          $languages = 'zh-CN','zh-Hant','ja','ko','de','fr','es','ru'
+          $missing = $languages | Where-Object {
+            -not (Test-Path "ExplorerTabUtility.Core/bin/Release/net10.0-windows/$_/ExplorerTabUtility.Core.resources.dll")
+          }
+          if ($missing) { throw "missing satellite resources: $($missing -join ', ')" }
+          Write-Host "satellite resources: OK ($($languages.Count) languages)"

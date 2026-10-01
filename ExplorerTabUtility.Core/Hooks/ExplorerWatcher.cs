@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Diagnostics;
@@ -291,7 +291,7 @@ public class ExplorerWatcher : IHook
         var window = GetWindowByTabHandle(activeTabHandle);
         if (window == null) return;
 
-        var location = _windowEntryDict[window].Value.Location ?? GetLocation(window);
+        var location = GetKnownLocation(window);
         var selectedItems = GetSelectedItems(window);
         var windowRecord = new WindowRecord(location, windowHandle, selectedItems);
 
@@ -348,7 +348,7 @@ public class ExplorerWatcher : IHook
         var window = GetWindowByTabHandle(activeTabHandle);
         if (window == null) return;
 
-        var location = _windowEntryDict[window].Value.Location ?? GetLocation(window);
+        var location = GetKnownLocation(window);
         var selectedItems = GetSelectedItems(window);
         var windowRecord = new WindowRecord(location, windowHandle, selectedItems);
 
@@ -884,6 +884,22 @@ public class ExplorerWatcher : IHook
     }
     private static string[]? GetSelectedItems(ExplorerWindow window) => window.GetSelectedItemNames();
     private static void SelectItems(ExplorerWindow window, string[]? names) => window.SelectItemsByName(names);
+    /// <summary>
+    /// The window's location: the cached one when the table still knows the window, a live read otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Used instead of the dictionary's indexer, which throws <see cref="KeyNotFoundException"/> for a
+    /// window that has gone. The entry can disappear between resolving a tab handle and reading it — the
+    /// window is closed on another thread, or the crash path tears the whole table down — and because
+    /// every caller of this sits inside a hotkey handler that catches broadly, the indexer turned that
+    /// race into "the hotkey did nothing, with no trace". Falling back to a live read is both truthful
+    /// and what the caller wants.
+    /// </remarks>
+    private string GetKnownLocation(ExplorerWindow window) =>
+        _windowEntryDict.TryGetByPrimary(window, out var info, out _) && info.Location is { } cached
+            ? cached
+            : GetLocation(window);
+
     private static string GetLocation(ExplorerWindow window)
     {
         var path = window.LocationURL;

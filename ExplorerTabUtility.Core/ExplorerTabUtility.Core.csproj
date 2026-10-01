@@ -20,9 +20,22 @@
   <ItemGroup>
     <PackageReference Include="H.Hooks" Version="1.7.0" />
     <!-- 保留原有的 IL 织入语义：全量注入 ConfigureAwait(false)。
-         后续可逐步显式化并移除，见重构方案阶段 0 说明。 -->
+         后续可逐步显式化并移除，见重构方案阶段 0 说明。
+
+         ⚠️ 这是一条**进程级线程语义契约**，由 ExplorerTabUtility.Tests 的两条测试守着：
+           · Core 的 await 续体不得回到调用方的 SynchronizationContext（即织入必须生效）；
+           · App 外壳**不得**被织入（它的续体要留在 UI 线程上，AboutPage 的图片缓存依赖这一点）。
+         改动本文件或 FodyWeavers.xml 前先读 docs/ARCHITECTURE.md「线程交付模型」。
+         移除织入不是不可以，但必须把 Core 里需要脱离上下文的 await 显式化，
+         并同步删掉那两条测试的期望值 —— 否则 UI 线程会被无谓地拉回。 -->
     <PackageReference Include="Fody" Version="6.9.2" PrivateAssets="all" />
     <PackageReference Include="ConfigureAwait.Fody" Version="3.3.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 单元测试需要触碰两个内部实现：SettingsManager.WriteAtomic（原子写 + .bak 回滚）
+         与 AppSettings（写入对象）。仅暴露给测试程序集，不改变公开面。 -->
+    <InternalsVisibleTo Include="ExplorerTabUtility.Tests" />
   </ItemGroup>
 
 </Project>

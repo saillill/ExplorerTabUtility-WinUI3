@@ -177,7 +177,17 @@ public static class SettingsManager
         }
     }
 
-    private static void WriteAtomic(string path, AppSettings s)
+    /// <summary>
+    /// Writes <paramref name="s"/> to <paramref name="path"/> as atomically as the file system allows,
+    /// keeping the previous content in <c>.bak</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>internal</c> rather than private so the unit tests can exercise it against a temporary
+    /// directory: this is the code that decides whether a user's settings survive a crash mid-save, and
+    /// its failure mode (a missing settings file) is silent. See
+    /// <c>ExplorerTabUtility.Tests.SettingsWriteTests</c>.
+    /// </remarks>
+    internal static void WriteAtomic(string path, AppSettings s)
     {
         var tmp = path + ".tmp";
         var bak = path + ".bak";

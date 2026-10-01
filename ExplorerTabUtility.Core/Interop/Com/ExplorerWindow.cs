@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -34,6 +34,25 @@ public sealed class ExplorerWindow : IDisposable
 
     /// <summary>Serializes event advising and teardown so a connection point is never advised twice.</summary>
     private readonly object _eventsLock = new();
+
+    /// <summary>
+    /// The late-bound view of the COM object. Every member below goes through this property rather than
+    /// using <see cref="_dyn"/> directly, so a wrapper used after <see cref="Dispose"/> fails with a
+    /// stated reason.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Dispose"/> calls <c>Marshal.ReleaseComObject</c>, after which the RCW has no reference
+    /// of its own left: the runtime then reports any further call as <c>InvalidComObjectException</c>,
+    /// which says nothing about what actually happened. The hotkey paths catch broadly, so that turned
+    /// into "the hotkey did nothing" with no trace at all. <see cref="ObjectDisposedException"/> names
+    /// the real cause, and <see cref="IsDisposed"/> lets a caller check first.
+    /// </remarks>
+    private dynamic Com => _disposed
+        ? throw new ObjectDisposedException(nameof(ExplorerWindow), "the shell window has been released")
+        : _dyn;
+
+    /// <summary>True once <see cref="Dispose"/> has released the underlying COM object.</summary>
+    public bool IsDisposed => _disposed;
 
     private ExplorerWindow(object rcw)
     {
@@ -84,38 +103,38 @@ public sealed class ExplorerWindow : IDisposable
 
     // ---- IWebBrowser2 surface -------------------------------------------------
 
-    public int HWND => (int)_dyn.HWND;
+    public int HWND => (int)Com.HWND;
 
-    public string LocationURL => (string?)_dyn.LocationURL ?? string.Empty;
+    public string LocationURL => (string?)Com.LocationURL ?? string.Empty;
 
-    public string LocationName => (string?)_dyn.LocationName ?? string.Empty;
+    public string LocationName => (string?)Com.LocationName ?? string.Empty;
 
     /// <summary>The <c>ShellFolderView</c> document, or <c>null</c> for non-fileystem folders.</summary>
     public object? Document
     {
         get
         {
-            try { return (object?)_dyn.Document; }
+            try { return (object?)Com.Document; }
             catch { return null; }
         }
     }
 
-    public void Navigate2(object target) => _dyn.Navigate2(target);
+    public void Navigate2(object target) => Com.Navigate2(target);
 
-    public void GoBack() => _dyn.GoBack();
+    public void GoBack() => Com.GoBack();
 
-    public void GoForward() => _dyn.GoForward();
+    public void GoForward() => Com.GoForward();
 
-    public void Quit() => _dyn.Quit();
+    public void Quit() => Com.Quit();
 
     /// <summary>COM property bag used by the app to mark windows it has already seen.</summary>
     public object? GetProperty(string name)
     {
-        try { return (object?)_dyn.GetProperty(name); }
+        try { return (object?)Com.GetProperty(name); }
         catch { return null; }
     }
 
-    public void PutProperty(string name, object value) => _dyn.PutProperty(name, value);
+    public void PutProperty(string name, object value) => Com.PutProperty(name, value);
 
     // ---- ShellFolderView helpers (what Shell32 previously provided) ------------
 
@@ -191,14 +210,22 @@ public sealed class ExplorerWindow : IDisposable
     /// QIs the browser for <c>IServiceProvider</c> and resolves the tab host window
     /// (<c>IShellBrowser::GetWindow</c>). Replaces the old IServiceProvider cast chain.
     /// </summary>
+    /// <remarks>
+    /// Everything that touches COM sits inside the guard, including the <c>is</c> test: an <c>is</c>
+    /// against a COM interface is itself a QueryInterface, and on an object whose server has gone (the
+    /// Explorer process died) or whose RCW has been released that throws rather than answering. A method
+    /// named <c>Try…</c> must not throw, so both conditions report "no tab handle" instead.
+    /// </remarks>
     public bool TryGetTabHandle(out nint handle)
     {
         handle = 0;
 
-        if (_rcw is not IServiceProvider provider) return false;
+        if (_disposed) return false;
 
         try
         {
+            if (_rcw is not IServiceProvider provider) return false;
+
             var serviceGuid = typeof(IShellBrowser).GUID;
             provider.QueryService(ref serviceGuid, ref serviceGuid, out var shellBrowser);
             if (shellBrowser is null) return false;
@@ -257,7 +284,9 @@ public sealed class ExplorerWindow : IDisposable
 
     public override bool Equals(object? obj) => obj is ExplorerWindow other && ReferenceEquals(_rcw, other._rcw);
 
-    public override string ToString() => $"ExplorerWindow(0x{HWND:X})";
+    public override string ToString() => _disposed
+        ? "ExplorerWindow(disposed)"
+        : $"ExplorerWindow(0x{HWND:X})";
 
     // ---- Lifetime ------------------------------------------------------------
 

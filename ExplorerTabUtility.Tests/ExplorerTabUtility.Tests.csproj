@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 与 Core 同一个 TFM：测试直接引用 Core，不需要 WinUI 外壳。 -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>ExplorerTabUtility.Tests</RootNamespace>
+    <AssemblyName>ExplorerTabUtility.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <!-- Core 是 x64 专用（PlatformTarget=x64），测试宿主也固定 x64，避免 AnyCPU 下加载失败。 -->
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExplorerTabUtility.Core\ExplorerTabUtility.Core.csproj" />
+  </ItemGroup>
+
+</Project>
