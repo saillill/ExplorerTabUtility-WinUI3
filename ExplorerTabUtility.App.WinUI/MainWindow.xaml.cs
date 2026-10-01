@@ -370,6 +370,12 @@ public sealed partial class MainWindow : Window
             _paneTransitionInProgress = true;
             _paneAutoCollapsed = true;
             Nav.IsPaneOpen = false;
+
+            // Logged on the transition, not per resize event: "why did my pane fold?" is otherwise
+            // unanswerable from the outside, and this is the one line that says at which width it happened.
+            StartupLog.Step(
+                $"pane: folded (estimate {windowEstimate:F1} < {PaneCollapseWindowWidth:F1}, width {width:F1})");
+
             ApplyPaneMinSize();
             _paneTransitionInProgress = false;
             return;
@@ -392,6 +398,10 @@ public sealed partial class MainWindow : Window
         _paneTransitionInProgress = true;
         _paneAutoCollapsed = false;
         Nav.IsPaneOpen = true;
+
+        StartupLog.Step(
+            $"pane: unfolded (estimate {windowEstimate:F1} >= {PaneCollapseWindowWidth:F1}, width {width:F1})");
+
         ApplyPaneMinSize();
         _paneTransitionInProgress = false;
     }
