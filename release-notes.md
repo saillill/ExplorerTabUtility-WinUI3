@@ -3,24 +3,18 @@ Spanish, French, Russian, German, Japanese and Korean.
 
 Fixes in this build:
 
-- The settings window no longer shrinks a little on every launch, and no longer opens at screen
-  size after being hidden while maximised. Both came from saving the window's client area and
-  restoring it as the outer window size.
-- The minimum window width is now measured on the live window instead of assumed from a constant,
-  so the settings column keeps its full budget at every DPI scale — and the navigation pane stays
-  open at the default window size instead of folding away on startup.
-- Tab search now shares the app-wide one-dialog rule and follows the app theme: it could silently
-  fail next to another dialog, and it rendered in the wrong theme after switching themes at runtime.
-  Reading Explorer's tabs also no longer blocks the window while a folder is slow to answer.
-- Shortcut rows can be expanded with the keyboard and by screen readers; the About navigation item
-  shows the normal selected/hover feedback again; the settings column is capped in width; dropdowns
-  and disclosures rise into place instead of sliding in from the side.
-- Failures are now appended to `error.log` (the startup log is truncated on each run) and the startup
-  log records the build revision, so a deployed binary can be traced back to a commit.
+- Paths are no longer mangled by surrounding whitespace or quotes: `"  https://host/x  "` used to be
+  rewritten into a file path, and a CLSID wrapped in spaces lost its `shell::` prefix.
+- A released Explorer window now reports why it is unusable, instead of the generic COM error that made
+  a failing hotkey look like nothing happened. The restore-from-tray line in the log no longer claims the
+  window was never hidden.
+- Tooling: 154 unit tests, a CI build that compiles with warnings-as-errors and runs them, and
+  `tools/release.py` as the single release chain. `docs/ARCHITECTURE.md` records the window-geometry,
+  threading and ownership contracts that used to live only in comments.
 
-This refresh of the same version also carries the previous build's fixes: DPI-aware minimum window
-size, surfacing the window before the tab-search picker, immediate tray menu refresh, and assorted
-lifetime and settings-sync fixes.
+This build also carries everything published for this version earlier: outer-window-size persistence (no
+window that shrinks on every launch), a measured minimum width, tab search sharing the one-dialog rule and
+the app theme, keyboard and screen-reader access to shortcut rows, and failure logging to `error.log`.
 
 - `ExplorerTabUtility_<version>_Setup.exe` — per-user install, no administrator rights required,
   includes an uninstaller. If the .NET 10 Desktop Runtime or the Windows App Runtime is missing,
