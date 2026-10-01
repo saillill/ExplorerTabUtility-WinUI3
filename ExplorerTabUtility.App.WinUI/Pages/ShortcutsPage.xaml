@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="ExplorerTabUtility.App.Pages.ShortcutsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -12,17 +12,21 @@
           · FlatButtonStyle / CustomCheckBoxStyle    → 默认 Button / ToggleSwitch / AccentButtonStyle
 
         整页放进同一个 ScrollViewer：标题、工具栏与卡片列表共用同一条内容列。
-        宽度交给布局引擎（Stretch + MaxWidth），不计算具体像素值 —— 计算值一旦与实际视口
-        脱节就会溢出，而 Stretch 在结构上不可能超出视口；MaxWidth 只负责在宽窗口下封顶
-        （与 PreferencesPage 同一组值）。
+        宽度完全交给布局引擎（Stretch），不计算具体像素值 —— 计算值一旦与实际视口脱节就会溢出，
+        而 Stretch 在结构上不可能超出视口。
+
+        ⛔ 不要再给它加 MaxWidth。2026-10-01 试过 MaxWidth="1000"（想在大屏上封顶），
+        实测「Stretch + MaxWidth」在这个 ScrollViewer 里会把被限宽的列**摆到视口之外**：
+        1500 epx 窗口下 colX=643、colW=1000，而内容视口只有 1173 ⇒ 卡片右半（开关与展开箭头）
+        被裁出屏幕。把边距从列挪到 ScrollViewer.Padding 同样无效。
+        真要封顶得换做法（例如按视口宽度在代码里设 ContentColumn.Width），别在 XAML 里加 MaxWidth。
     -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch">
         <StackPanel
             x:Name="ContentColumn"
-            Margin="36,24,36,24"
             Spacing="4"
-            MaxWidth="1000"
+            Margin="36,24,36,24"
             HorizontalAlignment="Stretch">
 
             <TextBlock x:Name="HeaderTitle" Style="{StaticResource TitleTextBlockStyle}" />
