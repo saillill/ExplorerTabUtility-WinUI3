@@ -20,6 +20,14 @@ public readonly struct PixelPoint(int x, int y)
 /// <summary>
 /// Persisted settings-window size. Replaces <c>System.Windows.Size</c>.
 /// <para>
+/// <b>Unit contract: the OUTER window size, in effective pixels.</b> That is the WPF
+/// <c>Window.ActualWidth/Height</c> semantics this type inherits, and it is what
+/// <c>AppWindow.Size</c>/<c>Resize</c> deal in once divided/multiplied by the rasterization scale.
+/// It is deliberately <b>not</b> the XAML client area: writing <c>FrameworkElement.ActualWidth</c>
+/// here (one frame border smaller in width, and one frame border plus the 32 epx title bar smaller in
+/// height) made every launch restore a window smaller than the one that was saved.
+/// </para>
+/// <para>
 /// Deliberately keeps the <c>Width</c>/<c>Height</c> member names and floating-point shape of
 /// the original so existing <c>settings.json</c> files deserialize unchanged.
 /// </para>
@@ -27,10 +35,10 @@ public readonly struct PixelPoint(int x, int y)
 public readonly record struct WindowSize(double Width, double Height)
 {
     /// <summary>
-    /// First-run window size, in effective pixels.
+    /// First-run window size, in effective pixels (outer window size — see the type remarks).
     /// <para>
     /// Wide enough to show the navigation pane <b>and</b> the settings column at once: the pane is
-    /// 240 epx and the settings column wants at least ~660, so anything under ~900 would make the
+    /// 240 epx and the settings column wants at least ~620, so anything under ~900 would make the
     /// window open with the pane already collapsed by
     /// <c>MainWindow.UpdatePaneForWidth</c>. Matches the fallback used when a stored size is
     /// unusable, so both paths agree.

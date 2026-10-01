@@ -21,24 +21,55 @@ namespace ExplorerTabUtility.App.Services;
 /// and a choice is executed through <see cref="ExplorerWatcher.SwitchTo"/>, which wires those
 /// otherwise-dead APIs back into the app (AUD-06).
 /// </para>
+/// <para>
+/// It is a <see cref="ContentDialog"/> built here rather than by <c>ContentDialogService</c> (the
+/// picker needs its own layout and keyboard handling), but two rules of that service still apply and
+/// are honoured explicitly: it must take the shared <c>DialogGate</c> — WinUI allows only one
+/// ContentDialog per <see cref="XamlRoot"/>, and a collision throws an exception that both callers
+/// swallow, leaving the hotkey looking dead — and it must resolve the dialog theme from the same
+/// place, or it renders against the frozen launch-time application theme.
+/// </para>
 /// </summary>
 public static class TabSearchDialog
 {
     /// <summary>Only one picker may be up at a time; a second request while open is ignored.</summary>
     private static bool _isOpen;
 
-    public static async Task ShowAsync(ExplorerWatcher watcher, XamlRoot xamlRoot)
+    public static async Task ShowAsync(ExplorerWatcher watcher, XamlRoot xamlRoot, ContentDialogService dialogs)
     {
         if (watcher is null) throw new ArgumentNullException(nameof(watcher));
         if (xamlRoot is null) throw new ArgumentNullException(nameof(xamlRoot));
+        if (dialogs is null) throw new ArgumentNullException(nameof(dialogs));
 
         if (_isOpen) return;
         _isOpen = true;
 
         try
         {
+            await ShowCoreAsync(watcher, xamlRoot, dialogs);
+        }
+        finally
+        {
+            _isOpen = false;
+        }
+    }
+
+    private static async Task ShowCoreAsync(ExplorerWatcher watcher, XamlRoot xamlRoot, ContentDialogService dialogs)
+    {
+        // Take the process-wide one-dialog slot before building anything. Awaiting it returns to the
+        // message loop, so this queues behind whatever dialog is already up instead of throwing.
+        await dialogs.DialogGate.WaitAsync();
+        try
+        {
+            // The window list is built from blocking cross-process COM reads (LocationURL, the
+            // selected-items collection). Doing that on the UI thread froze the settings window for as
+            // long as any single Explorer window took to answer. Load on a pool thread — the shell
+            // objects live in the MTA, which is where the watcher's own callbacks run — and keep the
+            // UI thread for building the dialog.
+            var records = await Task.Run(watcher.GetWindows);
+
             // Mutable so a history clear can rebuild it without recreating the dialog.
-            var entries = BuildEntries(watcher.GetWindows());
+            var entries = BuildEntries(records);
 
             var searchBox = new TextBox
             {
@@ -110,6 +141,12 @@ public static class TabSearchDialog
                 XamlRoot = xamlRoot,
                 Title = LocalizationService.Get("TabSearchTitle"),
                 Content = panel,
+                // A ContentDialog is hosted in its own popup tree, so it never inherits the theme this
+                // app sets on the window's root element — it resolves against Application.RequestedTheme,
+                // which is a snapshot taken in the Application constructor. Resolving per show through
+                // the same helper the other dialogs use is what keeps the picker in step with the window
+                // after a runtime theme switch.
+                RequestedTheme = ContentDialogService.ResolveTheme(),
                 // "Clear closed windows history" — README's "single click" affordance. Clicking it only
                 // ARMS the confirmation; it never closes the picker (the handler cancels the click).
                 SecondaryButtonText = LocalizationService.Get("ClearHistory"),
@@ -198,12 +235,22 @@ public static class TabSearchDialog
                 confirmRow.Visibility = Visibility.Visible;
             };
 
-            confirmYes.Click += (_, _) =>
+            confirmYes.Click += async (_, _) =>
             {
-                watcher.ClearClosedWindows();
+                try
+                {
+                    watcher.ClearClosedWindows();
 
-                // Re-read the list so the cleared history disappears immediately.
-                entries = BuildEntries(watcher.GetWindows());
+                    // Re-read the list so the cleared history disappears immediately — off the UI
+                    // thread, for the same reason as the initial load above.
+                    entries = BuildEntries(await Task.Run(watcher.GetWindows));
+                }
+                catch (Exception ex)
+                {
+                    // async void handler: nothing above it can catch, so contain it here.
+                    StartupLog.Fail("TabSearchDialog.ClearHistory", ex);
+                }
+
                 HideConfirm();
                 ApplyFilter();
             };
@@ -220,7 +267,8 @@ public static class TabSearchDialog
         }
         finally
         {
-            _isOpen = false;
+            // Release the shared one-dialog slot; _isOpen is cleared by ShowAsync's own finally.
+            dialogs.DialogGate.Release();
         }
     }
 

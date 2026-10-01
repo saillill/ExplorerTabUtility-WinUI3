@@ -21,7 +21,6 @@
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restaurer les fenêtres précédentes</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Restaure les fenêtres après un redémarrage ou un plantage de l’Explorateur</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Masquer l’icône de la zone de notification</value></data>
-  <data name="HideTrayIconTooltip" xml:space="preserve"><value>Masque l’icône dans la zone de notification</value></data>
   <data name="Language" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
     <value>Suivre le système</value>

@@ -155,7 +155,17 @@ internal static class ComboBoxAssist
         {
             if (popup.ChildTransitions.Count > 0) return;
 
-            popup.ChildTransitions = new TransitionCollection { new EntranceThemeTransition() };
+            // EntranceThemeTransition moves content in from a *horizontal* offset by default (40 epx).
+            // On a dropdown that reads as "the list slides in from the right", which is the direction
+            // Fluent uses for page navigation, not for something that appears in place — menus and
+            // in-place popups rise or simply fade. So the horizontal component is removed and a small
+            // vertical rise kept, matching the motion the content flow implies. The transition itself is
+            // still the official one; only its default offsets are overridden.
+            popup.ChildTransitions = new TransitionCollection
+            {
+                new EntranceThemeTransition { FromHorizontalOffset = 0, FromVerticalOffset = 12 }
+            };
+
             StartupLog.Step("ComboBoxAssist: dropdown transition enabled");
         }
         catch (Exception ex)

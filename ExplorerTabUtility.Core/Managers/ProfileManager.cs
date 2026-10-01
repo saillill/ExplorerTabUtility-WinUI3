@@ -201,19 +201,19 @@ public class ProfileManager
 
     public void SetProfileEnabledFromTray(HotKeyProfile profile, bool enabled)
     {
+        // Only the editing copy is written. The published snapshot is immutable by contract (see the
+        // class remarks): a bool store into one of its elements "works" because it is atomic, but it is
+        // the one mutation the contract forbids, and copying the pattern elsewhere is how the hook
+        // threads end up reading half-updated state. SaveProfiles below republishes a fresh snapshot, so
+        // the change still reaches the hooks immediately.
+        //
         // FirstOrDefault, not First: a profile removed from the panel between the tray menu being built
         // and the click would otherwise throw InvalidOperationException (AUD-02).
-        var savedProfile = _profilesSnapshot.FirstOrDefault(p => p.Id == profile.Id);
-
-        // If the hooks already hold this snapshot, flipping the flag on the element takes effect at once
-        // (a bool write is atomic). It is then superseded by the republished snapshot below.
-        if (savedProfile != null) savedProfile.IsEnabled = enabled;
-
-        // Find and update in temp profiles (for panel)
         var tempProfile = _tempProfiles.FirstOrDefault(p => p.Id == profile.Id);
         if (tempProfile == null) return;
 
         tempProfile.IsEnabled = enabled;
+
         var card = FindCardByProfile(tempProfile);
         if (card != null) card.IsEnabled = enabled;
 

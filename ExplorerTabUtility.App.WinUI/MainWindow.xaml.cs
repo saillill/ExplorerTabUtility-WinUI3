@@ -316,6 +316,10 @@ public sealed partial class MainWindow : Window
     {
         if (width <= 0) return;
 
+        // Derive the frame border from the live window before anything reads FrameBorderWidth, so the
+        // floors and the collapse threshold are computed from a measurement rather than a constant.
+        ObserveFrameBorder(width);
+
         if (!_paneOpenStateKnown)
         {
             _paneOpenStateKnown = true;
@@ -713,12 +717,19 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Restores the saved window size.
     /// <para>
-    /// <c>FormSize</c> is stored in <b>effective</b> (XAML) pixels, matching the original WPF
-    /// build's <c>System.Windows.Size</c> semantics and keeping existing settings files valid.
-    /// <c>AppWindow</c> works in <b>physical</b> pixels, so the value is scaled here — and the size
-    /// is read back from <see cref="FrameworkElement.ActualWidth"/> on save, not from
-    /// <c>AppWindow.Size</c>. Mixing the two made the window drift in size on high-DPI displays
-    /// (a 175% display multiplied the stored value by 1.75 on every run).
+    /// <c>FormSize</c> is stored in <b>effective</b> (XAML) pixels as the <b>outer window size</b>,
+    /// matching the original WPF build's <c>System.Windows.Size</c> semantics — and matching what
+    /// <c>AppWindow.Resize</c> takes, which is the outer size in <b>physical</b> pixels, hence the
+    /// scaling below. <see cref="SaveWindowSize"/> writes the same unit back, so a
+    /// save/restore cycle is a fixed point.
+    /// </para>
+    /// <para>
+    /// Stored values below the current floors are discarded rather than applied. Every file written by
+    /// a build before the unit was reconciled carries a <b>client-area</b> size (one frame border, and
+    /// one title bar for the height, smaller than the window), which would restore into the presenter
+    /// floor and leave the window permanently parked at its minimum with the pane folded — the exact
+    /// symptom the reconciliation fixes. A value that is below the floor the presenter will enforce
+    /// anyway carries no user intent to preserve, so the default is the better choice once.
     /// </para>
     /// <para>
     /// Runs from <c>Nav.Loaded</c>: <c>XamlRoot</c> (and therefore the rasterization scale) is not
@@ -730,8 +741,17 @@ public sealed partial class MainWindow : Window
         var scale = Nav.XamlRoot?.RasterizationScale ?? 1.0;
         var size = SettingsManager.FormSize;
 
-        var logicalWidth = size.IsValid ? size.Width : 1130;
-        var logicalHeight = size.IsValid ? size.Height : 600;
+        // >= (not >) so that a window the user deliberately left at the floor is still a fixed point:
+        // the presenter floors it to exactly this value, so that is what gets saved back.
+        var usable = size.IsValid &&
+                     size.Width >= MinWindowWidthExpanded &&
+                     size.Height >= MinWindowHeight;
+
+        if (!usable && size.IsValid)
+            StartupLog.Step($"size: stored {size.Width:F1}x{size.Height:F1} below the floors, using the default");
+
+        var logicalWidth = usable ? size.Width : 1130;
+        var logicalHeight = usable ? size.Height : 600;
 
         var targetWidth = (int)Math.Round(logicalWidth * scale);
         var targetHeight = (int)Math.Round(logicalHeight * scale);
@@ -787,22 +807,82 @@ public sealed partial class MainWindow : Window
     private const double CollapsedPaneWidth = 48;
 
     /// <summary>
-    /// Non-client frame borders, in effective pixels at 100% scale — the difference between
-    /// <c>AppWindow.Size.Width</c> and the client area.
+    /// Non-client frame borders at 100% scale — the difference between <c>AppWindow.Size.Width</c> and
+    /// the client area, measured on a window reporting 1400 with a 1384-wide content site.
     /// <para>
-    /// Measured: a window reporting 1400 has an 1384-wide content site, so the constant is 16 epx.
-    /// Windows sizes frame borders in <b>physical</b> pixels, so this is 16 <em>physical</em> px and
-    /// the effective value is <c>16 / RasterizationScale</c> — halved on a 200% display. That is why
-    /// the floor below is computed at runtime instead of being a compile-time constant.
+    /// Only a fallback for <see cref="FrameBorderWidth"/> until the real value has been observed. It is
+    /// deliberately <b>not</b> treated as a fixed physical-pixel quantity: Windows sizes the frame with
+    /// the DPI, so expressing it in physical pixels is wrong at every scale but 100%.
     /// </para>
     /// </summary>
-    private const double FrameBorderPhysicalPx = 16;
+    private const double FrameBorderFallbackEpx = 16;
 
     /// <summary>
-    /// Frame borders in effective pixels for the current display: <see cref="FrameBorderPhysicalPx"/>
-    /// divided by the live rasterization scale.
+    /// Frame borders in effective pixels, as measured on this window — see
+    /// <see cref="ObserveFrameBorder"/>.
     /// </summary>
-    private static double FrameBorderWidth => FrameBorderPhysicalPx / _rasterizationScale;
+    private static double _observedFrameBorderEpx;
+
+    /// <summary>True once the measurement above has been taken, so it is taken exactly once.</summary>
+    private static bool _frameBorderObserved;
+
+    /// <summary>
+    /// Frame borders in effective pixels: the measured value once known, the 100%-scale fallback before
+    /// that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured at 175% on this machine (2026-10-01): ≈13.7 epx (≈24 physical px)</b>, not the
+    /// 9.14 epx that <c>16 / 1.75</c> predicts. With the old physical-pixel constant the floors were
+    /// derived from a frame border ~4.6 epx too small, so the settings column landed ~5 epx short of
+    /// the <see cref="ContentMinWidth"/> budget at that scale (window 1523, <c>Nav.ActualWidth</c> 856,
+    /// pane collapsed ⇒ column ≈615). Re-deriving the floors from the measured value makes the budget
+    /// exact at any scale.
+    /// </para>
+    /// </remarks>
+    private static double FrameBorderWidth =>
+        _observedFrameBorderEpx > 0 ? _observedFrameBorderEpx : FrameBorderFallbackEpx;
+
+    /// <summary>
+    /// Takes the frame border from the live window: <c>AppWindow.Size.Width / scale</c> is the outer
+    /// width in effective pixels and <paramref name="clientWidth"/> is the client width, so their
+    /// difference <em>is</em> the frame border, on any DPI.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Runs from the top of <see cref="UpdatePaneForWidth"/> — that is the one place where both numbers
+    /// are known to come from the same settled layout pass, and it runs before any floor is derived.
+    /// </para>
+    /// <para>
+    /// One-shot by design: Windows scales the frame with the DPI, so the value in <em>effective</em>
+    /// pixels is DPI-invariant and a single observation holds for the life of the window. The value is
+    /// only accepted inside a sanity band (a non-client frame is a few pixels in every theme), which
+    /// rejects a reading taken while the window is maximised or mid-resize — where the two
+    /// measurements can disagree for reasons that have nothing to do with the frame.
+    /// </para>
+    /// </remarks>
+    private void ObserveFrameBorder(double clientWidth)
+    {
+        if (_frameBorderObserved || clientWidth <= 0) return;
+
+        if (AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored }) return;
+
+        var scale = _rasterizationScale > 0 ? _rasterizationScale : 1.0;
+        var candidate = AppWindow.Size.Width / scale - clientWidth;
+
+        if (candidate is <= 2 or >= 48) return;
+
+        _observedFrameBorderEpx = candidate;
+        _frameBorderObserved = true;
+
+        StartupLog.Step(
+            $"frame: measured {candidate:F2} epx (window {AppWindow.Size.Width} @ scale {scale:F3}, " +
+            $"Nav={clientWidth:F1}) → floors {MinWindowWidthExpanded:F1}/{MinWindowWidthCollapsed:F1} epx");
+
+        // The floors already installed by ApplyInitialSize used the fallback, so re-install them once
+        // with the measured value. Cannot re-enter ObserveFrameBorder: the flag above is already set.
+        ApplyPaneMinSize();
+    }
 
     /// <summary>
     /// One effective pixel of separator the <c>NavigationView</c> draws between the pane and the
@@ -911,16 +991,18 @@ public sealed partial class MainWindow : Window
     /// the screen already bounds "too large".
     /// </para>
     /// <para>
-    /// <b>The width is measured, not an outer frame size.</b> Windows enforces
-    /// <c>PreferredMinimumWidth</c> against the same client/content measurement that reaches
-    /// <see cref="UpdatePaneForWidth"/>: with the value set to 860 the window stops with
-    /// <c>AppWindow.Size.Width</c> at 860 and <c>Nav.ActualWidth</c> at 844, and dragging further
-    /// produces no content-size event below 844. That is why the floors here are the <em>same</em>
-    /// numbers as the content-width thresholds — <see cref="PaneCollapseWidth"/> is
-    /// <see cref="MinWindowWidthExpanded"/> verbatim, with no frame-border correction folded in.
-    /// Writing one in anyway (subtracting <see cref="FrameBorderWidth"/>, say) does not make the
-    /// lower bound more conservative, it makes the window stop 16 epx <em>sooner</em> than the pane
-    /// rule expects: the pane can then never be collapsed or re-opened by the drag, because the
+    /// <b>The floors are outer-window sizes.</b> Windows enforces <c>PreferredMinimumWidth</c> against
+    /// <c>AppWindow.Size</c>, not against the client area: with the value set to 860 the window stops
+    /// with <c>AppWindow.Size.Width</c> at 860 while <c>Nav.ActualWidth</c> reads 844 — and the same
+    /// relationship is visible on the live window (<c>1523 = round(870.14 × 1.75)</c> at 175%, with
+    /// <c>Nav.ActualWidth</c> 856). <see cref="UpdatePaneForWidth"/> therefore compares in the same
+    /// unit — <c>Nav.ActualWidth + FrameBorderWidth</c> reconstructs the outer width — and
+    /// <see cref="PaneCollapseWidth"/> is <see cref="MinWindowWidthExpanded"/> verbatim, with no
+    /// frame-border correction folded in.
+    /// </para>
+    /// <para>
+    /// Subtracting <see cref="FrameBorderWidth"/> here would make the window stop <em>sooner</em> than
+    /// the pane rule expects: the pane could then never be collapsed or re-opened by a drag, because the
     /// window can no longer reach the sizes those branches require. If a future SDK changes the
     /// measurement, this is the line to re-derive.
     /// </para>
@@ -1082,15 +1164,60 @@ public sealed partial class MainWindow : Window
     /// <summary>Saves the window size, then hides to the tray. Profiles are already persisted on edit.</summary>
     public void HideToTray()
     {
-        // Effective pixels, matching the FormSize contract — never AppWindow.Size (physical).
-        if (Nav.ActualWidth > 0 && Nav.ActualHeight > 0)
-            SettingsManager.FormSize = new WindowSize(Nav.ActualWidth, Nav.ActualHeight);
+        SaveWindowSize();
 
         // The user is done editing: now it is safe to discard rows that were never filled in.
         // Profiles themselves are already persisted on every change.
         _services.ProfileManager.PruneUntouchedProfiles();
 
         AppWindow.Hide();
+    }
+
+    /// <summary>
+    /// Persists the current window geometry in the unit <see cref="WindowSize"/> is defined in:
+    /// <b>the outer window size, in effective pixels</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The unit has to match <see cref="ApplyInitialSize"/> exactly, which hands the value to
+    /// <c>AppWindow.Resize</c> — i.e. to the <b>outer</b> window size in physical pixels. Reading it
+    /// back from <see cref="FrameworkElement.ActualWidth"/> (the client area, and for
+    /// <c>Nav</c> also minus the 32 epx title-bar row) is what made the window <b>shrink on every
+    /// launch</b>: each save wrote a value one frame border (width) / one frame border plus one title
+    /// bar (height) smaller than the window it was restored as, and the sequence only stopped once the
+    /// presenter floor clamped it. Measured on a 175% display before the fix:
+    /// <c>FormSize=856.57x480.57</c> against a window of <c>870.29x520</c> epx, and one cycle lost
+    /// exactly the 32 epx title bar (513 → 480.57).
+    /// </para>
+    /// <para>
+    /// Maximised and minimised states are skipped. <c>ActualWidth</c>/<c>AppWindow.Size</c> report the
+    /// screen (or the restored icon geometry) rather than the size the user chose, so storing them
+    /// made the next launch open as a screen-sized normal window. The last user-chosen size is kept
+    /// instead — which is also what the WPF build did, since <c>Window.Width</c> keeps its last
+    /// non-maximised value.
+    /// </para>
+    /// </remarks>
+    private void SaveWindowSize()
+    {
+        if (AppWindow.Presenter is not OverlappedPresenter presenter) return;
+
+        if (presenter.State != OverlappedPresenterState.Restored)
+        {
+            StartupLog.Step($"HideToTray: size kept ({presenter.State}, not a user-chosen geometry)");
+            return;
+        }
+
+        var scale = Nav.XamlRoot?.RasterizationScale ?? 1.0;
+        if (scale <= 0) scale = 1.0;
+
+        var size = AppWindow.Size;
+        if (size.Width <= 0 || size.Height <= 0) return;
+
+        SettingsManager.FormSize = new WindowSize(size.Width / scale, size.Height / scale);
+
+        StartupLog.Step(
+            $"HideToTray: size saved {size.Width / scale:F1}x{size.Height / scale:F1} epx " +
+            $"(window {size.Width}x{size.Height} @ scale {scale:F3})");
     }
 
     public void ShowFromTray()
@@ -1267,7 +1394,7 @@ public sealed partial class MainWindow : Window
             // window mid-typing would be an unasked-for interruption.
             if (!AppWindow.IsVisible) ShowFromTray();
 
-            await TabSearchDialog.ShowAsync(watcher, root);
+            await TabSearchDialog.ShowAsync(watcher, root, _services.Dialogs);
         }
         catch (Exception ex)
         {

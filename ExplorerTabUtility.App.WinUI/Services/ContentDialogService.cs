@@ -19,6 +19,15 @@ namespace ExplorerTabUtility.App.Services;
 /// <item><see cref="Show"/> — the <see cref="IDialogService"/> contract, for Core callers on a
 /// background/STA thread. It queues the dialog and blocks only that calling thread.</item>
 /// </list>
+/// <para>
+/// <b>The one-dialog-at-a-time rule is process-wide, so its gate lives here and is shared.</b> WinUI
+/// throws a COMException if a second <see cref="ContentDialog"/> is opened while another is still up,
+/// and that applies to <em>every</em> ContentDialog in the same <see cref="XamlRoot"/> — including
+/// dialogs this class never constructed. A dialog built elsewhere (the tab-search picker in
+/// <c>TabSearchDialog</c>) must therefore take <see cref="DialogGate"/> too; otherwise the two can
+/// collide, and because each caller catches the exception locally, the failure is silent — the hotkey
+/// simply appears dead.
+/// </para>
 /// </summary>
 public sealed class ContentDialogService : IDialogService
 {
@@ -28,8 +37,12 @@ public sealed class ContentDialogService : IDialogService
     /// <summary>
     /// Gate so only one <see cref="ContentDialog"/> is ever open. WinUI throws a COMException if a
     /// second one is shown while the first is still up (AUD-20).
+    /// <para>
+    /// Exposed to sibling dialog builders so the rule holds across the whole app rather than only for
+    /// the dialogs that happen to go through <see cref="ShowAsync"/>.
+    /// </para>
     /// </summary>
-    private readonly System.Threading.SemaphoreSlim _dialogGate = new(1, 1);
+    internal System.Threading.SemaphoreSlim DialogGate { get; } = new(1, 1);
 
     public ContentDialogService(IUiDispatcher dispatcher, Func<XamlRoot?> xamlRootProvider)
     {
@@ -74,14 +87,14 @@ public sealed class ContentDialogService : IDialogService
         // Serialize: only one ContentDialog may be open at a time. Awaiting the gate on the UI thread
         // simply returns to the message loop, so a queued dialog appears once the current one closes
         // rather than throwing (AUD-20).
-        await _dialogGate.WaitAsync();
+        await DialogGate.WaitAsync();
         try
         {
             return await ShowCoreAsync(message, title, buttons, icon, defaultResult);
         }
         finally
         {
-            _dialogGate.Release();
+            DialogGate.Release();
         }
     }
 
@@ -221,12 +234,17 @@ public sealed class ContentDialogService : IDialogService
     }
 
     /// <summary>
-    /// Maps the saved theme setting to the theme the dialog should be rendered in.
+    /// Maps the saved theme setting to the theme a dialog should be rendered in.
     /// <para>
-    /// This mirrors <c>MainWindow.ApplySavedTheme</c> exactly on purpose: the dialog is a separate
+    /// This mirrors <c>MainWindow.ApplySavedTheme</c> exactly on purpose: a dialog is a separate
     /// popup tree, so the only way it can match the window is by resolving the same setting the same
     /// way. Kept as its own method (rather than reusing the window's) because the window one writes to
     /// an element and would drag the window into the service.
+    /// </para>
+    /// <para>
+    /// <b>Shared with every other dialog builder in the app</b> (the tab-search picker included): a
+    /// second copy of this switch would be a second place for the runtime theme to drift, which is
+    /// exactly how a dialog ends up light on a dark window.
     /// </para>
     /// <para>
     /// It is called on every show rather than once, so a theme change made while the app is running is
@@ -251,7 +269,7 @@ public sealed class ContentDialogService : IDialogService
     /// <c>Application.RequestedTheme</c> will wrongly conclude there is no defect.
     /// </para>
     /// </summary>
-    private static ElementTheme ResolveTheme() => SettingsManager.ThemeMode switch
+    internal static ElementTheme ResolveTheme() => SettingsManager.ThemeMode switch
     {
         1 => ElementTheme.Dark,
         2 => ElementTheme.Light,

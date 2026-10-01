@@ -21,7 +21,6 @@
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restaurar las ventanas anteriores</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Restaura las ventanas tras reiniciar o si el Explorador se bloquea</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Ocultar el icono de la bandeja</value></data>
-  <data name="HideTrayIconTooltip" xml:space="preserve"><value>Oculta el icono de la bandeja del sistema</value></data>
   <data name="Language" xml:space="preserve"><value>Idioma</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
     <value>Seguir el sistema</value>

@@ -158,7 +158,11 @@ public sealed class TrayIconService : IDisposable
         settingsItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
 
         var exitItem = new MenuFlyoutItem { Text = LocalizationService.Get("Exit") };
-        exitItem.Command = new RelayCommand(() => ExitRequested?.Invoke());
+        // Same reason as the settings item above: this command runs while the native tray popup is
+        // still finishing, and exiting tears down the tray icon, the hooks and the message loop. Post
+        // it so the teardown never overlaps the popup's own shutdown — every other command in this
+        // menu already goes through the dispatcher, and this was the single exception.
+        exitItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ExitRequested?.Invoke()));
 
         _menu.Items.Add(_keyboardMenu);
         _menu.Items.Add(_mouseMenu);

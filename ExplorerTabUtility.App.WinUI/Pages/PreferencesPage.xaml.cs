@@ -134,8 +134,9 @@ public sealed partial class PreferencesPage : Page
         SetToggleCard(CardSaveClosedHistory, "SaveClosedHistory", "SaveClosedHistoryTooltip");
         SetToggleCard(CardRestorePreviousWindows, "RestorePreviousWindows", "RestorePreviousWindowsTooltip");
         // 这一行的标题与说明完全由 ApplyTrayIconHeader / ApplyTrayIconRequirement 管理
-        // （可用态：纯文本标题、无说明；不可用态：禁用色标题 + ⓘ 原因），所以这里只设标题，
-        // 不再引用 HideTrayIconTooltip。其余设置卡仍走 SetToggleCard。
+        // （可用态：纯文本标题、无说明；不可用态：禁用色标题 + ⓘ 原因），所以这里只设标题。
+        // 说明文案不再走 SetToggleCard，原先给它用的 HideTrayIconTooltip 资源键已从 9 个
+        // resx 中一并删除，避免留下"代码不引用但语言文件仍在维护"的死键。
         CardHideTrayIcon.Header = LocalizationService.Get("HideTrayIcon");
 
         CardStartup.Header = LocalizationService.Get("AddToStartup");
@@ -280,7 +281,8 @@ public sealed partial class PreferencesPage : Page
 
         // Grid, not a horizontal StackPanel: a StackPanel measures the TextBlock with infinite
         // width, so its TextWrapping.Wrap never engages and the sentence CLIPS at the card edge
-        // once the window is at the 540 epx floor. The star column gives the text a real width
+        // once the window is at the content-column floor (MainWindow.ContentMinWidth = 620 epx).
+        // The star column gives the text a real width
         // constraint so it wraps instead.
         var description = new Grid
         {

@@ -21,7 +21,6 @@
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Vorherige Fenster wiederherstellen</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Stellt Fenster nach Neustart oder Explorer-Absturz wieder her</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Infobereichssymbol ausblenden</value></data>
-  <data name="HideTrayIconTooltip" xml:space="preserve"><value>Blendet das Symbol im Infobereich aus</value></data>
   <data name="Language" xml:space="preserve"><value>Sprache</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
     <value>Systemeinstellung folgen</value>

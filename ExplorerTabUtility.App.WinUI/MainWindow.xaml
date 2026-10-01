@@ -76,24 +76,19 @@
 
             <NavigationView.FooterMenuItems>
                 <!--
-                    图标保留。要去掉的是「按钮」的外观：条目原本在选中/悬停时铺满一条底色块，
-                    看起来像按钮。这里用官方轻量样式把该条目的各种状态底色覆盖为透明（不改模板），
-                    选中指示条保留 —— 否则无法判断当前停留在哪一页。
+                    三个导航项一律使用控件默认的状态底色，不在此覆盖任何 NavigationViewItemBackground*。
+
+                    曾经把这一项（且只有这一项）的选中/悬停/按下/禁用底色全部覆盖成 Transparent，
+                    为了去掉"像个按钮"的底色块。两个问题让它被撤销：
+                      · 同一组导航项里只有它没有选中背板 —— 选中态不一致，而"选中必须可感知"是无障碍硬要求；
+                      · Disabled 也被覆盖成透明 → 禁用态完全不可见。
+                    换句话说，它不再是"官方轻量样式"，而是用覆盖资源替换了控件自身的状态视觉语言。
+                    如果认为默认背板偏重，正确做法是三项一起调（统一 Style / 主题资源），不是只把一项改透明。
                 -->
                 <NavigationViewItem x:Name="NavAbout" Tag="About">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE946;" FontSize="16" Width="16" VerticalAlignment="Center" Margin="0,2,0,0" />
                     </NavigationViewItem.Icon>
-                    <NavigationViewItem.Resources>
-                        <SolidColorBrush x:Key="NavigationViewItemBackground" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundDisabled" Color="Transparent" />
-                        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedDisabled" Color="Transparent" />
-                    </NavigationViewItem.Resources>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 

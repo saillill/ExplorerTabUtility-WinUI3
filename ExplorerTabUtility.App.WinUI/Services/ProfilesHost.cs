@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using ExplorerTabUtility.Abstractions;
 using ExplorerTabUtility.Helpers;
@@ -124,6 +125,15 @@ internal sealed class ProfileCardView : IProfileCardView
     private readonly CheckBox _asTab = new();
     private readonly FontIcon _chevron = new();
 
+    /// <summary>
+    /// The expand/collapse affordance. A real <see cref="Button"/> — not the bare glyph it draws —
+    /// because this is the single most important control in a collapsed row: it has to be reachable
+    /// with <c>Tab</c>, activatable with space/enter, and exposed to assistive technology as an
+    /// invoke-able element, none of which an unfocusable <see cref="FontIcon"/> with a
+    /// <c>Tapped</c> handler can offer. Its size is the Fluent touch-target floor.
+    /// </summary>
+    private readonly Button _expandButton = new();
+
     // ---- Detail rows ---------------------------------------------------------
 
     private readonly StackPanel _detailPanel = new() { Spacing = 0 };
@@ -204,9 +214,14 @@ internal sealed class ProfileCardView : IProfileCardView
 
         _root.Children.Add(_summaryCard);
 
-        // Playing the entrance transition when the detail panel is added is the native way to
-        // animate a disclosure region — no custom Storyboard needed.
-        _root.ChildrenTransitions = new TransitionCollection { new EntranceThemeTransition() };
+        // Playing the entrance transition when the detail panel is added is the native way to animate a
+        // disclosure region — no custom Storyboard needed. The offsets are overridden because the stock
+        // ones animate from a 40 epx *horizontal* offset, which makes a full-width settings group slide
+        // in sideways; a disclosure rises into place instead.
+        _root.ChildrenTransitions = new TransitionCollection
+        {
+            new EntranceThemeTransition { FromHorizontalOffset = 0, FromVerticalOffset = 12 }
+        };
 
         WireHandlers();
         ApplyCornerRadii();
@@ -243,21 +258,8 @@ internal sealed class ProfileCardView : IProfileCardView
 
         _chevron.Glyph = ChevronCollapsedGlyph;
         _chevron.FontSize = 14;
-        _chevron.VerticalAlignment = VerticalAlignment.Center;
-        _chevron.MinWidth = 20;
-        _chevron.MinHeight = 20;
 
-        // The glyph itself is the hit target. A Button (even with a transparent background) still
-        // draws the default style's border plus its pointer-over fill, which reads as a boxed
-        // control; the reference design uses a bare icon.
-        _chevron.Tapped += (_, e) =>
-        {
-            e.Handled = true;
-            ToggleExpanded();
-        };
-
-        AutomationProperties.SetName(_chevron, Loc("ExpandProfile"));
-        ToolTipService.SetToolTip(_chevron, Loc("ExpandProfile"));
+        BuildExpandButton();
 
         var controls = new StackPanel
         {
@@ -266,7 +268,7 @@ internal sealed class ProfileCardView : IProfileCardView
             VerticalAlignment = VerticalAlignment.Center
         };
         controls.Children.Add(_enabled);
-        controls.Children.Add(_chevron);
+        controls.Children.Add(_expandButton);
 
         _summaryCard.Header = header;
         _summaryCard.HeaderIcon = new FontIcon { Glyph = ProfileGlyph, FontSize = 16 };
@@ -274,6 +276,46 @@ internal sealed class ProfileCardView : IProfileCardView
         _summaryCard.HorizontalAlignment = HorizontalAlignment.Stretch;
 
         _rowCards.Add(_summaryCard);
+    }
+
+    /// <summary>
+    /// Wraps the chevron glyph in a real button so the disclosure region is operable without a mouse.
+    /// <para>
+    /// Only the <b>rest</b> background and border are neutralised, and they are neutralised by
+    /// overriding the two theme resources the official style reads for those states — so the control
+    /// still reads as a bare icon at rest (the reference design) while hover, press, focus and disabled
+    /// keep the platform's own feedback instead of a hand-drawn one. No template is replaced and no
+    /// colour is invented; the filled states that appear on interaction are the stock ones.
+    /// </para>
+    /// <para>
+    /// The glyph stays a <see cref="FontIcon"/> inside the button: WinUI ships no bare-icon button
+    /// style, and the previous arrangement — an unfocusable icon with a <c>Tapped</c> handler — could
+    /// not be reached by keyboard or by assistive technology at all, which is a worse trade than a
+    /// button that shows the official hover fill.
+    /// </para>
+    /// </summary>
+    private void BuildExpandButton()
+    {
+        _expandButton.Content = _chevron;
+        _expandButton.Width = ExpandButtonSize;
+        _expandButton.Height = ExpandButtonSize;
+        _expandButton.Padding = new Thickness(0);
+        _expandButton.VerticalAlignment = VerticalAlignment.Center;
+        _expandButton.Click += (_, _) => ToggleExpanded();
+
+        _expandButton.Resources[ButtonBackgroundResourceKey] =
+            new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        _expandButton.Resources[ButtonBorderBrushResourceKey] =
+            new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+        SetExpandButtonAccessibilityText();
+    }
+
+    private void SetExpandButtonAccessibilityText()
+    {
+        var label = Loc("ExpandProfile");
+        AutomationProperties.SetName(_expandButton, label);
+        ToolTipService.SetToolTip(_expandButton, label);
     }
 
     /// <summary>
@@ -736,8 +778,7 @@ internal sealed class ProfileCardView : IProfileCardView
         _enabled.OnContent = Loc("ToggleOn");
         _enabled.OffContent = Loc("ToggleOff");
 
-        AutomationProperties.SetName(_chevron, Loc("ExpandProfile"));
-        ToolTipService.SetToolTip(_chevron, Loc("ExpandProfile"));
+        SetExpandButtonAccessibilityText();
 
         var scope = Profile.Scope;
         var action = Profile.Action;
@@ -933,6 +974,21 @@ internal sealed class ProfileCardView : IProfileCardView
     private static readonly Thickness CompactRowPadding = new(16, 4, 16, 4);
 
     private const double CompactRowMinHeight = 60;
+
+    /// <summary>
+    /// Edge length of the expand/collapse button. Fluent's touch-target floor is 40 epx; the glyph
+    /// inside stays 14, so this only widens the hit area.
+    /// </summary>
+    private const double ExpandButtonSize = 40;
+
+    /// <summary>
+    /// The two theme resources the stock <see cref="Button"/> style reads for its <b>rest</b> state.
+    /// Overriding these (and only these) makes the button read as a bare icon until it is interacted
+    /// with, without touching the template or the interactive states.
+    /// </summary>
+    private const string ButtonBackgroundResourceKey = "ButtonBackground";
+
+    private const string ButtonBorderBrushResourceKey = "ButtonBorderBrush";
 
     private static string Loc(string key) => LocalizationService.Get(key);
 

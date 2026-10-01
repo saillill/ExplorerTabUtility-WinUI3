@@ -12,8 +12,9 @@
           · FlatButtonStyle / CustomCheckBoxStyle    → 默认 Button / ToggleSwitch / AccentButtonStyle
 
         整页放进同一个 ScrollViewer：标题、工具栏与卡片列表共用同一条内容列。
-        宽度完全交给布局引擎（Stretch + MaxWidth），不计算具体像素值 —— 计算值一旦与实际视口
-        脱节就会溢出，而 Stretch 在结构上不可能超出视口。
+        宽度交给布局引擎（Stretch + MaxWidth），不计算具体像素值 —— 计算值一旦与实际视口
+        脱节就会溢出，而 Stretch 在结构上不可能超出视口；MaxWidth 只负责在宽窗口下封顶
+        （与 PreferencesPage 同一组值）。
     -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch">
@@ -21,6 +22,7 @@
             x:Name="ContentColumn"
             Margin="36,24,36,24"
             Spacing="4"
+            MaxWidth="1000"
             HorizontalAlignment="Stretch">
 
             <TextBlock x:Name="HeaderTitle" Style="{StaticResource TitleTextBlockStyle}" />

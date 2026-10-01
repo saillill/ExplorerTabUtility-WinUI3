@@ -32,7 +32,8 @@
                 <!-- Top, not Center: centring the text block against the 64px icon pushed the title
                      lower than the icon's top edge, which read as misalignment. -->
                 <StackPanel VerticalAlignment="Top" Spacing="2">
-                    <!-- Wrap so the full title survives the 540 epx window floor (the plain
+                    <!-- Wrap so the full title survives the narrowest window the app allows
+                         (MainWindow.ContentMinWidth = 620 epx of content column; a plain
                          single-line Title style clipped at the content edge). -->
                     <TextBlock x:Name="AppTitleText" Style="{StaticResource TitleTextBlockStyle}"
                                TextWrapping="Wrap" />
@@ -125,15 +126,32 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Style="{StaticResource LinkCard}" Margin="0,0,8,8">
-                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                <PersonPicture Width="40" Height="40"
+                            <!--
+                                Grid, not a horizontal StackPanel: a StackPanel measures its children
+                                with infinite width along its orientation, so the name was never width-
+                                constrained and a long GitHub user name (up to 39 characters) spilled out
+                                of the fixed 232 epx card. The star column gives it a real constraint, which
+                                is what lets the TextBlock's trimming engage.
+                                The name is an explicit TextBlock rather than the button's string content
+                                because HyperlinkButton has no TextTrimming property of its own.
+                            -->
+                            <Grid ColumnSpacing="12" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <PersonPicture Grid.Column="0"
+                                               Width="40" Height="40"
                                                DisplayName="{Binding Name}"
                                                ProfilePicture="{Binding Avatar}" />
-                                <HyperlinkButton Content="{Binding Name}"
+                                <HyperlinkButton Grid.Column="1"
                                                  NavigateUri="{Binding ProfileUrl}"
                                                  Padding="0"
-                                                 VerticalAlignment="Center" />
-                            </StackPanel>
+                                                 VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </HyperlinkButton>
+                            </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

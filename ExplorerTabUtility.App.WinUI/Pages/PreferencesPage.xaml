@@ -10,8 +10,11 @@
         原 WPF 版设置页 = GroupBox(WinUI 3 无此控件) + 4 个自定义 CheckBox + 自定义 ComboBox 样式。
         现改为 Windows 官方设置页范式：SettingsCard 列表 + ToggleSwitch + 默认 ComboBox。
 
-        布局：整列设置卡片水平居中（宽度由 ContentColumnWidth 计算，上限 1000）；
-        卡片内部的标题与说明仍由 SettingsCard 保持左对齐。
+        布局：整列设置卡片有一条最大宽度（Fluent 设置页范式：内容列不随窗口无限变宽），
+        窄窗口下仍然撑满可用宽度、卡片内部标题与说明保持左对齐。
+        Stretch + MaxWidth 的组合会在视口宽于上限时把列居中（与 MaxWidth 搭配时 Stretch 的
+        剩余空间按居中分配），所以不需要改成 Center —— 后者会让 StackPanel 按内容宽度收缩，
+        卡片反而会变窄。ShortcutsPage 用同一组值。
     -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch">
@@ -19,6 +22,7 @@
             x:Name="ContentColumn"
             Spacing="4"
             Margin="36,24,36,24"
+            MaxWidth="1000"
             HorizontalAlignment="Stretch">
 
             <TextBlock x:Name="HeaderTitle" Style="{StaticResource TitleTextBlockStyle}" />

@@ -30,4 +30,30 @@
     <SatelliteResourceLanguages>en;zh-CN;zh-Hant;ja;ko;de;fr;es;ru</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <!--
+    把 git 的短 revision 写进程序集信息（InformationalVersion 会自动变成 1.0.1+<sha>），
+    启动日志与 About 页因此能回答"这份二进制是哪次提交编出来的"。
+
+    背景：曾出现"已安装的 dll 与仓库源码对不上"（发布产物早于源码改动），而当时代价是
+    手工比对文件哈希才能察觉。带上 revision 后，一条日志就能定位。
+
+    IgnoreExitCode + ContinueOnError：没有 git、不是 git 仓库（例如源码被拷贝出去）时静默跳过，
+    构建绝不因此失败；此时 InformationalVersion 退化为纯版本号。
+  -->
+  <Target Name="SetSourceRevisionIdFromGit" BeforeTargets="GenerateAssemblyInfo;GetAssemblyVersion"
+          Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git rev-parse --short HEAD"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          ContinueOnError="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitRevisionOutput" />
+    </Exec>
+    <PropertyGroup>
+      <_GitRevision>$(_GitRevisionOutput.Trim())</_GitRevision>
+      <SourceRevisionId Condition="'$(_GitRevision)' != ''">$(_GitRevision)</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
+
 </Project>

@@ -38,10 +38,20 @@ public static class HttpByteCache
     /// Returns the bytes for <paramref name="url"/>, downloading them at most once per session.
     /// The first caller performs the request; later callers return the cached bytes. Any exception the
     /// download throws (for example an unsupported scheme) propagates and is not cached.
+    /// <para>
+    /// Only <c>https</c> is accepted. The URL is not always a constant this app chose: the About page
+    /// feeds the sponsors SVG's <c>&lt;image href&gt;</c> straight in, so anything that can influence
+    /// that file could otherwise aim this app at an arbitrary <c>http://</c> or <c>file://</c> target —
+    /// an intranet probe, with the response decoded as an image.
+    /// </para>
     /// </summary>
     public static async Task<byte[]> GetBytesAsync(string url)
     {
         if (string.IsNullOrEmpty(url)) throw new ArgumentException("URL must be non-empty.", nameof(url));
+
+        if (!IsAllowedUrl(url))
+            throw new ArgumentException(
+                $"Only https URLs are fetched (got '{Describe(url)}').", nameof(url));
 
         if (Cache.TryGetValue(url, out var cached))
             return await cached.Value.ConfigureAwait(false);
@@ -73,6 +83,14 @@ public static class HttpByteCache
     }
 
     private static Task<byte[]> DownloadAsync(string url) => Client.GetByteArrayAsync(url);
+
+    /// <summary>True only for an absolute <c>https</c> URL.</summary>
+    private static bool IsAllowedUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A short, log-safe rendering of a rejected URL (data: payloads are tens of KB).</summary>
+    private static string Describe(string url) => url.Length <= 64 ? url : url[..64] + "…";
 
     private static void TrimToCapacity()
     {

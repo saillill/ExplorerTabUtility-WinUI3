@@ -21,7 +21,6 @@
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Восстанавливать прежние окна</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Восстанавливает окна после перезапуска или сбоя Проводника</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Скрывать значок в области уведомлений</value></data>
-  <data name="HideTrayIconTooltip" xml:space="preserve"><value>Скрывает значок в области уведомлений</value></data>
   <data name="Language" xml:space="preserve"><value>Язык</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
     <value>Как в системе</value>

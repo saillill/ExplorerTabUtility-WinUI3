@@ -535,7 +535,12 @@ public class ExplorerWatcher : IHook
         }
         finally
         {
-            if (showAgain)
+            // Only a window that was actually hidden has anything to restore. `Helper.ShowWindow`
+            // signals "nothing to do" with `false`, which is also the value DoUntilNotDefaultAsync reads
+            // as "keep polling" — so on every path where the window was never hidden (a plain new window,
+            // a Ctrl+Shift window, the Control Panel, or an early return where hWnd is still 0) the loop
+            // below used to spin for its full 1.5 s before doing nothing.
+            if (showAgain && Helper.HiddenWindows.ContainsKey(hWnd))
             {
                 // The finally body itself is guarded: the await below can throw, and an exception
                 // escaping a `finally` in an async void COM callback terminates the process (AUD-12).
@@ -969,10 +974,20 @@ public class ExplorerWatcher : IHook
         lock (_windowEntryDictLock)
         {
             if (_windowEntryDict.Count == 0) return;
+
+            // Snapshot first, then walk the copy. The dictionary's enumerator copies under its own lock
+            // on every use, so indexing it live builds a *different, shrinking* collection on each
+            // iteration: the old `ElementAt(i)` loop only stayed in range because the removal it performs
+            // as it goes makes the next index land exactly on the new last element. Any other remover
+            // (the OnQuit handler removes too) breaks that coincidence and the index goes out of range —
+            // inside a hook callback, where the exception is swallowed and the crash bookkeeping is
+            // simply lost.
+            var entries = _windowEntryDict.ToArray<WindowEntry>();
+
             var crashCount = 0;
-            for (var i = _windowEntryDict.Count - 1; i >= 0; i--)
+            for (var i = entries.Length - 1; i >= 0; i--)
             {
-                var (window, info) = _windowEntryDict.ElementAt<WindowEntry>(i);
+                var (window, info) = entries[i];
                 try
                 {
                     _ = window.HWND;

@@ -21,7 +21,6 @@
   <data name="RestorePreviousWindows" xml:space="preserve"><value>還原之前的視窗</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>重新啟動或檔案總管當機後自動還原之前開啟的視窗</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>隱藏系統匣圖示</value></data>
-  <data name="HideTrayIconTooltip" xml:space="preserve"><value>隱藏系統匣圖示</value></data>
   <data name="Language" xml:space="preserve"><value>語言</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
     <value>跟隨系統</value>

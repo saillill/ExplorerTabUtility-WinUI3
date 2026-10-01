@@ -255,6 +255,10 @@ public sealed partial class AboutPage : Page
 
             if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             {
+                // Only image payloads. This URL comes from third-party SVG content, and the page has no
+                // reason to decode anything else that content might name.
+                if (!url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+
                 var comma = url.IndexOf(',');
                 if (comma < 0) return null;
 
