@@ -16,26 +16,6 @@ Windows 11 File Explorer tab manager — rebuilt on the Windows App SDK.
   The chosen theme applies to the whole window *and* to dialogs and menus, and switches immediately
   without a restart.
 
-### Relationship to upstream, and what this build does not have
-
-This project is a **WinUI 3 rewrite of [ExplorerTabUtility](https://github.com/w4po/ExplorerTabUtility)**
-by Abd-Alrahman Ghanem (w4po): the hook engine, shell integration and feature set come from there, the
-UI and the app shell were rebuilt on the Windows App SDK. Everything from the second heading onward in
-this README is **the upstream project's documentation** and describes the original WPF application;
-where the two disagree, the WinUI shell is what ships here. Known differences worth calling out:
-
-- **No auto-update.** Upstream checks for a new release on startup; this build does not (there is no
-  update check in the code, and no setting for one).
-- **No "I have theme issues" option.** Upstream can hide a new window by moving it off-screen instead of
-  fading it out, for users whose custom File Explorer theme breaks under the fade. The mechanism exists in
-  the code (`Helper.HideWindow(..., keepTheme: true)`) but is **not exposed in the WinUI shell**, so the
-  alternative hiding mode cannot be selected here.
-- **Window Hook, Reuse Tabs, Keyboard Hook and Mouse Hook are tray-menu settings**, not entries in the
-  settings window. If you hide the tray icon (Preferences), those four toggles are only reachable through
-  hotkeys.
-- **Do not install from winget/choco with the upstream package ids** — those install the WPF application.
-  Use the `Setup.exe` or the portable zip from this repository's Releases.
-
 <table>
 <tr>
 <td width="50%"><img src="Assets/Dark.png" alt="Explorer Tab Utility in dark theme"></td>
