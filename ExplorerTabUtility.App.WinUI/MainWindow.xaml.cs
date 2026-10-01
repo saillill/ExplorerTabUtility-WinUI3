@@ -1059,7 +1059,6 @@ public sealed partial class MainWindow : Window
 
     private void LocalizeNavigation()
     {
-
         NavShortcuts.Content = LocalizationService.Get("TabShortcuts");
         NavPreferences.Content = LocalizationService.Get("TabPreferences");
         NavAbout.Content = LocalizationService.Get("TabAbout");
@@ -1459,9 +1458,23 @@ public sealed partial class MainWindow : Window
             // Unlike the second-instance notice this branch stays conditional on IsVisible: the hotkey
             // is only an issue when the dialog would be unclosable, and raising an already-visible
             // window mid-typing would be an unasked-for interruption.
-            if (!AppWindow.IsVisible) ShowFromTray();
+            //
+            // OnDialogDismissed, never the grace-period timer: a dialog follows immediately, and a timer
+            // cannot know how long the user will take over it. Dropping the topmost promotion mid-read
+            // hands the front straight back to a fullscreen game and takes the picker with it (measured
+            // 3/3; see PresentWindow). The release happens in the finally below.
+            if (!AppWindow.IsVisible) UnhideAndPresent("ShowTabSearch", TopmostRelease.OnDialogDismissed);
 
-            await TabSearchDialog.ShowAsync(watcher, root, _services.Dialogs);
+            try
+            {
+                await TabSearchDialog.ShowAsync(watcher, root, _services.Dialogs);
+            }
+            finally
+            {
+                // Safe when nothing was promoted. OnDialogDismissed means no backstop timer was armed, so
+                // nothing else would ever give the promotion up.
+                ReleaseTopmostNow();
+            }
         }
         catch (Exception ex)
         {

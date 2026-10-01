@@ -1,6 +1,10 @@
 # 仅基础、非强制的风格约定（字符集 / 缩进 / 行尾）。
 # 本项目构建门禁为 "0 警告 0 错误"，因此这里刻意不设置任何会在构建期产生新警告的
 # 规则，也不启用 EnforceCodeStyleInBuild —— 这些约定仅供编辑器与人工参考。
+#
+# 关于 end_of_line = crlf：仓库索引里存的是 LF（.gitattributes 的 `* text=auto` 会归一化），
+# 而 Windows 检出时由 core.autocrlf 还原成 CRLF —— 也就是编辑器/工作区看到的就是 CRLF，
+# 所以这条与实际情况一致，不要因为 `git show` 里是 LF 就把它改成 lf。
 root = true
 
 [*]

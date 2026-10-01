@@ -260,14 +260,36 @@ def main() -> int:
         raise SystemExit("refusing to ship from a dirty tree")
 
     # 5. Ship: the commit, the tag, the assets and the notes all move together.
-    log(f"pushing master and moving {args.tag} to {stamp}")
-    run(["git", "push", "origin", "master"])
-    run(["git", "tag", "-f", args.tag, stamp])
-    run(["git", "push", "--force", "origin", args.tag])
+    #
+    # Every step is recorded, and a failure reports how far it got. Without this a rejected push (the
+    # remote being ahead is normal here — the repository owner edits files in the GitHub web UI) surfaced
+    # as a bare traceback, leaving it unclear whether the tag had moved and whether the assets were
+    # replaced.
+    completed: list[str] = []
+    steps: list[tuple[str, list[str]]] = [
+        ("push master", ["git", "push", "origin", "master"]),
+        (f"move {args.tag} to {stamp}", ["git", "tag", "-f", args.tag, stamp]),
+        (f"push {args.tag}", ["git", "push", "--force", "origin", args.tag]),
+        ("replace the release assets",
+         ["gh", "release", "upload", args.tag, str(zip_path), str(setup_path), "--clobber"]),
+        ("update the release notes", ["gh", "release", "edit", args.tag, "--notes-file", "release-notes.md"]),
+    ]
 
-    log("replacing the release assets")
-    run(["gh", "release", "upload", args.tag, str(zip_path), str(setup_path), "--clobber"])
-    run(["gh", "release", "edit", args.tag, "--notes-file", "release-notes.md"])
+    for index, (description, command) in enumerate(steps):
+        log(description)
+        try:
+            run(command)
+        except subprocess.CalledProcessError as ex:
+            remaining = [name for name, _ in steps[index:]]
+            raise SystemExit(
+                f"\nshipping stopped at '{description}' (exit {ex.returncode})\n"
+                f"  completed : {', '.join(completed) or 'nothing'}\n"
+                f"  NOT done  : {', '.join(remaining)}\n"
+                f"  the local artifacts are complete — fix the cause and re-run with --ship; the steps "
+                f"above are idempotent. `gh release view {args.tag}` shows what is published right now."
+            ) from ex
+
+        completed.append(description)
 
     log("verifying the published release")
     view = output(["gh", "release", "view", args.tag, "--json",

@@ -22,6 +22,26 @@ public static class Helper
     // read is self-correcting (AUD-23).
     private static volatile int _lastCtrlShiftCheckAt;
     private static volatile bool _lastCtrlShiftCheckValue;
+
+    /// <summary>
+    /// How long a positive Ctrl+Shift reading is remembered after the keys themselves are released.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The gesture and the window it asks for are separated in time: the window appears up to ~2.5 s later
+    /// (the watcher polls for it), and by then the user has usually let go of the keys — so without a
+    /// memory the "force this one open as a window" gesture would simply be lost. The price is the other
+    /// side of the same coin: any <em>other</em> window opened within this window of the gesture is also
+    /// forced open as a window instead of folding into a tab.
+    /// </para>
+    /// <para>
+    /// Shorter risks losing the gesture when Explorer is slow; "consume it on first use" is not an option
+    /// because two different handlers (<c>OnShellWindowRegistered</c> and <c>OnWindowShown</c>) ask about
+    /// the same window and have to agree on the answer.
+    /// </para>
+    /// </remarks>
+    private const int CtrlShiftMemoryMs = 1_000;
+
     public static readonly ConcurrentDictionary<nint, RECT?> HiddenWindows = new();
 
     public static T DoUntilNotDefault<T>(Func<T> action, int timeMs = 500, int sleepMs = 20, CancellationToken cancellationToken = default)
@@ -271,6 +291,9 @@ public static class Helper
     /// because the mechanism itself is upstream's answer to a real problem; exposing it again means adding
     /// a settings toggle and forwarding it from the two call sites in <c>ExplorerWatcher</c>.
     /// </param>
+    /// <summary>Where the keep-theme hiding mode parks a window so it is off every screen.</summary>
+    private const int OffScreenCoordinate = -32_000;
+
     public static void HideWindow(nint hWnd, bool keepTheme = false)
     {
         // Deliberately NOT ConcurrentDictionary.GetOrAdd: the value factory here performs real side
@@ -278,7 +301,16 @@ public static class Helper
         // GetOrAdd may run that factory more than once when several threads miss the key at the same
         // moment — i.e. the window got moved / made transparent twice. Check first, do the work, then
         // TryAdd; a lost race simply keeps whatever the winner already recorded (AUD-19).
-        if (HiddenWindows.ContainsKey(hWnd)) return;
+        //
+        // The entry is verified rather than trusted. This cache deliberately survives a shell teardown
+        // (that is what lets a window stranded by a crash be restored — see
+        // ExplorerWatcher.InitializeShellObjects), and Windows recycles window handles, so a stale entry
+        // can match a brand new window: the hide would then be skipped and that window would never fold
+        // into a tab. Anything not actually hidden is treated as stale and re-hidden.
+        if (HiddenWindows.TryGetValue(hWnd, out var recorded) && IsStillHidden(hWnd, recorded))
+            return;
+
+        HiddenWindows.TryRemove(hWnd, out _);
 
         RECT? originalPos = null;
 
@@ -289,7 +321,7 @@ public static class Helper
 
             // Move it off-screen
             const uint flags = WinApi.SWP_HIDEWINDOW | WinApi.SWP_NOSIZE | WinApi.SWP_NOZORDER | WinApi.SWP_NOACTIVATE | WinApi.SWP_FRAMECHANGED;
-            WinApi.SetWindowPos(hWnd, 0, -32_000, -32_000, 0, 0, flags);
+            WinApi.SetWindowPos(hWnd, 0, OffScreenCoordinate, OffScreenCoordinate, 0, 0, flags);
         }
         else
         {
@@ -299,6 +331,26 @@ public static class Helper
         }
 
         HiddenWindows.TryAdd(hWnd, originalPos);
+    }
+
+    /// <summary>
+    /// True when a window recorded as hidden is still in the hidden state this app put it in.
+    /// </summary>
+    /// <remarks>
+    /// The two hiding modes leave different fingerprints, and the recorded value says which one was used:
+    /// a non-null <paramref name="recordedPosition"/> means the window was parked off-screen, otherwise it
+    /// was made transparent, which needs <c>WS_EX_LAYERED</c>. A window that shows neither is a different
+    /// window wearing a recycled handle.
+    /// </remarks>
+    private static bool IsStillHidden(nint hWnd, RECT? recordedPosition)
+    {
+        if (recordedPosition is not null)
+        {
+            if (!WinApi.GetWindowRect(hWnd, out var current)) return false;
+            return current.Left <= OffScreenCoordinate || current.Top <= OffScreenCoordinate;
+        }
+
+        return (WinApi.GetWindowLong(hWnd, WinApi.GWL_EXSTYLE) & WinApi.WS_EX_LAYERED) != 0;
     }
     public static bool ShowWindow(nint hWnd, bool removeCache)
     {
@@ -321,7 +373,9 @@ public static class Helper
 
     public static bool IsCtrlShiftDown()
     {
-        if (_lastCtrlShiftCheckValue && Environment.TickCount - _lastCtrlShiftCheckAt < 1_000)
+        // The positive result is deliberately sticky for CtrlShiftMemoryMs — see the constant's remarks for
+        // why the gesture needs a memory and what it costs.
+        if (_lastCtrlShiftCheckValue && Environment.TickCount - _lastCtrlShiftCheckAt < CtrlShiftMemoryMs)
             return true;
         
         _lastCtrlShiftCheckValue =

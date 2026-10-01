@@ -71,6 +71,18 @@ public sealed class ContentDialogService : IDialogService
     /// </remarks>
     internal bool IsDialogOpen => DialogGate.CurrentCount == 0;
 
+    /// <summary>
+    /// How long a dialog waits for the one-dialog slot before giving up.
+    /// </summary>
+    /// <remarks>
+    /// The gate is held for the whole life of a dialog, so one that never closes would otherwise block
+    /// every later dialog for the rest of the session — and for a caller that blocks on the answer (the
+    /// restore prompt runs on the STA thread) it would hold the whole STA queue too, which is what makes
+    /// the hotkey engine stop responding. The timeout deliberately does <b>not</b> close or cancel the
+    /// open dialog: it gives this caller its default answer and leaves a log line saying why.
+    /// </remarks>
+    internal static readonly TimeSpan DialogSlotTimeout = TimeSpan.FromSeconds(30);
+
     public ContentDialogService(
         IUiDispatcher dispatcher,
         Func<XamlRoot?> xamlRootProvider,
@@ -117,8 +129,16 @@ public sealed class ContentDialogService : IDialogService
     {
         // Serialize: only one ContentDialog may be open at a time. Awaiting the gate on the UI thread
         // simply returns to the message loop, so a queued dialog appears once the current one closes
-        // rather than throwing (AUD-20).
-        await DialogGate.WaitAsync();
+        // rather than throwing (AUD-20) — but only for so long, see DialogSlotTimeout.
+        if (!await DialogGate.WaitAsync(DialogSlotTimeout))
+        {
+            StartupLog.Step(
+                $"dialog '{title}': the one-dialog slot has been taken for " +
+                $"{DialogSlotTimeout.TotalSeconds:F0}s, answering with the default instead of waiting forever");
+
+            return defaultResult == DialogResult.None ? DialogResult.Cancel : defaultResult;
+        }
+
         try
         {
             return await ShowCoreAsync(message, title, buttons, icon, defaultResult);

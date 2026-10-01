@@ -57,8 +57,13 @@ public static class TabSearchDialog
     private static async Task ShowCoreAsync(ExplorerWatcher watcher, XamlRoot xamlRoot, ContentDialogService dialogs)
     {
         // Take the process-wide one-dialog slot before building anything. Awaiting it returns to the
-        // message loop, so this queues behind whatever dialog is already up instead of throwing.
-        await dialogs.DialogGate.WaitAsync();
+        // message loop, so this queues behind whatever dialog is already up instead of throwing — with a
+        // bound, so a dialog that never closes cannot keep the picker (and its hotkey) dead all session.
+        if (!await dialogs.DialogGate.WaitAsync(ContentDialogService.DialogSlotTimeout))
+        {
+            StartupLog.Step("TabSearch: the one-dialog slot has been taken too long, not showing the picker");
+            return;
+        }
         try
         {
             // The window list is built from blocking cross-process COM reads (LocationURL, the

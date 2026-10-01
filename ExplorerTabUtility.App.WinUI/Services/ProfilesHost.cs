@@ -684,7 +684,7 @@ internal sealed class ProfileCardView : IProfileCardView
             UpdateHotKeyField();
 
             RebuildScopes();
-            RebuildActions(Profile.Action);
+            var coercedAtLoad = RebuildActions(Profile.Action);
 
             _path.Text = Profile.Path ?? string.Empty;
             _delay.Value = Profile.Delay;
@@ -692,6 +692,10 @@ internal sealed class ProfileCardView : IProfileCardView
             _asTab.IsChecked = Profile.IsAsTab;
 
             UpdateSummary();
+
+            // After UpdateSummary: the row set follows the action, so it has to be refreshed before the
+            // coercion is reported (and before the save that persists it).
+            if (coercedAtLoad) ReportCoercedAction();
         }
         finally
         {
@@ -708,7 +712,14 @@ internal sealed class ProfileCardView : IProfileCardView
         _scope.SelectedIndex = Profile.Scope == HotkeyScope.Global ? 0 : 1;
     }
 
-    private void RebuildActions(HotKeyAction preferred)
+    /// <summary>
+    /// Rebuilds the action dropdown for the profile's scope.
+    /// </summary>
+    /// <returns>
+    /// True when the profile's own action had to be coerced to fit the scope — the caller decides whether
+    /// that needs reporting (a deliberate scope change does not; loading a stored profile does).
+    /// </returns>
+    private bool RebuildActions(HotKeyAction preferred)
     {
         var allowed = HotKeyActionCatalog.GetAllowedActions(Profile.Scope);
         var desired = allowed.Contains(preferred) ? preferred : allowed.FirstOrDefault();
@@ -722,6 +733,28 @@ internal sealed class ProfileCardView : IProfileCardView
         _action.SelectedIndex = index < 0 ? 0 : index;
 
         Profile.Action = desired;
+
+        return desired != preferred;
+    }
+
+    /// <summary>
+    /// Reports and persists an action that had to be rewritten to fit the profile's scope.
+    /// </summary>
+    /// <remarks>
+    /// A stored profile can hold a combination the editor will never offer — in practice "global scope"
+    /// with an action that only works inside File Explorer, which can only arrive from an imported profile
+    /// or a hand-edited <c>settings.json</c>. Rewriting it silently left the dropdown showing one action
+    /// while the hook snapshot (and the file) still held the other until something else happened to save,
+    /// so the UI and the behaviour disagreed. Saving here keeps all three in step and leaves a trace of
+    /// why the user's action changed.
+    /// </remarks>
+    private void ReportCoercedAction()
+    {
+        StartupLog.Step(
+            $"profile '{Profile.Name}': action was not valid for scope {Profile.Scope}, " +
+            $"reset to {Profile.Action} and saved");
+
+        Save();
     }
 
     /// <summary>Refreshes the collapsed row: name on the first line, "热键 · 功能" on the second.</summary>
@@ -796,12 +829,13 @@ internal sealed class ProfileCardView : IProfileCardView
 
         var scope = Profile.Scope;
         var action = Profile.Action;
+        var coerced = false;
 
         _loading = true;
         try
         {
             RebuildScopes();
-            RebuildActions(action);
+            coerced = RebuildActions(action);
             _scope.SelectedIndex = scope == HotkeyScope.Global ? 0 : 1;
         }
         finally
@@ -810,6 +844,10 @@ internal sealed class ProfileCardView : IProfileCardView
         }
 
         UpdateSummary();
+
+        // A language switch must not quietly change what a profile does: if the rebuild had to coerce the
+        // action, say so and persist it (see ReportCoercedAction).
+        if (coerced) ReportCoercedAction();
     }
 
     public void EndHotKeyCapture()
