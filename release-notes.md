@@ -3,16 +3,24 @@ Spanish, French, Russian, German, Japanese and Korean.
 
 Fixes in this build:
 
-- The window minimum size now follows the monitor's DPI scale. Previously it was computed once
-  for the startup display, so after moving the window to a monitor with different scaling
-  (e.g. 200% → 100%) the stale physical-pixel limit blocked resizing.
-- Tab search opened while the window is hidden in the tray now surfaces the window first —
-  the picker used to open invisibly and the hotkey then stayed dead for the rest of the session.
-- The tray profile menus refresh immediately when profiles are edited, and toggling window
-  interception via hotkey now also pauses tab reuse, matching the tray menu behaviour.
-- Robustness: a failed launch no longer leaves a zombie process that blocks all later launches;
-  closed-tab matching no longer misfires after 25 days of system uptime; XButton mouse profiles
-  no longer trigger double navigation; assorted lifetime and settings-sync fixes.
+- The settings window no longer shrinks a little on every launch, and no longer opens at screen
+  size after being hidden while maximised. Both came from saving the window's client area and
+  restoring it as the outer window size.
+- The minimum window width is now measured on the live window instead of assumed from a constant,
+  so the settings column keeps its full budget at every DPI scale — and the navigation pane stays
+  open at the default window size instead of folding away on startup.
+- Tab search now shares the app-wide one-dialog rule and follows the app theme: it could silently
+  fail next to another dialog, and it rendered in the wrong theme after switching themes at runtime.
+  Reading Explorer's tabs also no longer blocks the window while a folder is slow to answer.
+- Shortcut rows can be expanded with the keyboard and by screen readers; the About navigation item
+  shows the normal selected/hover feedback again; the settings column is capped in width; dropdowns
+  and disclosures rise into place instead of sliding in from the side.
+- Failures are now appended to `error.log` (the startup log is truncated on each run) and the startup
+  log records the build revision, so a deployed binary can be traced back to a commit.
+
+This refresh of the same version also carries the previous build's fixes: DPI-aware minimum window
+size, surfacing the window before the tab-search picker, immediate tray menu refresh, and assorted
+lifetime and settings-sync fixes.
 
 - `ExplorerTabUtility_<version>_Setup.exe` — per-user install, no administrator rights required,
   includes an uninstaller. If the .NET 10 Desktop Runtime or the Windows App Runtime is missing,
