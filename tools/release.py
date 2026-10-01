@@ -82,21 +82,32 @@ def read_zip_md5(archive: Path, member: str) -> str:
         return hashlib.md5(zf.read(member)).hexdigest()
 
 
-def read_build_stamp(dll: Path) -> str:
-    """The InformationalVersion baked into the assembly, e.g. '1.0.1+0796d98'."""
-    data = dll.read_bytes()
-    marker = re.search(r"1\.0\.1\+".encode("utf-16-le"), data)
-    if marker is None:
-        return ""
-    tail = data[marker.end():marker.end() + 80].decode("utf-16-le", errors="ignore")
-    match = re.match(r"[0-9a-fA-F]{7,40}", tail)
-    return match.group(0) if match else ""
-
-
-def artifact_paths() -> tuple[Path, Path]:
-    """(portable zip, installer) — read the version out of Directory.Build.props rather than repeating it."""
+def read_app_version() -> str:
+    """The product version, from its single source of truth."""
     props = (REPO / "Directory.Build.props").read_text(encoding="utf-8")
-    version = re.search(r"<AppVersion>([^<]+)</AppVersion>", props).group(1).strip()
+    match = re.search(r"<AppVersion>([^<]+)</AppVersion>", props)
+    if match is None:
+        raise SystemExit("Directory.Build.props declares no <AppVersion>")
+    return match.group(1).strip()
+
+
+def read_build_stamp(dll: Path, version: str) -> str:
+    """The source revision baked into the assembly, e.g. '0796d98' from '1.0.1+0796d98'."""
+    data = dll.read_bytes()
+
+    # Plain byte search, not a regex: encoding a regular expression to UTF-16 would look for literal
+    # backslashes in the image (a real first version of this check did exactly that and reported every
+    # assembly as un-stamped).
+    index = data.find(f"{version}+".encode("utf-16-le"))
+    if index < 0:
+        return ""
+
+    tail = data[index:index + 80].decode("utf-16-le", errors="ignore")
+    match = re.match(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?\+([0-9a-fA-F]{7,40})", tail)
+    return match.group(1) if match else ""
+
+
+def artifact_paths(version: str) -> tuple[Path, Path]:
     return (
         ARTIFACTS_DIR / f"ExplorerTabUtility_v{version}_Portable_x64.zip",
         ARTIFACTS_DIR / f"ExplorerTabUtility_v{version}_Setup.exe",
@@ -214,7 +225,7 @@ def main() -> int:
             " (check SatelliteResourceLanguages in Directory.Build.props)"
         )
 
-    zip_path, setup_path = artifact_paths()
+    zip_path, setup_path = artifact_paths(read_app_version())
     for path in (zip_path, setup_path):
         if not path.is_file():
             raise SystemExit(f"expected artifact not produced: {path}")
@@ -227,10 +238,10 @@ def main() -> int:
             f"  publish: {published_md5}\n  zip:     {zipped_md5}"
         )
 
-    stamp = read_build_stamp(published_dll)
+    stamp = read_build_stamp(published_dll, read_app_version())
     if not stamp:
         raise SystemExit("no build stamp found in the published assembly (BuildStamp target missing?)")
-    log(f"build stamp: {stamp}")
+    log(f"build stamp: {read_app_version()}+{stamp}")
     assert_documentation_only(stamp)
 
     print()
