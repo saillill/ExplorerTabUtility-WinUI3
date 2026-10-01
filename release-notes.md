@@ -3,6 +3,9 @@ Spanish, French, Russian, German, Japanese and Korean.
 
 Fixes in this build:
 
+- The settings column no longer has a maximum width. The cap added in a previous build pushed the column
+  outside the visible area as soon as the window was wide enough to reach it, cutting the enable switches
+  and expand chevrons off the right edge of every shortcut card.
 - A shortcut's action is no longer changed silently. If a stored profile holds an action its scope does
   not allow — only reachable through an imported or hand-edited settings file — the reset is now saved and
   reported, instead of leaving the editor showing one action while the hotkey did another.
