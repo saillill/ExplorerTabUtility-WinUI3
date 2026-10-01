@@ -44,6 +44,9 @@ ARTIFACTS_DIR = REPO / "artifacts"
 PROJECTS = ("ExplorerTabUtility.App.WinUI", "ExplorerTabUtility.Core", "ExplorerTabUtility.Tests")
 APP_DLL = "ExplorerTabUtility.dll"
 CORE_DLL = "ExplorerTabUtility.Core.dll"
+# Inside the per-language folder, the satellite assembly is the *resources* one (the neutral Core dll
+# lives at the publish root) — checking for the plain name there reports every language as missing.
+CORE_SATELLITE_DLL = "ExplorerTabUtility.Core.resources.dll"
 SATELLITE_LANGUAGES = ("zh-CN", "zh-Hant", "ja", "ko", "de", "fr", "es", "ru")
 DOC_SUFFIXES = (".md", ".txt", ".rst", ".adoc")
 
@@ -204,7 +207,7 @@ def main() -> int:
         raise SystemExit(f"publish produced no {APP_DLL}")
 
     missing = [lang for lang in SATELLITE_LANGUAGES
-               if not (PUBLISH_DIR / lang / CORE_DLL).is_file()]
+               if not (PUBLISH_DIR / lang / CORE_SATELLITE_DLL).is_file()]
     if missing:
         raise SystemExit(
             "satellite resources missing from the publish output: " + ", ".join(missing) +
