@@ -1,4 +1,4 @@
-name: build
+﻿name: build
 
 # ⛔ 本工作流只做「编译 + 测试」。它**不允许**包含任何发布动作：
 #    v1.0.1 的资产由 tools/release.py 在本地产出并 `gh release upload --clobber` 覆盖，
@@ -18,13 +18,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # 构建期会执行 `git rev-parse --short HEAD` 写入程序集版本（Directory.Build.props），
           # 完整历史还能让"这份二进制来自哪次提交"可核对。
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -35,16 +35,39 @@ jobs:
       - name: Test
         run: dotnet test ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj -c Release --no-build
 
-      # 可见性：让"资源键九语言齐全 + 构建戳"这两条不变量在 CI 日志里直接可见，
+      # 可见性：让"构建戳带提交号 + 九语言卫星资源齐全"这两条不变量在 CI 日志里直接可见，
       # 而不是等到用户界面出现原始 key 才发现。
+      #
+      # ⛔ 上一版这个步骤在 CI 上一直失败（连续 5 次），原因是**正则漏了 Attribute**：
+      #    生成代码里是 `AssemblyInformationalVersionAttribute("1.0.1+<sha>")`，
+      #    写成 `AssemblyInformationalVersion\(...` 永远匹配不到 → `Select-String` 无匹配 →
+      #    `.Matches[0]` 抛 "Cannot index into a null array"。而本地我是用 grep 的另一个模式验证的，
+      #    所以没暴露。教训：**CI 专用步骤必须自己也能给出可读的失败原因**，不要依赖管道里的下标。
       - name: Verify satellite resources and build stamp
         shell: pwsh
         run: |
-          $stamp = (Select-String -Path ExplorerTabUtility.App.WinUI/obj/Release/*/win-x64/ExplorerTabUtility.App.WinUI.AssemblyInfo.cs -Pattern 'AssemblyInformationalVersion\("([^"]+)"\)').Matches[0].Groups[1].Value
+          $assemblyInfo = Get-ChildItem -Path 'ExplorerTabUtility.App.WinUI/obj/Release' -Recurse `
+            -Filter 'ExplorerTabUtility.App.WinUI.AssemblyInfo.cs' | Select-Object -First 1
+          if (-not $assemblyInfo) {
+            throw "AssemblyInfo.cs not found under obj/Release - did the Build step run?"
+          }
+
+          $match = Select-String -Path $assemblyInfo.FullName `
+            -Pattern 'AssemblyInformationalVersionAttribute\("([^"]+)"\)'
+          if (-not $match) {
+            throw "no AssemblyInformationalVersionAttribute found in $($assemblyInfo.FullName)"
+          }
+
+          $stamp = $match.Matches[0].Groups[1].Value
           Write-Host "build stamp: $stamp"
+          if ($stamp -notmatch '\+[0-9a-f]{7,40}$') {
+            throw "build stamp '$stamp' carries no source revision - the SetSourceRevisionIdFromGit target did not run"
+          }
+
           $languages = 'zh-CN','zh-Hant','ja','ko','de','fr','es','ru'
           $missing = $languages | Where-Object {
             -not (Test-Path "ExplorerTabUtility.Core/bin/Release/net10.0-windows/$_/ExplorerTabUtility.Core.resources.dll")
           }
           if ($missing) { throw "missing satellite resources: $($missing -join ', ')" }
+
           Write-Host "satellite resources: OK ($($languages.Count) languages)"
