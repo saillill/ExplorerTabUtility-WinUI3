@@ -417,22 +417,36 @@ internal sealed class ProfileCardView : IProfileCardView
     {
         var action = Profile.Action;
 
-        SetRowVisible(_pathCard, HotKeyActionCatalog.UsesPath(action));
-        SetRowVisible(_delayCard, HotKeyActionCatalog.UsesDelay(action));
-        SetRowVisible(_asTabCard, HotKeyActionCatalog.UsesAsTab(action));
+        // Collected rather than applied per row: this method runs from UpdateSummary, which runs on every
+        // keystroke in the name and path fields, and ApplyCornerRadii writes Margin + CornerRadius on
+        // every row card — i.e. a layout invalidation per keystroke for a result that cannot have
+        // changed. Only a real visibility change can move the group's outer corners.
+        var changed = false;
+        changed |= SetRowVisible(_pathCard, HotKeyActionCatalog.UsesPath(action));
+        changed |= SetRowVisible(_delayCard, HotKeyActionCatalog.UsesDelay(action));
+        changed |= SetRowVisible(_asTabCard, HotKeyActionCatalog.UsesAsTab(action));
 
         // IsHandled only governs keyboard profiles. The mouse hook needs no per-profile option:
         // it swallows XButton1/2 automatically (they carry shell-default back/forward behaviour)
         // and never swallows LMB/RMB/MMB, so the checkbox would change nothing a mouse profile does.
-        SetRowVisible(_handledCard, !Profile.IsMouse);
+        changed |= SetRowVisible(_handledCard, !Profile.IsMouse);
 
-        ApplyCornerRadii();
+        if (changed)
+            ApplyCornerRadii();
     }
 
-    private static void SetRowVisible(SettingsCard? card, bool visible)
+    /// <summary>
+    /// Shows or hides one row, reporting whether that actually changed the row's state.
+    /// </summary>
+    private static bool SetRowVisible(SettingsCard? card, bool visible)
     {
-        if (card is null) return;
-        card.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (card is null) return false;
+
+        var target = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (card.Visibility == target) return false;
+
+        card.Visibility = target;
+        return true;
     }
 
     /// <summary>

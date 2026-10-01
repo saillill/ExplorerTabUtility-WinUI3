@@ -25,7 +25,12 @@ public sealed class AppServices : IDisposable
         Dispatcher = new WinUiDispatcher(queue);
 
         StartupLog.Step("AppServices: dialog service");
-        Dialogs = new ContentDialogService(Dispatcher, xamlRootProvider);
+        // The window is created after this service, so the callback resolves it lazily; before it exists
+        // there is nothing to show anyway (the service falls back to a native message box).
+        Dialogs = new ContentDialogService(
+            Dispatcher,
+            xamlRootProvider,
+            ensureWindowVisible: () => App.MainWindowInstance?.EnsureWindowVisible());
 
         StartupLog.Step("AppServices: profiles host");
         Profiles = new ProfilesHost();

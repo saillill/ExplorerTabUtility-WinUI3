@@ -720,16 +720,18 @@ public sealed partial class MainWindow : Window
     /// <c>FormSize</c> is stored in <b>effective</b> (XAML) pixels as the <b>outer window size</b>,
     /// matching the original WPF build's <c>System.Windows.Size</c> semantics — and matching what
     /// <c>AppWindow.Resize</c> takes, which is the outer size in <b>physical</b> pixels, hence the
-    /// scaling below. <see cref="SaveWindowSize"/> writes the same unit back, so a
-    /// save/restore cycle is a fixed point.
+    /// scaling below. <see cref="SaveWindowSize"/> writes the same unit back, so a save/restore cycle is
+    /// a fixed point.
     /// </para>
     /// <para>
-    /// Stored values below the current floors are discarded rather than applied. Every file written by
-    /// a build before the unit was reconciled carries a <b>client-area</b> size (one frame border, and
-    /// one title bar for the height, smaller than the window), which would restore into the presenter
-    /// floor and leave the window permanently parked at its minimum with the pane folded — the exact
-    /// symptom the reconciliation fixes. A value that is below the floor the presenter will enforce
-    /// anyway carries no user intent to preserve, so the default is the better choice once.
+    /// <b>What is stored is discarded exactly once</b>, guarded by <c>SettingsManager.FormSizeMigrated</c>.
+    /// Files written before the unit was settled hold a <b>client-area</b> size (one frame border smaller,
+    /// and one title bar smaller again in height), and the build that first tried to recover from that did
+    /// so with a size threshold — which turned out to be undecidable: a legitimately stored window sitting
+    /// at its own minimum (874.7 epx at 175%, where the threshold evaluated to 877) was misread as a
+    /// pre-migration value and replaced with the default on <em>every</em> launch. A value in the wrong
+    /// unit simply cannot be told apart from a deliberate one by looking at it, so the stored value is
+    /// dropped once and then trusted: the user resizes once, and from then on the size is a fixed point.
     /// </para>
     /// <para>
     /// Runs from <c>Nav.Loaded</c>: <c>XamlRoot</c> (and therefore the rasterization scale) is not
@@ -739,16 +741,26 @@ public sealed partial class MainWindow : Window
     private void ApplyInitialSize()
     {
         var scale = Nav.XamlRoot?.RasterizationScale ?? 1.0;
+
+        if (!SettingsManager.FormSizeMigrated)
+        {
+            var stored = SettingsManager.FormSize;
+            var invalid = stored.Width <= 0 || stored.Height <= 0;
+
+            StartupLog.Step(invalid
+                ? "size: no stored size, using the default"
+                : $"size: stored {stored.Width:F0}x{stored.Height:F0} discarded once (pre-migration unit)");
+
+            SettingsManager.FormSizeMigrated = true;
+            SettingsManager.FormSize = WindowSize.Default;
+
+            // Flushed immediately, not left to the 500 ms debounce: if the process died before the flag
+            // reached disk, the next launch would discard the value the user had just saved.
+            SettingsManager.ForceSave();
+        }
+
         var size = SettingsManager.FormSize;
-
-        // >= (not >) so that a window the user deliberately left at the floor is still a fixed point:
-        // the presenter floors it to exactly this value, so that is what gets saved back.
-        var usable = size.IsValid &&
-                     size.Width >= MinWindowWidthExpanded &&
-                     size.Height >= MinWindowHeight;
-
-        if (!usable && size.IsValid)
-            StartupLog.Step($"size: stored {size.Width:F1}x{size.Height:F1} below the floors, using the default");
+        var usable = size.IsValid;
 
         var logicalWidth = usable ? size.Width : 1130;
         var logicalHeight = usable ? size.Height : 600;
@@ -1207,8 +1219,25 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var scale = Nav.XamlRoot?.RasterizationScale ?? 1.0;
-        if (scale <= 0) scale = 1.0;
+        // The layout has to have run before there is anything meaningful to save, and this is not a
+        // theoretical guard: `App.OnLaunched` calls `Activate()` and then `HideToTray()` on the sign-in
+        // path, while `Activate()` returns BEFORE `Nav.Loaded` — so on that path XamlRoot (and with it
+        // the rasterization scale) is still null and Nav has not been measured.
+        //
+        // The previous version fell back to scale 1.0 there. Measured on the sign-in path at 175%: it
+        // wrote `2880x1536` — the PHYSICAL window size — into a field that means effective pixels, and
+        // the next ApplyInitialSize multiplied it by 1.75, so the window came back clamped to the
+        // screen (`target=5040x2688 actual=3868x2188`). Skipping the save is the only safe answer, and
+        // nothing is lost: before the layout there is no user-chosen geometry to remember either.
+        if (Nav.XamlRoot is not { RasterizationScale: > 0 } root ||
+            Nav.ActualWidth <= 0 ||
+            Nav.ActualHeight <= 0)
+        {
+            StartupLog.Step("HideToTray: size not saved (window not laid out yet)");
+            return;
+        }
+
+        var scale = root.RasterizationScale;
 
         var size = AppWindow.Size;
         if (size.Width <= 0 || size.Height <= 0) return;
@@ -1218,6 +1247,27 @@ public sealed partial class MainWindow : Window
         StartupLog.Step(
             $"HideToTray: size saved {size.Width / scale:F1}x{size.Height / scale:F1} epx " +
             $"(window {size.Width}x{size.Height} @ scale {scale:F3})");
+    }
+
+    /// <summary>
+    /// Brings the window back on screen if it is hidden, without the topmost promotion.
+    /// </summary>
+    /// <remarks>
+    /// Used by <c>ContentDialogService</c> immediately before a dialog is shown. A dialog attached to a
+    /// hidden window is invisible <em>and</em> unclosable, and because it holds the one-dialog gate that
+    /// is not merely cosmetic: every later dialog queues behind it forever, and the caller blocked on it
+    /// (the restore prompt runs on the STA thread) keeps the STA queue. Deliberately not
+    /// <see cref="ShowFromTray"/>: that arms the grace-period timer, whose whole problem is that it
+    /// cannot know how long the user will take over a dialog (see <see cref="PresentWindow"/>).
+    /// </remarks>
+    internal void EnsureWindowVisible()
+    {
+        if (AppWindow.IsVisible) return;
+
+        StartupLog.Step("EnsureWindowVisible: window was hidden in the tray, showing it for a pending dialog");
+
+        AppWindow.Show();
+        Activate();
     }
 
     public void ShowFromTray()

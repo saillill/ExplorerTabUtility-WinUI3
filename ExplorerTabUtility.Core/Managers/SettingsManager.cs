@@ -85,6 +85,14 @@ public static class SettingsManager
     { get => Settings.HotKeyProfiles; set { Settings.HotKeyProfiles = value; DebounceSave(); } }
     public static WindowSize FormSize
     { get => Settings.FormSize; set { Settings.FormSize = value; DebounceSave(); } }
+
+    /// <summary>
+    /// Set once the stored <see cref="FormSize"/> has been re-evaluated against the settled unit
+    /// contract. Without this the one-time discard in <c>MainWindow.ApplyInitialSize</c> would repeat on
+    /// every launch — throwing away a size the user chose on purpose.
+    /// </summary>
+    public static bool FormSizeMigrated
+    { get => Settings.FormSizeMigrated; set { Settings.FormSizeMigrated = value; DebounceSave(); } }
     public static bool IsFirstRun
     { get => Settings.IsFirstRun; set { Settings.IsFirstRun = value; DebounceSave(); } }
     public static bool IsTrayIconHidden
@@ -232,4 +240,10 @@ internal class AppSettings
     public WindowRecord[]? ClosedWindows { get; set; }
     public string Language { get; set; } = "";
     public bool LanguageMigrated { get; set; }
+
+    /// <summary>
+    /// Set once the stored <see cref="FormSize"/> has been trusted as belonging to the current unit
+    /// contract (outer window size, effective pixels). See <c>MainWindow.ApplyInitialSize</c>.
+    /// </summary>
+    public bool FormSizeMigrated { get; set; }
 }

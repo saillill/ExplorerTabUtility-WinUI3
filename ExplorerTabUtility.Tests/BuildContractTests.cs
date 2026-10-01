@@ -202,6 +202,22 @@ public class SettingsWriteTests : IDisposable
         Assert.DoesNotContain("IsValid", text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void The_one_time_migration_flags_survive_a_write_and_read()
+    {
+        SettingsManager.WriteAtomic(
+            SettingsPath,
+            new AppSettings { FormSizeMigrated = true, LanguageMigrated = true });
+
+        var restored = Read(SettingsPath);
+
+        // Both flags gate one-time corrections that DISCARD stored state (a window size, a pinned
+        // language). If a flag failed to persist, the correction would run on every launch and keep
+        // throwing away whatever the user had just chosen.
+        Assert.True(restored.FormSizeMigrated);
+        Assert.True(restored.LanguageMigrated);
+    }
+
     private static AppSettings Read(string path) =>
         JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path))!;
 

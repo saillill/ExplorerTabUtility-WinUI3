@@ -35,6 +35,23 @@ public sealed class ContentDialogService : IDialogService
     private readonly Func<XamlRoot?> _xamlRootProvider;
 
     /// <summary>
+    /// Brings the window on screen if it is hidden in the tray. Called before every dialog.
+    /// </summary>
+    /// <remarks>
+    /// A dialog attached to a hidden window is invisible <b>and</b> unclosable, and because it holds
+    /// <see cref="DialogGate"/> that is not a cosmetic problem: every later dialog — including the tab
+    /// search picker — queues behind it for the rest of the session, and the caller blocked on it stays
+    /// blocked. The reachable case is the "restore previously opened windows?" prompt, which is raised
+    /// when a new Explorer window registers after an Explorer crash, i.e. while this app is typically
+    /// hidden in the tray; its caller (`ExplorerWatcher.RestorePreviousWindows`) blocks the whole STA
+    /// task queue on the answer, so tab actions stop responding too.
+    /// <para>
+    /// Optional so the service stays constructible without a window; the composition root supplies it.
+    /// </para>
+    /// </remarks>
+    private readonly Action? _ensureWindowVisible;
+
+    /// <summary>
     /// Gate so only one <see cref="ContentDialog"/> is ever open. WinUI throws a COMException if a
     /// second one is shown while the first is still up (AUD-20).
     /// <para>
@@ -44,10 +61,14 @@ public sealed class ContentDialogService : IDialogService
     /// </summary>
     internal System.Threading.SemaphoreSlim DialogGate { get; } = new(1, 1);
 
-    public ContentDialogService(IUiDispatcher dispatcher, Func<XamlRoot?> xamlRootProvider)
+    public ContentDialogService(
+        IUiDispatcher dispatcher,
+        Func<XamlRoot?> xamlRootProvider,
+        Action? ensureWindowVisible = null)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _xamlRootProvider = xamlRootProvider ?? throw new ArgumentNullException(nameof(xamlRootProvider));
+        _ensureWindowVisible = ensureWindowVisible;
     }
 
     DialogResult IDialogService.Show(
@@ -105,6 +126,12 @@ public sealed class ContentDialogService : IDialogService
         DialogIcon icon,
         DialogResult defaultResult)
     {
+        // Before anything else: a dialog needs a window the user can actually see and reach. Every
+        // dialog the app raises from a background thread (the restore prompt, the second-instance
+        // notice) can arrive while this window is hidden in the tray, and an invisible dialog cannot be
+        // dismissed — which, with the gate below, would strand every later dialog and the blocked caller.
+        _ensureWindowVisible?.Invoke();
+
         var xamlRoot = _xamlRootProvider();
         if (xamlRoot is null)
         {

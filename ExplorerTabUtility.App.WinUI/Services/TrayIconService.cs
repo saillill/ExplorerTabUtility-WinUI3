@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using CommunityToolkit.Mvvm.Input;
 using H.NotifyIcon;
 using Microsoft.UI.Xaml;
@@ -93,7 +94,31 @@ public sealed class TrayIconService : IDisposable
         _profileManager.ProfilesChanged += OnProfilesChanged;
     }
 
-    private void OnProfilesChanged() => RefreshProfileMenus();
+    /// <summary>Set while a coalesced profile-menu rebuild is already queued for the UI thread.</summary>
+    private int _profileMenuRebuildQueued;
+
+    /// <summary>
+    /// Rebuilds the profile submenus once per burst of changes.
+    /// </summary>
+    /// <remarks>
+    /// Profiles are persisted on <em>every keystroke</em> (the settings window saves as you type), so
+    /// this fires per character typed into a name or path field. Rebuilding means clearing both submenus
+    /// and creating one <see cref="ToggleMenuFlyoutItem"/> per profile, i.e. real XAML work per keystroke
+    /// once a profile list is long enough to matter. Coalescing to a single rebuild per message-loop turn
+    /// keeps the menu correct without doing that work once per character.
+    /// </remarks>
+    private void OnProfilesChanged()
+    {
+        // Cleared before the rebuild, so a change that arrives during the rebuild queues another pass
+        // and the menu still ends up showing the newest state.
+        if (Interlocked.Exchange(ref _profileMenuRebuildQueued, 1) == 1) return;
+
+        _uiDispatcher.TryPost(() =>
+        {
+            Interlocked.Exchange(ref _profileMenuRebuildQueued, 0);
+            RefreshProfileMenus();
+        });
+    }
 
     /// <summary>Raised when the user asks for the settings window (double-click, or "Open settings").</summary>
     public event Action? ShowRequested;
