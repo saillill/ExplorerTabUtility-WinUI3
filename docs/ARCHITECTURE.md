@@ -22,8 +22,18 @@ live in exactly two places: `MainWindow.SaveWindowSize` (divide by the rasteriza
   minimum size with the navigation pane folded.
 * Measured (175%): `FormSize 856.57x480.57` against a window of `870.29x520` epx; one cycle lost exactly
   the 32 epx title bar (513 → 480.57). After the fix the cycle is a fixed point (`1130.29x600` twice).
-* Stored values below the current floors are discarded rather than restored: they cannot express a usable
-  window and would only restore into the floor.
+* The stored value is **discarded exactly once**, gated by `SettingsManager.FormSizeMigrated`. A value in
+  the wrong unit cannot be told apart from a deliberate one by looking at it, so there is no size
+  threshold to test against — an earlier attempt used one and misread a window legitimately parked at its
+  own minimum (874.7 epx at 175%, where the threshold evaluated to 877), resetting it to the default on
+  every launch. After the single discard the stored size is trusted as-is.
+* **The save is skipped until the layout has run.** `App.OnLaunched` calls `Activate()` and then
+  `HideToTray()` on the sign-in path, and `Activate()` returns *before* `Nav.Loaded` — so `XamlRoot`, and
+  with it the rasterization scale, is still null there. Falling back to scale 1.0 in that state wrote the
+  physical window size (2880x1536 at 175%) into a field that means effective pixels, and the next
+  `ApplyInitialSize` multiplied it by 1.75: the window came back clamped to the screen
+  (`target=5040x2688 actual=3868x2188`). `Nav.ActualWidth`/`ActualHeight` are checked as well — before
+  layout there is no user-chosen geometry to persist either.
 
 **`OverlappedPresenter.PreferredMinimumWidth/Height` are OUTER window sizes, in physical pixels.**
 Measured: with the value set to 860 the window stops with `AppWindow.Size.Width` at 860 while

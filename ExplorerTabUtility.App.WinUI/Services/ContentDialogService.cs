@@ -61,6 +61,16 @@ public sealed class ContentDialogService : IDialogService
     /// </summary>
     internal System.Threading.SemaphoreSlim DialogGate { get; } = new(1, 1);
 
+    /// <summary>
+    /// True while a dialog is on screen — i.e. while <see cref="DialogGate"/> is taken.
+    /// </summary>
+    /// <remarks>
+    /// Used by the window to refuse to hide itself while a dialog is open. Hiding would take the dialog
+    /// off screen with it, and an unclosable dialog holds the gate: every later dialog would queue behind
+    /// it and the caller blocked on it would stay blocked (see the remarks on <see cref="_ensureWindowVisible"/>).
+    /// </remarks>
+    internal bool IsDialogOpen => DialogGate.CurrentCount == 0;
+
     public ContentDialogService(
         IUiDispatcher dispatcher,
         Func<XamlRoot?> xamlRootProvider,

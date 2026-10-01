@@ -1176,6 +1176,17 @@ public sealed partial class MainWindow : Window
     /// <summary>Saves the window size, then hides to the tray. Profiles are already persisted on edit.</summary>
     public void HideToTray()
     {
+        // Never hide while a dialog is up. The dialog would go with the window — invisible and therefore
+        // unclosable — and since it holds the one-dialog gate, every later dialog (tab search included)
+        // would queue behind it for the rest of the session while the caller blocked on the answer (the
+        // restore prompt blocks the STA queue) never returns. Every hide path funnels through here —
+        // the close button, the toggle hotkey and the sign-in start — so this is the one place to check.
+        if (_services.Dialogs.IsDialogOpen)
+        {
+            StartupLog.Step("HideToTray: refused, a dialog is open");
+            return;
+        }
+
         SaveWindowSize();
 
         // The user is done editing: now it is safe to discard rows that were never filled in.
