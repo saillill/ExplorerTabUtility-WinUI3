@@ -275,13 +275,19 @@ def main() -> int:
                    '{tag:.tagName, assets:[.assets[]|{name,size}], bodylen:(.body|length)}'])
     print(view)
 
-    notes_length = len((REPO / "release-notes.md").read_text(encoding="utf-8"))
-    body_length = int(re.search(r'"bodylen":(\d+)', view).group(1))
-    if abs(body_length - notes_length) > 8:
+    # Content, not length. The body keeps the file's line endings, so a length comparison counts the
+    # "\r" of every CRLF as a character and reports a mismatch for notes that landed word for word
+    # (which is exactly what it did: 2533 vs 2499 for identical text). Comparing the text itself also
+    # catches a partially-updated body, which a length check would happily accept.
+    published_body = output(["gh", "release", "view", args.tag, "--json", "body", "--jq", ".body"])
+    expected_body = (REPO / "release-notes.md").read_text(encoding="utf-8")
+
+    normalize = lambda text: text.replace("\r\n", "\n").strip()   # noqa: E731 — one use, keeps the check readable
+    if normalize(published_body) != normalize(expected_body):
         raise SystemExit(
-            f"the release body ({body_length} chars) does not match release-notes.md "
-            f"({notes_length} chars) — `gh release edit` did not land, which is how the notes have gone "
-            "stale before. Re-run it by hand and check with `gh release view`."
+            "the published release body does not match release-notes.md — `gh release edit` did not land, "
+            "which is how the notes have gone stale before. Re-run it by hand and check with "
+            "`gh release view`."
         )
 
     log(f"done: {args.tag} now points at {stamp} with freshly built assets")
