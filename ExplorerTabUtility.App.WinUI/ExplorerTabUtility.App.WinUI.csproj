@@ -9,11 +9,10 @@
     <ApplicationIcon>Assets\Icon.ico</ApplicationIcon>
 
     <!-- 版本号单一来源：产品版本定义在根 Directory.Build.props 的 <AppVersion>，
-         公共属性 Nullable/LangVersion/ImplicitUsings/SatelliteResourceLanguages 亦在该文件统一声明。 -->
+          公共属性 Nullable/LangVersion/ImplicitUsings/SatelliteResourceLanguages 亦在该文件统一声明。 -->
     <Version>$(AppVersion)</Version>
-    <!-- 仅 x64；ARM64 通过 x64 模拟运行，安装器已放行（ArchitecturesAllowed=x64compatible arm64）。 -->
-    <Platforms>x64</Platforms>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Platforms>ARM64</Platforms>
+    <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
 
     <!-- 非打包（unpackaged）模型：保留 HKCU Run 开机自启、便携 zip 与现有安装器链路 -->
     <WindowsPackageType>None</WindowsPackageType>
@@ -77,9 +76,7 @@
     构建输出 bin/ 里该文件是正常生成的，只是没随 publish 走，这里补上。
   -->
   <Target Name="CopyAppPriToPublish" AfterTargets="Publish" Condition="Exists('$(OutputPath)$(AssemblyName).pri')">
-    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pri"
-          DestinationFolder="$(PublishDir)"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pri" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
   </Target>
 
   <PropertyGroup>
