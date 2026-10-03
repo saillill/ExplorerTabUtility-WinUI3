@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
@@ -1105,6 +1106,13 @@ public sealed partial class MainWindow : Window
         }
 
         AppWindow.Closing += OnClosing;
+
+        // Logoff and shutdown. Windows raises this on a SystemEvents thread before it tears the
+        // process down, and without releasing our XAML-owned resources first the process is killed
+        // while the tray icon and the window tree are still alive — a teardown order that makes
+        // Microsoft.UI.Xaml.dll fault with an access violation (0xC0000005), which the user sees as
+        // an "…has stopped working" dialog on the way out.
+        _services.Dispatcher.SessionEnding += (_, _) => ReleaseForSessionEnd();
     }
 
     /// <summary>
@@ -1494,11 +1502,77 @@ public sealed partial class MainWindow : Window
 
     private void ExitApplication()
     {
+        ReleaseForShutdown();
+        Application.Current.Exit();
+    }
+
+    /// <summary>
+    /// Releases everything that owns a XAML object. Must run on the UI thread.
+    /// </summary>
+    private void ReleaseForShutdown()
+    {
         // Let the close handler know this is a real exit, not a hide.
         _exiting = true;
 
         StopSystemThemeWatcher();
         _services.Dispose();
-        Application.Current.Exit();
+    }
+
+    /// <summary>
+    /// Handles logoff / shutdown: tears the app down on the UI thread, then exits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The session-end notification arrives on a <c>SystemEvents</c> thread, and every object that
+    /// has to be released is a XAML object owned by the UI thread — the tray icon above all. Doing
+    /// the teardown from the notification thread would throw, and doing nothing at all leaves the
+    /// resources to be reclaimed while <c>Microsoft.UI.Xaml</c> is already shutting down.
+    /// </para>
+    /// <para>
+    /// The wait is bounded and the waiting thread is the session-end thread, never the UI thread. If
+    /// the UI thread does not pick the work up in time the OS terminates the process anyway, which is
+    /// exactly what happened before this existed.
+    /// </para>
+    /// </remarks>
+    private void ReleaseForSessionEnd()
+    {
+        if (_exiting) return;
+
+        StartupLog.Step($"session ending: releasing (uiThread={_services.Dispatcher.HasThreadAccess})");
+
+        try
+        {
+            if (_services.Dispatcher.HasThreadAccess)
+            {
+                ExitApplication();
+                return;
+            }
+
+            using var released = new ManualResetEventSlim(false);
+
+            var posted = _services.Dispatcher.TryEnqueue(() =>
+            {
+                try
+                {
+                    ReleaseForShutdown();
+                }
+                finally
+                {
+                    // Signalled before Exit(): Exit() ends the message loop and is not guaranteed to
+                    // return, and the waiter must not be left hanging on a dying thread.
+                    released.Set();
+                }
+
+                Application.Current.Exit();
+            });
+
+            if (!posted) return;
+
+            released.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("MainWindow.ReleaseForSessionEnd", ex);
+        }
     }
 }

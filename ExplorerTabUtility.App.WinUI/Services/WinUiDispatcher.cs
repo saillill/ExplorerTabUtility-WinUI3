@@ -44,6 +44,17 @@ public sealed class WinUiDispatcher : IUiDispatcher, IDisposable
         _queue.TryEnqueue(() => action());
     }
 
+    /// <summary>
+    /// <see cref="TryPost"/> that reports the queue's answer: <c>false</c> when the queue is already
+    /// shutting down and the work was dropped. Needed by callers that then wait for the work to run —
+    /// they must not wait for something that will never be executed.
+    /// </summary>
+    public bool TryEnqueue(Action action)
+    {
+        if (action is null) return false;
+        return _queue.TryEnqueue(() => action());
+    }
+
     public event EventHandler? SessionEnding;
 
     private void OnSessionEnding(object sender, SessionEndingEventArgs e)

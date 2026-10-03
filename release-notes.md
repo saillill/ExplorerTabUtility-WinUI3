@@ -3,6 +3,13 @@ Spanish, French, Russian, German, Japanese and Korean.
 
 Fixes in this build:
 
+- "Hide tray icon" is honoured on startup. Creating the tray icon always put it back in the notification
+  area, so the setting only lasted until the next launch — a restart brought the icon back even with the
+  option on.
+- Logoff and shutdown release the tray icon and the other XAML-owned resources on the UI thread before the
+  process exits. They used to be reclaimed while `Microsoft.UI.Xaml` was already shutting down, which is
+  the teardown order behind the "…has stopped working" dialog seen on the way out; the session-end path is
+  logged now, so a recurrence is diagnosable.
 - The settings column no longer has a maximum width. The cap added in a previous build pushed the column
   outside the visible area as soon as the window was wide enough to reach it, cutting the enable switches
   and expand chevrons off the right edge of every shortcut card.

@@ -80,6 +80,12 @@ public sealed class TrayIconService : IDisposable
         _trayIcon.ForceCreate();
         StartupLog.Step($"Tray: created, IsCreated={_trayIcon.IsCreated}");
 
+        // ForceCreate always puts the icon in the notification area, so the saved preference has to
+        // be applied on top of it. Without this the setting only affected the session in which it was
+        // changed — every restart brought the icon back even though "hide tray icon" was on.
+        IsVisible = !SettingsManager.IsTrayIconHidden;
+        StartupLog.Step($"Tray: visible={IsVisible} (hidden setting={SettingsManager.IsTrayIconHidden})");
+
         // Events cannot be subscribed through ?. — guard explicitly.
         if (_hookManager is { } hooks)
         {
