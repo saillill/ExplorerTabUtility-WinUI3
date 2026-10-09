@@ -41,12 +41,13 @@
   #define MyAppArch "x64"
 #endif
 
-; 产物名后缀：x64 不带后缀（历史资产名 ExplorerTabUtility_v1.0.1_Setup.exe 不能变，
-; release.py 正是按这个名字找产物），arm64 用 _arm64 区分。
+; 产物名后缀：与便携包的 _Portable_<arch> 命名对齐成 _Setup_x64 / _Setup_arm64，
+; 两个架构一眼可辨。x64 早先不带后缀（历史资产名 ExplorerTabUtility_v1.0.1_Setup.exe），
+; 已统一到带后缀的写法 —— release.py、choco 模板与发布说明的资产名都跟着这一处变。
 #if MyAppArch == "arm64"
   #define MyAppArchSuffix "_arm64"
 #else
-  #define MyAppArchSuffix ""
+  #define MyAppArchSuffix "_x64"
 #endif
 
 #define MyAppPublisher "saillill"

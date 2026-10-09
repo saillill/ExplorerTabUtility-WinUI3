@@ -71,8 +71,8 @@ APP_DLL = "ExplorerTabUtility.dll"
 CORE_DLL = "ExplorerTabUtility.Core.dll"
 
 # The Chocolatey package id is this name lowercased, and it is also the base name of the installer
-# (ExplorerTabUtility_v1.0.1_Setup.exe). The GitHub *repository* is a third name — release URLs are
-# built from it — so the two are kept apart; conflating them is what made the previous attempt to
+# (ExplorerTabUtility_v1.0.1_Setup_x64.exe). The GitHub *repository* is a third name — release URLs
+# are built from it — so the two are kept apart; conflating them is what made the previous attempt to
 # publish this package 404.
 PUBLISHER = "saillill"
 PACKAGE_NAME = "ExplorerTabUtility"
@@ -150,7 +150,7 @@ ARCHITECTURES = {
         platform=None,
         publish_dir=REPO / "publish" / "win-x64-fd",
         zip_suffix="x64",
-        setup_suffix="",
+        setup_suffix="_x64",
         iscc_define=None,
         pe_machine=IMAGE_FILE_MACHINE_AMD64,
     ),

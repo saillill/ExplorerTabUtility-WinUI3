@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $packageName = '{{PACKAGE_NAME}}'
 $toolsDir = "$( Split-Path -parent $MyInvocation.MyCommand.Definition )"
-$url = 'https://github.com/{{PUBLISHER}}/{{REPOSITORY}}/releases/download/v{{VERSION}}/{{PACKAGE_NAME}}_v{{VERSION}}_Setup.exe'
+$url = 'https://github.com/{{PUBLISHER}}/{{REPOSITORY}}/releases/download/v{{VERSION}}/{{SETUP_FILE}}'
 $checksum = '{{CHECKSUM}}'
 $checksumType = 'sha256'
 

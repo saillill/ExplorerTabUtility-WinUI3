@@ -4,7 +4,7 @@
 # It calculates the SHA256 hash for the installer and generates the required files.
 #
 # Requirements:
-#   - Installer filename should follow the pattern: {name}_v{version}_Setup.exe
+#   - Installer filename should follow the pattern: {name}_v{version}_Setup_x64.exe
 #
 # Usage:
 #   .\build.ps1 -Publisher "owner" -Name "repo" -Version "1.0.0"
@@ -26,8 +26,8 @@
 #   -Repository   : The GitHub repository the release lives in, when it differs from the package name.
 #                   Defaults to $Name (the upstream layout, where both are the same). It matters:
 #                   this repository is saillill/ExplorerTabUtility-WinUI3 while the package is
-#                   explorerTabUtility, and the release asset is ExplorerTabUtility_v1.0.1_Setup.exe —
-#                   three different names. Using one of them for all three is exactly how the release
+#                   explorerTabUtility, and the release asset is ExplorerTabUtility_v1.0.1_Setup_x64.exe
+#                   — three different names. Using one of them for all three is exactly how the release
 #                   download 404s, which is what killed the "Publish to Chocolatey" workflow.
 
 Param
@@ -79,9 +79,8 @@ function Get-ArtifactHash
 
     try
     {
-        $fileName = "$( $Name )_v$( $Version )_Setup.exe"
-        $downloadUrl = "https://github.com/$Publisher/$Repository/releases/download/v$Version/$fileName"
-        $outputPath = Join-Path $tempDir $fileName
+        $outputPath = Join-Path $tempDir $InstallerFileName
+        $downloadUrl = "https://github.com/$Publisher/$Repository/releases/download/v$Version/$InstallerFileName"
 
         # Download the file
         Write-Host "Downloading installer from: $downloadUrl"
@@ -119,6 +118,7 @@ function Write-TemplateFile
     $content = $content.Replace('{{PACKAGE_ID}}',$Name.ToLower())
     $content = $content.Replace('{{PACKAGE_NAME}}', $Name)
     $content = $content.Replace('{{REPOSITORY}}', $Repository)
+    $content = $content.Replace('{{SETUP_FILE}}', $InstallerFileName)
     $content = $content.Replace('{{DESCRIPTION}}', $Description)
     $content = $content.Replace('{{SUMMARY}}', $Summary)
     $content = $content.Replace('{{CHECKSUM}}', $Checksum)
@@ -134,6 +134,11 @@ if (-not $Repository)
 {
     $Repository = $Name
 }
+
+# The installer this package downloads. Both architectures ship under a suffix (_Setup_x64.exe /
+# _Setup_arm64.exe) and this package installs the x64 one. Spelled out once: the download below and
+# the generated install script's $url both take the name from here, so they cannot drift apart.
+$InstallerFileName = "$( $Name )_v$( $Version )_Setup_x64.exe"
 
 #Description
 if (-not $Description)
