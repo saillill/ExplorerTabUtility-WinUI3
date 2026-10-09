@@ -345,7 +345,14 @@ internal sealed class ProfileCardView : IProfileCardView
         _asTabCard = AddCheckRow(_detailPanel, "TabTooltip", _asTab);
 
         // Destructive action is the last row of the same group.
-        var deleteButton = new Button { Content = Loc("Delete") };
+        // The colour sits on the label, not on the button: the Button template overrides
+        // ContentPresenter.Foreground in its PointerOver / Pressed / Disabled states, so a red Button
+        // would lose its colour the moment the pointer is over it. See DestructiveActionTextStyle.
+        var deleteLabel = new TextBlock { Text = Loc("Delete") };
+        if (TryFindStyle("DestructiveActionTextStyle", out var destructiveStyle))
+            deleteLabel.Style = destructiveStyle;
+
+        var deleteButton = new Button { Content = deleteLabel };
         deleteButton.Click += (_, _) =>
         {
             _callbacks.Remove(Profile);
@@ -363,7 +370,7 @@ internal sealed class ProfileCardView : IProfileCardView
         _localizers.Add(() =>
         {
             if (deleteCard.Header is TextBlock label) label.Text = Loc("DeleteProfileTooltip");
-            deleteButton.Content = Loc("Delete");
+            deleteLabel.Text = Loc("Delete");
         });
         _detailPanel.Children.Add(deleteCard);
         _rowCards.Add(deleteCard);

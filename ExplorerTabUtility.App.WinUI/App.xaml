@@ -59,6 +59,21 @@
             </Style>
 
             <!--
+                破坏性操作的按钮文字（删除快捷键配置）。WinUI 没有"危险按钮"样式，
+                官方语义色里干这件事的就是 SystemFillColorCriticalBrush
+                （浅色 #C42B1C、深色 #FF99A4、高对比度取系统窗口文字色），所以没有新增任何色值。
+
+                ⛔ 不能只给 Button 设 Foreground。Button 模板在 PointerOver / Pressed / Disabled
+                三个状态下直接把 **ContentPresenter.Foreground** 顶成 ButtonForeground* 系列
+                （generic.xaml 里那三个 Setter）：只设 Button.Foreground 的话，鼠标一悬停红色就褪回
+                普通色、移开又变回红色。把颜色放在按钮**内容**上不受影响 —— 显式 Foreground 的
+                优先级高于继承，四个状态始终是红的，而按钮底色与边框仍完全走官方模板。
+            -->
+            <Style x:Key="DestructiveActionTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+            </Style>
+
+            <!--
                 WinUI 3 的 ToggleSwitch 在「禁用 + 关」状态下把轨道整个画没了
                 （FillOffDisabled 透明、StrokeOffDisabled 也取不到可见描边），
                 只剩一个孤立圆点，看不出这是个开关。这里按官方禁用描边令牌补回描边，
