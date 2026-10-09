@@ -25,6 +25,30 @@
 #define DashPos Pos("-", MyAppVersionWithoutV)
 #define MyAppNumericVersion (DashPos > 0) ? Copy(MyAppVersionWithoutV, 1, DashPos - 1) : MyAppVersionWithoutV
 
+; ---------------------------------------------------------------------------
+; 目标架构：x64（缺省）或 arm64。
+;
+; tools/release.py 用 `ISCC /DMyAppArch=arm64` 选择 arm64；不带这个参数时与历史行为逐字节
+; 一致（x64 包，产物名不变）。手工在 Git Bash 里敲时注意 MSYS2 会把 `/D...` 当路径吃掉，
+; 需要 MSYS2_ARG_CONV_EXCL='*' 前缀。
+;
+; 为什么一个架构一个安装包、而不是做成"二合一"：
+;   1. 应用本体是按 RID 发布的框架依赖产物，两个架构的 exe/dll 不能混进同一个 [Files]；
+;   2. ArchitecturesAllowed 必须收紧到单一架构 —— ARM64 包如果放行 x64，用户会在 x64 机器上
+;      装到一个启动不了的 exe，而这属于"装完没反应、没有任何报错"那一类最难查的故障。
+; ---------------------------------------------------------------------------
+#ifndef MyAppArch
+  #define MyAppArch "x64"
+#endif
+
+; 产物名后缀：x64 不带后缀（历史资产名 ExplorerTabUtility_v1.0.1_Setup.exe 不能变，
+; release.py 正是按这个名字找产物），arm64 用 _arm64 区分。
+#if MyAppArch == "arm64"
+  #define MyAppArchSuffix "_arm64"
+#else
+  #define MyAppArchSuffix ""
+#endif
+
 #define MyAppPublisher "saillill"
 #define MyAppName "ExplorerTabUtility"
 #define MyAppExeName MyAppName + ".exe"
@@ -32,12 +56,20 @@
 #define MyAppURL "https://github.com/saillill/ExplorerTabUtility-WinUI3"
 
 ; 官方稳定地址：aka.ms 始终指向该主版本的最新补丁，无需随补丁号改脚本。
-#define DotNetUrl "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
-#define DotNetFileName "windowsdesktop-runtime-10-win-x64.exe"
-#define DotNetPage "https://dotnet.microsoft.com/download/dotnet/10.0"
+; 每个架构各一份下载器：arm64 机器上必须装 arm64 的运行时，否则应用仍会退回模拟执行。
+#if MyAppArch == "arm64"
+  #define DotNetUrl "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-arm64.exe"
+  #define DotNetFileName "windowsdesktop-runtime-10-win-arm64.exe"
+  #define WinAppRuntimeUrl "https://aka.ms/windowsappsdk/2.5/latest/windowsappruntimeinstall-arm64.exe"
+  #define WinAppRuntimeFileName "windowsappruntimeinstall-arm64.exe"
+#else
+  #define DotNetUrl "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
+  #define DotNetFileName "windowsdesktop-runtime-10-win-x64.exe"
+  #define WinAppRuntimeUrl "https://aka.ms/windowsappsdk/2.5/latest/windowsappruntimeinstall-x64.exe"
+  #define WinAppRuntimeFileName "windowsappruntimeinstall-x64.exe"
+#endif
 
-#define WinAppRuntimeUrl "https://aka.ms/windowsappsdk/2.5/latest/windowsappruntimeinstall-x64.exe"
-#define WinAppRuntimeFileName "windowsappruntimeinstall-x64.exe"
+#define DotNetPage "https://dotnet.microsoft.com/download/dotnet/10.0"
 #define WinAppRuntimePage "https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads"
 
 ; 应用要求的 .NET 主版本
@@ -48,9 +80,13 @@
   #define SourceDir "..\artifacts"
 #endif
 
-; 应用本体的来源目录（dotnet publish 的框架依赖输出）
+; 应用本体的来源目录（dotnet publish 的框架依赖输出），与目标架构一一对应。
 #ifndef PublishDir
-  #define PublishDir "..\publish\win-x64-fd"
+  #if MyAppArch == "arm64"
+    #define PublishDir "..\publish\win-arm64-fd"
+  #else
+    #define PublishDir "..\publish\win-x64-fd"
+  #endif
 #endif
 
 [Setup]
@@ -67,14 +103,22 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 PrivilegesRequired=lowest
 OutputDir={#SourceDir}
-OutputBaseFilename={#MyAppName}_{#MyAppVersion}_Setup
+OutputBaseFilename={#MyAppName}_{#MyAppVersion}_Setup{#MyAppArchSuffix}
 SetupIconFile=..\ExplorerTabUtility.App.WinUI\Assets\Icon.ico
 LicenseFile=..\LICENSE
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; 每个安装包只放行它自己的架构：arm64 包若能装在 x64 机器上，用户拿到的是一个启动不了的 exe。
+; x64 包放行 arm64 机器是有意的历史行为 —— ARM64 设备上的默认体验是跑 x64 版（模拟），
+; 原生 arm64 包是额外的可选产物。
+#if MyAppArch == "arm64"
+ArchitecturesInstallIn64BitMode=arm64
+ArchitecturesAllowed=arm64
+#else
 ArchitecturesInstallIn64BitMode=x64compatible arm64
 ArchitecturesAllowed=x64compatible arm64
+#endif
 UninstallDisplayIcon={app}\{#MyAppRelativePath}
 UninstallDisplayName={#MyAppName}
 CloseApplications=yes

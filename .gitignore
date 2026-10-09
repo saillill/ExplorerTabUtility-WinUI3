@@ -45,3 +45,9 @@ packages/*.nupkg
 *.cache
 _ReSharper*/
 *.DotSettings.user
+
+# ---- Python（tools/release.py、pack-portable.py）----
+# 这两个脚本是以子进程方式互相调用的，正常跑不会留下字节码；只有手工 py_compile
+# 或 import 才会生成。它们此前一直是未跟踪状态，顺手关掉。
+__pycache__/
+*.pyc

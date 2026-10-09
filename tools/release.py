@@ -16,11 +16,25 @@ What it guarantees
   one, and that the build stamp really names a commit whose diff against HEAD touches documentation
   only — otherwise it refuses to ship. That is the check that would have caught the "deployed binary
   does not match the repository" incident.
+* It verifies, per architecture, that the published shell and Core are the *same* architecture. A
+  mismatched pair is otherwise silent until a user runs it: the build only raises CS8012, publish
+  does not run with -warnaserror, and every other check here passes because the zip really does match
+  the publish directory. It surfaces as BadImageFormatException — "the window never opens and nothing
+  is logged".
 * Shipping (`--ship`) is opt-in and never happens on a failed verification.
+
+Architectures
+-------------
+`--arch` selects what to build. x64 is the default and is the only one the rest of this script, the
+installer defaults and the CI satellite check assume; arm64 is built exactly the same way and gets its
+own publish directory, zip name and installer (`_arm64` suffix), so adding it cannot rename or move
+the x64 assets. `--arch all` builds both.
 
 Usage
 -----
-    python tools/release.py                     # build + pack + verify (no network, no git mutation)
+    python tools/release.py                     # build + pack + verify x64 (no network, no git mutation)
+    python tools/release.py --arch arm64        # same for arm64
+    python tools/release.py --arch all          # both
     python tools/release.py --allow-dirty       # same, for a local trial build of uncommitted work
     python tools/release.py --ship              # also push, move the tag, replace the release assets
     python tools/release.py --skip-tests        # skip the unit tests (not recommended before shipping)
@@ -33,13 +47,14 @@ import hashlib
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-PUBLISH_DIR = REPO / "publish" / "win-x64-fd"
 ARTIFACTS_DIR = REPO / "artifacts"
 PROJECTS = ("ExplorerTabUtility.App.WinUI", "ExplorerTabUtility.Core", "ExplorerTabUtility.Tests")
 APP_DLL = "ExplorerTabUtility.dll"
@@ -57,6 +72,63 @@ PUBLISH_ARGS = [
     "-p:SelfContained=false",
     "-p:WindowsAppSDKSelfContained=false",
 ]
+
+# PE machine types, as they appear in the COFF header.
+IMAGE_FILE_MACHINE_AMD64 = 0x8664
+IMAGE_FILE_MACHINE_ARM64 = 0xAA64
+MACHINE_NAMES = {
+    0x014C: "x86",
+    0x01C0: "ARM",
+    IMAGE_FILE_MACHINE_AMD64: "x64",
+    IMAGE_FILE_MACHINE_ARM64: "ARM64",
+}
+
+
+@dataclass(frozen=True)
+class Architecture:
+    """Everything that differs between the shipped architectures, in one place.
+
+    `platform` is None for x64 on purpose: x64 is built with no `-p:Platform` at all, which is the
+    AnyCPU→x64 default path this repository has always used. Spelling out `x64` there would move every
+    output into `bin\\x64\\Release\\` and break the path checks that depend on the current layout.
+
+    `zip_suffix`/`setup_suffix` must stay aligned with pack-portable.py's ARCHITECTURES and
+    installer.iss's OutputBaseFilename suffix; the "expected artifact not produced" check below is
+    what turns that drift into a failure instead of a shipped file nobody can find.
+    """
+
+    name: str
+    runtime: str
+    platform: str | None
+    publish_dir: Path
+    zip_suffix: str
+    setup_suffix: str
+    iscc_define: str | None
+    pe_machine: int
+
+
+ARCHITECTURES = {
+    "x64": Architecture(
+        name="x64",
+        runtime="win-x64",
+        platform=None,
+        publish_dir=REPO / "publish" / "win-x64-fd",
+        zip_suffix="x64",
+        setup_suffix="",
+        iscc_define=None,
+        pe_machine=IMAGE_FILE_MACHINE_AMD64,
+    ),
+    "arm64": Architecture(
+        name="arm64",
+        runtime="win-arm64",
+        platform="ARM64",
+        publish_dir=REPO / "publish" / "win-arm64-fd",
+        zip_suffix="arm64",
+        setup_suffix="_arm64",
+        iscc_define="/DMyAppArch=arm64",
+        pe_machine=IMAGE_FILE_MACHINE_ARM64,
+    ),
+}
 
 
 def log(message: str) -> None:
@@ -107,10 +179,21 @@ def read_build_stamp(dll: Path, version: str) -> str:
     return match.group(1) if match else ""
 
 
-def artifact_paths(version: str) -> tuple[Path, Path]:
+def pe_machine(path: Path) -> int:
+    """The PE machine type of an assembly, straight from the COFF header."""
+    with path.open("rb") as handle:
+        if handle.read(2) != b"MZ":
+            raise SystemExit(f"{path} is not a PE image")
+        handle.seek(0x3C)
+        offset = struct.unpack("<I", handle.read(4))[0]
+        handle.seek(offset + 4)
+        return struct.unpack("<H", handle.read(2))[0]
+
+
+def artifact_paths(version: str, arch: Architecture) -> tuple[Path, Path]:
     return (
-        ARTIFACTS_DIR / f"ExplorerTabUtility_v{version}_Portable_x64.zip",
-        ARTIFACTS_DIR / f"ExplorerTabUtility_v{version}_Setup.exe",
+        ARTIFACTS_DIR / f"ExplorerTabUtility_v{version}_Portable_{arch.zip_suffix}.zip",
+        ARTIFACTS_DIR / f"ExplorerTabUtility_v{version}_Setup{arch.setup_suffix}.exe",
     )
 
 
@@ -148,11 +231,85 @@ def assert_documentation_only(stamp: str) -> None:
     log(f"build stamp {stamp} is behind HEAD {head}, but only documentation differs — accepted")
 
 
+def assert_matching_architectures(arch: Architecture) -> None:
+    """The shell and Core must be the same architecture, and the one this build claims.
+
+    This is the check whose absence let a mixed pair through: `dotnet publish -r win-x64` still exits
+    0 when Core is pinned to another architecture, emitting an x64 shell next to an ARM64 Core, with
+    CS8012 as the only signal. Every other verification here compares files to each other, so they all
+    pass on a package that cannot start.
+    """
+    shell = pe_machine(arch.publish_dir / APP_DLL)
+    core = pe_machine(arch.publish_dir / CORE_DLL)
+    described = {shell: MACHINE_NAMES.get(shell, hex(shell)), core: MACHINE_NAMES.get(core, hex(core))}
+
+    if shell != core:
+        raise SystemExit(
+            f"{arch.name}: the published {APP_DLL} is {described[shell]} but {CORE_DLL} is "
+            f"{described[core]}. The shell and Core must be built for the same architecture — check "
+            f"that no csproj pins PlatformTarget/RuntimeIdentifier without a $(Platform) condition. "
+            f"Shipping this would fail at run time as BadImageFormatException, with nothing in the log."
+        )
+
+    if shell != arch.pe_machine:
+        raise SystemExit(
+            f"{arch.name}: the published {APP_DLL} is {described[shell]}, expected "
+            f"{MACHINE_NAMES[arch.pe_machine]} for this architecture."
+        )
+
+    log(f"{arch.name}: {APP_DLL} and {CORE_DLL} are both {described[shell]}")
+
+
+def verify(arch: Architecture, version: str) -> tuple[Path, Path, str]:
+    """Everything that must hold before an architecture's artifacts may be shipped.
+
+    Returns the zip, the installer and the source revision baked into the published assembly.
+    """
+    published_dll = arch.publish_dir / APP_DLL
+    if not published_dll.is_file():
+        raise SystemExit(f"publish produced no {APP_DLL} for {arch.name}")
+
+    missing = [lang for lang in SATELLITE_LANGUAGES
+               if not (arch.publish_dir / lang / CORE_SATELLITE_DLL).is_file()]
+    if missing:
+        raise SystemExit(
+            f"{arch.name}: satellite resources missing from the publish output: " + ", ".join(missing) +
+            " (check SatelliteResourceLanguages in Directory.Build.props)"
+        )
+
+    zip_path, setup_path = artifact_paths(version, arch)
+    for path in (zip_path, setup_path):
+        if not path.is_file():
+            raise SystemExit(f"{arch.name}: expected artifact not produced: {path}")
+
+    published_md5 = md5(published_dll)
+    zipped_md5 = read_zip_md5(zip_path, f"ExplorerTabUtility/{APP_DLL}")
+    if published_md5 != zipped_md5:
+        raise SystemExit(
+            f"{arch.name}: the portable zip does not contain the published assembly:\n"
+            f"  publish: {published_md5}\n  zip:     {zipped_md5}"
+        )
+
+    assert_matching_architectures(arch)
+
+    stamp = read_build_stamp(published_dll, version)
+    if not stamp:
+        raise SystemExit(
+            f"{arch.name}: no build stamp found in the published assembly (BuildStamp target missing?)"
+        )
+    log(f"{arch.name} build stamp: {version}+{stamp}")
+    assert_documentation_only(stamp)
+
+    return zip_path, setup_path, stamp
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build, pack and optionally publish ExplorerTabUtility.")
     parser.add_argument("--ship", action="store_true",
                         help="push, move the release tag and replace the published assets")
     parser.add_argument("--tag", default="v1.0.1", help="release tag to move/update (default: v1.0.1)")
+    parser.add_argument("--arch", choices=("x64", "arm64", "all"), default="x64",
+                        help="architecture(s) to build and pack (default: x64)")
     parser.add_argument("--skip-tests", action="store_true", help="skip the unit test run")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="build a local trial from uncommitted changes (cannot be combined with --ship)")
@@ -161,6 +318,9 @@ def main() -> int:
 
     if args.ship and args.allow_dirty:
         raise SystemExit("--ship and --allow-dirty contradict each other: a shipped binary must come from a commit.")
+
+    arches = [ARCHITECTURES["x64"], ARCHITECTURES["arm64"]] if args.arch == "all" \
+        else [ARCHITECTURES[args.arch]]
 
     os.chdir(REPO)
     head = output(["git", "rev-parse", "--short", "HEAD"])
@@ -190,6 +350,9 @@ def main() -> int:
     shutil.rmtree(REPO / "publish", ignore_errors=True)
     shutil.rmtree(ARTIFACTS_DIR, ignore_errors=True)
 
+    # The gate runs on the default platform on purpose: that is the x64 build this repository ships,
+    # and the layout the path checks below depend on. The arm64 equivalent lives in build.yml on a
+    # windows-11-arm runner — an ARM64 test assembly cannot start on this x64 host.
     log("building (Release, warnings as errors)")
     run(["dotnet", "build", "ExplorerTabUtility.slnx", "-c", "Release", "-warnaserror", "-v:m"])
 
@@ -200,56 +363,50 @@ def main() -> int:
     else:
         log("WARNING: tests skipped")
 
-    # 3. Publish and pack.
-    log("publishing (framework-dependent)")
-    run(["dotnet", "publish", "ExplorerTabUtility.App.WinUI/ExplorerTabUtility.App.WinUI.csproj",
-         "-c", "Release", "-r", "win-x64", *PUBLISH_ARGS, "-o", "publish/win-x64-fd", "-v:m"])
+    # 3. Publish and pack, once per architecture. Each one gets its own publish directory, zip name and
+    #    installer, so building arm64 cannot rename or move anything the x64 assets already rely on.
+    version = read_app_version()
+    artifacts: list[Path] = []
+    stamps: dict[str, str] = {}
 
-    log("compiling the portable zip")
-    run([sys.executable, "pack-portable.py"])
+    for arch in arches:
+        log(f"publishing {arch.name} (framework-dependent)")
+        publish = [
+            "dotnet", "publish", "ExplorerTabUtility.App.WinUI/ExplorerTabUtility.App.WinUI.csproj",
+            "-c", "Release", "-r", arch.runtime,
+        ]
+        if arch.platform:
+            publish.append(f"-p:Platform={arch.platform}")
+        publish += [*PUBLISH_ARGS, "-o", str(arch.publish_dir.relative_to(REPO)), "-v:m"]
+        run(publish)
 
-    log("compiling the installer")
-    run([str(find_iscc(args.iscc)), "installers/installer.iss"])
+        log(f"compiling the portable zip ({arch.name})")
+        run([sys.executable, "pack-portable.py", "--arch", arch.name])
 
-    # 4. Verify what was produced.
-    log("verifying")
-    published_dll = PUBLISH_DIR / APP_DLL
-    if not published_dll.is_file():
-        raise SystemExit(f"publish produced no {APP_DLL}")
+        log(f"compiling the installer ({arch.name})")
+        iscc = [str(find_iscc(args.iscc)), "installers/installer.iss"]
+        if arch.iscc_define:
+            # ISPP honours /D on the command line; installer.iss keeps an x64 default so a hand-run
+            # ISCC without it still produces exactly the historical package.
+            iscc.append(arch.iscc_define)
+        run(iscc)
 
-    missing = [lang for lang in SATELLITE_LANGUAGES
-               if not (PUBLISH_DIR / lang / CORE_SATELLITE_DLL).is_file()]
-    if missing:
-        raise SystemExit(
-            "satellite resources missing from the publish output: " + ", ".join(missing) +
-            " (check SatelliteResourceLanguages in Directory.Build.props)"
-        )
-
-    zip_path, setup_path = artifact_paths(read_app_version())
-    for path in (zip_path, setup_path):
-        if not path.is_file():
-            raise SystemExit(f"expected artifact not produced: {path}")
-
-    published_md5 = md5(published_dll)
-    zipped_md5 = read_zip_md5(zip_path, f"ExplorerTabUtility/{APP_DLL}")
-    if published_md5 != zipped_md5:
-        raise SystemExit(
-            "the portable zip does not contain the published assembly:\n"
-            f"  publish: {published_md5}\n  zip:     {zipped_md5}"
-        )
-
-    stamp = read_build_stamp(published_dll, read_app_version())
-    if not stamp:
-        raise SystemExit("no build stamp found in the published assembly (BuildStamp target missing?)")
-    log(f"build stamp: {read_app_version()}+{stamp}")
-    assert_documentation_only(stamp)
+        log(f"verifying {arch.name}")
+        zip_path, setup_path, stamp = verify(arch, version)
+        artifacts += [zip_path, setup_path]
+        stamps[arch.name] = stamp
 
     print()
     print("  artifact                             size         md5")
-    print(f"  {zip_path.name:36s} {zip_path.stat().st_size:>10,}  —")
-    print(f"  {setup_path.name:36s} {setup_path.stat().st_size:>10,}  —")
-    print(f"  {APP_DLL:36s} {published_dll.stat().st_size:>10,}  {published_md5}")
-    print(f"  {CORE_DLL:36s} {(PUBLISH_DIR / CORE_DLL).stat().st_size:>10,}  {md5(PUBLISH_DIR / CORE_DLL)}")
+    for arch in arches:
+        zip_path, setup_path = artifact_paths(version, arch)
+        published_dll = arch.publish_dir / APP_DLL
+        print(f"  [{arch.name}]")
+        print(f"  {zip_path.name:36s} {zip_path.stat().st_size:>10,}  —")
+        print(f"  {setup_path.name:36s} {setup_path.stat().st_size:>10,}  —")
+        print(f"  {APP_DLL:36s} {published_dll.stat().st_size:>10,}  {md5(published_dll)}")
+        print(f"  {CORE_DLL:36s} {(arch.publish_dir / CORE_DLL).stat().st_size:>10,}  "
+              f"{md5(arch.publish_dir / CORE_DLL)}")
     print()
 
     if not args.ship:
@@ -259,19 +416,25 @@ def main() -> int:
     if dirty:
         raise SystemExit("refusing to ship from a dirty tree")
 
-    # 5. Ship: the commit, the tag, the assets and the notes all move together.
+    # 4. Ship: the commit, the tag, the assets and the notes all move together.
     #
     # Every step is recorded, and a failure reports how far it got. Without this a rejected push (the
     # remote being ahead is normal here — the repository owner edits files in the GitHub web UI) surfaced
     # as a bare traceback, leaving it unclear whether the tag had moved and whether the assets were
     # replaced.
+    # One commit built every architecture, so the tag can move to exactly one revision.
+    distinct = set(stamps.values())
+    if len(distinct) != 1:
+        raise SystemExit(f"refusing to ship: the architectures were built from different commits: {stamps}")
+    stamp = distinct.pop()
+
     completed: list[str] = []
     steps: list[tuple[str, list[str]]] = [
         ("push master", ["git", "push", "origin", "master"]),
         (f"move {args.tag} to {stamp}", ["git", "tag", "-f", args.tag, stamp]),
         (f"push {args.tag}", ["git", "push", "--force", "origin", args.tag]),
         ("replace the release assets",
-         ["gh", "release", "upload", args.tag, str(zip_path), str(setup_path), "--clobber"]),
+         ["gh", "release", "upload", args.tag, *[str(path) for path in artifacts], "--clobber"]),
         ("update the release notes", ["gh", "release", "edit", args.tag, "--notes-file", "release-notes.md"]),
     ]
 
@@ -312,7 +475,8 @@ def main() -> int:
             "`gh release view`."
         )
 
-    log(f"done: {args.tag} now points at {stamp} with freshly built assets")
+    log(f"done: {args.tag} now points at {stamp} with freshly built assets "
+        f"({', '.join(arch.name for arch in arches)})")
     return 0
 
 
