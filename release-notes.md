@@ -35,6 +35,8 @@ failure logging to `error.log`.
   Setup offers to download and install it.
 - `ExplorerTabUtility_<version>_Portable_x64.zip` — framework-dependent: extract and run, but the
   .NET 10 Desktop Runtime and the Windows App Runtime must already be present.
+- `ExplorerTabUtility_<version>_Setup_arm64.exe` — the same installer, built for ARM64.
+- `ExplorerTabUtility_<version>_Portable_arm64.zip` — the portable folder for ARM64.
 
 Settings live in `%APPDATA%\ExplorerTabUtility\`, outside the install directory, so upgrading or
 reinstalling never clears them. The uninstaller asks whether to delete them; the default is to keep.

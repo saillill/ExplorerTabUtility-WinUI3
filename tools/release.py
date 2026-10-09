@@ -77,6 +77,24 @@ CORE_DLL = "ExplorerTabUtility.Core.dll"
 PUBLISHER = "saillill"
 PACKAGE_NAME = "ExplorerTabUtility"
 REPOSITORY = "ExplorerTabUtility-WinUI3"
+
+# The Chocolatey feed page shows these two and nothing else, so build.ps1's fallback (the package
+# name) would leave the page calling the app "ExplorerTabUtility" and explaining nothing. Kept here
+# rather than in the templates: the templates are generic, this text is this package's.
+CHOCOLATEY_SUMMARY = (
+    "Tabs for Windows 11 File Explorer - a WinUI 3 rewrite built on the Windows App SDK."
+)
+CHOCOLATEY_DESCRIPTION = (
+    "ExplorerTabUtility brings tabs to Windows 11 File Explorer: new folder windows open as tabs, "
+    "tabs can be duplicated, detached into a window of their own, or folded back together, the last "
+    "closed tab reopens, and a picker searches everything that is open.\n\n"
+    "This is the WinUI 3 rewrite, built on the Windows App SDK, with nine UI languages, light and "
+    "dark themes, and hotkey profiles.\n\n"
+    "The package installs the x64 build (which also runs on ARM64 under emulation) and, when they "
+    "are missing, downloads the .NET 10 Desktop Runtime and the Windows App Runtime. Requires "
+    "Windows 11 22H2, build 22621 or later.\n\n"
+    "The install is silent by default; pass --params=/interactive to run the installer wizard."
+)
 # Inside the per-language folder, the satellite assembly is the *resources* one (the neutral Core dll
 # lives at the publish root) — checking for the plain name there reports every language as missing.
 CORE_SATELLITE_DLL = "ExplorerTabUtility.Core.resources.dll"
@@ -255,7 +273,9 @@ def pack_chocolatey(version: str) -> Path | None:
          "-Name", PACKAGE_NAME,
          "-Repository", REPOSITORY,
          "-Version", version,
-         "-InstallerPath", str(setup_path)],
+         "-InstallerPath", str(setup_path),
+         "-Summary", CHOCOLATEY_SUMMARY,
+         "-Description", CHOCOLATEY_DESCRIPTION],
         cwd=CHOCOLATEY_DIR)
 
     nupkg = CHOCOLATEY_DIR / f"{PACKAGE_NAME.lower()}.{version}.nupkg"
