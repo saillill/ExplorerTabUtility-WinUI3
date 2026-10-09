@@ -444,15 +444,20 @@ Requires the .NET 10 SDK on Windows 11 (22H2 or later, build 22621+).
 ```powershell
 dotnet build ExplorerTabUtility.slnx -c Release -warnaserror   # the gate is 0 warnings, 0 errors
 dotnet test  ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj -c Release
-python tools/release.py                                        # publish → portable zip → installer → verify
-python tools/release.py --ship                                 # …and update the GitHub release
+python tools/release.py                                        # x64: portable zip → installer → verify
+python tools/release.py --arch all                             # …plus the arm64 pair and the Chocolatey package
+python tools/release.py --arch all --ship                      # …and update the GitHub release
 ```
 
 `tools/release.py` is the supported way to produce a release: it cleans, builds, tests, publishes with
-the parameters this project needs, packs both artifacts, checks that the DLL inside the zip is
-byte-identical to the published one and that the assemblies' build stamp (`<version>+<commit>`) names a
-commit that matches HEAD. `docs/ARCHITECTURE.md` records the standing contracts — window-size units,
-the threading model, ownership rules — and indexes the `AUD-nn` references found in code comments.
+the parameters this project needs, packs every artifact this project ships — the portable zip and the
+Inno Setup installer for each architecture, plus the Chocolatey package — checks that the DLL inside
+the zip is byte-identical to the published one, that the published shell and Core are the same
+architecture, and that the assemblies' build stamp (`<version>+<commit>`) names a commit that matches
+HEAD. The Chocolatey package is not a release asset (it only points at the published installer) and is
+pushed to the community feed separately. `docs/ARCHITECTURE.md` records the standing contracts —
+window-size units, the threading model, ownership rules — and indexes the `AUD-nn` references found in
+code comments.
 
 CI (`.github/workflows/build.yml`) only compiles and tests. It deliberately has no release step.
 

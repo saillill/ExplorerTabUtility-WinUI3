@@ -18,6 +18,17 @@
 #   -ApiKey       : Chocolatey API key for publishing
 #   -Description  : Package description for the nuspec
 #   -Summary      : Short summary for the nuspec
+#   -InstallerPath: Hash this local installer instead of downloading it from the release.
+#                   The package carries no binaries — only a script that downloads the installer — so
+#                   its checksum has to describe the *published* file. Passing the file that was just
+#                   built (the same bytes that get uploaded) skips a 23 MB download and lets the
+#                   package be built before the release exists, which is what tools/release.py does.
+#   -Repository   : The GitHub repository the release lives in, when it differs from the package name.
+#                   Defaults to $Name (the upstream layout, where both are the same). It matters:
+#                   this repository is saillill/ExplorerTabUtility-WinUI3 while the package is
+#                   explorerTabUtility, and the release asset is ExplorerTabUtility_v1.0.1_Setup.exe —
+#                   three different names. Using one of them for all three is exactly how the release
+#                   download 404s, which is what killed the "Publish to Chocolatey" workflow.
 
 Param
 (
@@ -38,11 +49,30 @@ Param
     $Description,
     [parameter(Mandatory = $false)]
     [string]
-    $Summary
+    $Summary,
+    [parameter(Mandatory = $false)]
+    [string]
+    $InstallerPath,
+    [parameter(Mandatory = $false)]
+    [string]
+    $Repository
 )
 
 function Get-ArtifactHash
 {
+    # Local installer: hash the file we are about to publish. Without this the checksum always comes
+    # from whatever is on the release right now, which during a release is the *previous* build.
+    if ($InstallerPath)
+    {
+        if (-not (Test-Path $InstallerPath))
+        {
+            throw "InstallerPath does not exist: $InstallerPath"
+        }
+
+        Write-Host "Hashing local installer: $InstallerPath"
+        return (Get-FileHash -Algorithm SHA256 $InstallerPath).Hash.ToLower()
+    }
+
     # Create temp directory
     $tempDir = Join-Path $env:TEMP "choco_artifacts_$([Guid]::NewGuid().ToString() )"
     New-Item -ItemType Directory -Path $tempDir | Out-Null
@@ -50,7 +80,7 @@ function Get-ArtifactHash
     try
     {
         $fileName = "$( $Name )_v$( $Version )_Setup.exe"
-        $downloadUrl = "https://github.com/$Publisher/$Name/releases/download/v$Version/$fileName"
+        $downloadUrl = "https://github.com/$Publisher/$Repository/releases/download/v$Version/$fileName"
         $outputPath = Join-Path $tempDir $fileName
 
         # Download the file
@@ -88,6 +118,7 @@ function Write-TemplateFile
     $content = $content.Replace('{{PUBLISHER}}', $Publisher)
     $content = $content.Replace('{{PACKAGE_ID}}',$Name.ToLower())
     $content = $content.Replace('{{PACKAGE_NAME}}', $Name)
+    $content = $content.Replace('{{REPOSITORY}}', $Repository)
     $content = $content.Replace('{{DESCRIPTION}}', $Description)
     $content = $content.Replace('{{SUMMARY}}', $Summary)
     $content = $content.Replace('{{CHECKSUM}}', $Checksum)
@@ -97,6 +128,12 @@ function Write-TemplateFile
 
 # Clean version string
 $Version = $Version.TrimStart('v')
+
+# Repository: defaults to the package name so an upstream-style caller keeps working.
+if (-not $Repository)
+{
+    $Repository = $Name
+}
 
 #Description
 if (-not $Description)

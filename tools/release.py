@@ -38,6 +38,15 @@ Usage
     python tools/release.py --allow-dirty       # same, for a local trial build of uncommitted work
     python tools/release.py --ship              # also push, move the tag, replace the release assets
     python tools/release.py --skip-tests        # skip the unit tests (not recommended before shipping)
+    python tools/release.py --skip-chocolatey   # skip the nupkg (needs the choco CLI)
+
+Formats
+-------
+One run produces every distributable this project has: the portable zip and the Inno Setup installer
+for each architecture, plus the Chocolatey package. The nupkg is not a GitHub release asset — it
+carries no binaries, only an install script pointing at the published installer, and it is pushed to
+the community feed separately — so `--ship` never uploads it, and it is skipped with a warning when
+the choco CLI is not available.
 """
 
 from __future__ import annotations
@@ -56,9 +65,18 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 ARTIFACTS_DIR = REPO / "artifacts"
+CHOCOLATEY_DIR = REPO / "packages" / "chocolatey"
 PROJECTS = ("ExplorerTabUtility.App.WinUI", "ExplorerTabUtility.Core", "ExplorerTabUtility.Tests")
 APP_DLL = "ExplorerTabUtility.dll"
 CORE_DLL = "ExplorerTabUtility.Core.dll"
+
+# The Chocolatey package id is this name lowercased, and it is also the base name of the installer
+# (ExplorerTabUtility_v1.0.1_Setup.exe). The GitHub *repository* is a third name — release URLs are
+# built from it — so the two are kept apart; conflating them is what made the previous attempt to
+# publish this package 404.
+PUBLISHER = "saillill"
+PACKAGE_NAME = "ExplorerTabUtility"
+REPOSITORY = "ExplorerTabUtility-WinUI3"
 # Inside the per-language folder, the satellite assembly is the *resources* one (the neutral Core dll
 # lives at the publish root) — checking for the plain name there reports every language as missing.
 CORE_SATELLITE_DLL = "ExplorerTabUtility.Core.resources.dll"
@@ -212,6 +230,78 @@ def find_iscc(explicit: str | None) -> Path:
     )
 
 
+def pack_chocolatey(version: str) -> Path | None:
+    """Build the Chocolatey package, or return None when it cannot be built on this machine.
+
+    The nupkg holds no binaries: chocolateyinstall.ps1 downloads the published installer and verifies
+    its SHA256, so the package is meaningless without a published setup next to it. It is hashed from
+    the *local* setup file — the same bytes `--ship` uploads — which is both faster than the script's
+    default re-download and immune to hashing the previous release's artifact mid-release.
+
+    x64 only, on purpose: the package has one install script, and the x64 build running under
+    emulation is still the documented experience on ARM64 machines, so an arm64 nupkg would add a
+    second package id for no functional gain yet.
+    """
+    interpreter = shutil.which("pwsh") or shutil.which("powershell")
+    if interpreter is None:
+        log("WARNING: no PowerShell interpreter found — skipping the Chocolatey package")
+        return None
+
+    setup_path = artifact_paths(version, ARCHITECTURES["x64"])[1]
+    log("packing the Chocolatey package")
+    run([interpreter, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-File", "build.ps1",
+         "-Publisher", PUBLISHER,
+         "-Name", PACKAGE_NAME,
+         "-Repository", REPOSITORY,
+         "-Version", version,
+         "-InstallerPath", str(setup_path)],
+        cwd=CHOCOLATEY_DIR)
+
+    nupkg = CHOCOLATEY_DIR / f"{PACKAGE_NAME.lower()}.{version}.nupkg"
+    if not nupkg.is_file():
+        raise SystemExit(f"build.ps1 produced no {nupkg.name} (expected in {CHOCOLATEY_DIR})")
+
+    verify_chocolatey(nupkg)
+    return nupkg
+
+
+def verify_chocolatey(nupkg: Path) -> None:
+    """The nupkg holds no binaries, so its only load-bearing values are two strings in the generated
+    install script: the URL it downloads and the SHA256 it checks. Both are rendered from command-line
+    names, and getting either wrong ships a package that fails on a *user's* machine — a 404 during
+    install, or a checksum mismatch — which is precisely how the previous "Publish to Chocolatey"
+    workflow died (`ExplorerTabUtility-WinUI3_v1.0.1_Setup.exe`, an asset that has never existed).
+
+    Both are checked here against this repository's actual asset instead of trusting the templates.
+    """
+    version = read_app_version()
+    setup = artifact_paths(version, ARCHITECTURES["x64"])[1]
+
+    with zipfile.ZipFile(nupkg) as archive:
+        script = archive.read("tools/chocolateyinstall.ps1").decode("utf-8-sig")
+
+    expected_url = (f"https://github.com/{PUBLISHER}/{REPOSITORY}/releases/download/"
+                    f"v{version}/{setup.name}")
+    found_url = re.search(r"\$url\s*=\s*'([^']+)'", script)
+    if found_url is None or found_url.group(1) != expected_url:
+        raise SystemExit(
+            f"the Chocolatey install script points at "
+            f"{found_url.group(1) if found_url else 'no URL at all'}, expected {expected_url}. "
+            f"A wrong repository or asset name here 404s on the user's machine."
+        )
+
+    expected_hash = hashlib.sha256(setup.read_bytes()).hexdigest()
+    found_hash = re.search(r"\$checksum\s*=\s*'([0-9a-fA-F]+)'", script)
+    if found_hash is None or found_hash.group(1).lower() != expected_hash:
+        raise SystemExit(
+            f"the Chocolatey package checksum does not describe {setup.name}: "
+            f"{found_hash.group(1) if found_hash else 'none'} != {expected_hash}"
+        )
+
+    log(f"Chocolatey package: {nupkg.name} -> {expected_url}")
+
+
 def assert_documentation_only(stamp: str) -> None:
     """The stamped commit may lag HEAD, but only by changes that cannot affect a binary."""
     head = output(["git", "rev-parse", "--short", "HEAD"])
@@ -311,6 +401,8 @@ def main() -> int:
     parser.add_argument("--arch", choices=("x64", "arm64", "all"), default="x64",
                         help="architecture(s) to build and pack (default: x64)")
     parser.add_argument("--skip-tests", action="store_true", help="skip the unit test run")
+    parser.add_argument("--skip-chocolatey", action="store_true",
+                        help="skip the Chocolatey package (it needs the choco CLI)")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="build a local trial from uncommitted changes (cannot be combined with --ship)")
     parser.add_argument("--iscc", default=None, help="path to ISCC.exe")
@@ -396,6 +488,17 @@ def main() -> int:
         artifacts += [zip_path, setup_path]
         stamps[arch.name] = stamp
 
+    # 4. The Chocolatey package. It is not a release asset — it only points at the published installer
+    #    — so it lives outside `artifacts` and `--ship` never uploads it. It needs the x64 setup, which
+    #    is why an arm64-only run skips it.
+    chocolatey: Path | None = None
+    if args.skip_chocolatey:
+        log("WARNING: the Chocolatey package was skipped on request")
+    elif "x64" in stamps:
+        chocolatey = pack_chocolatey(version)
+    else:
+        log("no x64 build in this run — skipping the Chocolatey package (it installs the x64 setup)")
+
     print()
     print("  artifact                             size         md5")
     for arch in arches:
@@ -407,7 +510,18 @@ def main() -> int:
         print(f"  {APP_DLL:36s} {published_dll.stat().st_size:>10,}  {md5(published_dll)}")
         print(f"  {CORE_DLL:36s} {(arch.publish_dir / CORE_DLL).stat().st_size:>10,}  "
               f"{md5(arch.publish_dir / CORE_DLL)}")
+    if chocolatey is not None:
+        print(f"  {chocolatey.name:36s} {chocolatey.stat().st_size:>10,}  —  (Chocolatey, not a release asset)")
     print()
+
+    if chocolatey is not None:
+        if args.ship:
+            log(f"the Chocolatey package is not a release asset — push it once this run has finished: "
+                f"choco push {chocolatey.name} --source=https://push.chocolatey.org/ --api-key=<key>")
+        else:
+            log(f"WARNING: {chocolatey.name} carries the checksum of the *locally* built setup. Push it "
+                f"only after those exact bytes are on the release (i.e. after a --ship run); otherwise "
+                f"every install fails its checksum on the user's machine.")
 
     if not args.ship:
         log("local build complete; nothing was pushed. Re-run with --ship to publish.")
@@ -416,7 +530,7 @@ def main() -> int:
     if dirty:
         raise SystemExit("refusing to ship from a dirty tree")
 
-    # 4. Ship: the commit, the tag, the assets and the notes all move together.
+    # 5. Ship: the commit, the tag, the assets and the notes all move together.
     #
     # Every step is recorded, and a failure reports how far it got. Without this a rejected push (the
     # remote being ahead is normal here — the repository owner edits files in the GitHub web UI) surfaced

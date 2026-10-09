@@ -51,3 +51,8 @@ _ReSharper*/
 # 或 import 才会生成。它们此前一直是未跟踪状态，顺手关掉。
 __pycache__/
 *.pyc
+
+# ---- Chocolatey ----
+# build.ps1 每次都会重建这个渲染目录（nupkg 落在 packages/chocolatey/ 下，
+# 已被上面的 *.nupkg 规则覆盖）。里面只有生成物，没有任何手工维护的内容。
+packages/chocolatey/package/
