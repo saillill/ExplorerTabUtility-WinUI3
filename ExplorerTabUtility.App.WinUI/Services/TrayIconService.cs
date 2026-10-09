@@ -138,7 +138,65 @@ public sealed class TrayIconService : IDisposable
     public bool IsVisible
     {
         get => _trayIcon.Visibility == Visibility.Visible;
-        set => RunOnUi(() => _trayIcon.Visibility = value ? Visibility.Visible : Visibility.Collapsed);
+        set => RunOnUi(() => SetVisible(value));
+    }
+
+    /// <summary>
+    /// Applies the tray icon's visibility, recovering when the shell refuses the change.
+    /// <para>
+    /// H.NotifyIcon only raises <c>UpdateState failed</c> while it still believes the icon is created,
+    /// so that failure means the shell has no copy of it while the element's <c>Visibility</c> property
+    /// has already moved on. Left alone the setting and the tray disagree — the icon stays hidden with
+    /// "hide tray icon" off, and a later click happens to fix it (the log shows five toggles in a row
+    /// failing). The exception surfaced through the dependency-property callback as an
+    /// <c>Application.UnhandledException</c>, so it never reached a handler that could react.
+    /// </para>
+    /// </summary>
+    private void SetVisible(bool visible)
+    {
+        try
+        {
+            _trayIcon.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail($"Tray: set visibility to {visible}", ex);
+        }
+
+        Recreate(visible);
+    }
+
+    /// <summary>
+    /// Drops the shell's copy of the icon, creates it again and re-applies <paramref name="visible"/>.
+    /// <para>
+    /// This is the library's own recovery for a lost icon (it runs the same two calls when the taskbar
+    /// is recreated): <c>Create</c> returns early while <c>IsCreated</c> is still true, so the stale
+    /// registration has to be dropped first. That also means the old <c>ForceCreate()</c> call did
+    /// nothing here.
+    /// </para>
+    /// <para>
+    /// The state is applied through the inner <c>TrayIcon</c> rather than the element's property: the
+    /// element already holds the value that was asked for, and setting a property to the value it
+    /// holds raises no change callback.
+    /// </para>
+    /// </summary>
+    private void Recreate(bool visible)
+    {
+        try
+        {
+            _ = _trayIcon.TrayIcon.TryRemove();
+            _trayIcon.TrayIcon.Create();
+
+            if (visible) _trayIcon.TrayIcon.Show();
+            else _trayIcon.TrayIcon.Hide();
+
+            StartupLog.Step($"Tray: recreated (visible={visible})");
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail($"Tray: recreate (visible={visible})", ex);
+        }
     }
 
     /// <summary>
@@ -258,20 +316,11 @@ public sealed class TrayIconService : IDisposable
 
     private void OnShellInitialized()
     {
-        // Explorer restarted: the shell may have dropped our icon. Re-register it.
-        RunOnUi(() =>
-        {
-            if (_trayIcon.Visibility != Visibility.Visible) return;
-
-            try
-            {
-                _trayIcon.ForceCreate();
-            }
-            catch
-            {
-                // Best-effort; the icon is recreated on the next shell restart.
-            }
-        });
+        // Explorer restarted: whatever the shell had for us is gone. The library handles the taskbar
+        // re-creating itself, but not every shell restart reaches that path, and the icon's state has to
+        // be re-applied for a hidden icon too — ForceCreate() only re-showed a visible one, and returned
+        // early besides (see Recreate).
+        RunOnUi(() => Recreate(_trayIcon.Visibility == Visibility.Visible));
     }
 
     private void OnWindowHookToggled()
