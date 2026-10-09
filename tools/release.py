@@ -567,6 +567,11 @@ def main() -> int:
         ("push master", ["git", "push", "origin", "master"]),
         (f"move {args.tag} to {stamp}", ["git", "tag", "-f", args.tag, stamp]),
         (f"push {args.tag}", ["git", "push", "--force", "origin", args.tag]),
+        # gh's --clobber deletes *every* existing asset before uploading, it does not merge by name
+        # (see `gh release upload --help`: "existing assets are deleted before new assets are
+        # uploaded. If the upload fails, the original assets will be lost"). So this step defines the
+        # release's asset set exactly: a renamed artifact leaves nothing stale behind, and anything
+        # added to the release by hand disappears on the next --ship.
         ("replace the release assets",
          ["gh", "release", "upload", args.tag, *[str(path) for path in artifacts], "--clobber"]),
         ("update the release notes", ["gh", "release", "edit", args.tag, "--notes-file", "release-notes.md"]),
