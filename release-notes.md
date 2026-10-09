@@ -1,42 +1,8 @@
-WinUI 3 rewrite. The UI ships in nine languages: Simplified Chinese, Traditional Chinese, English,
-Spanish, French, Russian, German, Japanese and Korean.
+`ExplorerTabUtility_<version>_Setup_x64.exe` — per-user install, no administrator rights required, includes an uninstaller. If the .NET 10 Desktop Runtime or the Windows App Runtime is missing,Setup offers to download and install it.
+`ExplorerTabUtility_<version>_Portable_x64.zip` — framework-dependent: extract and run, but the .NET 10 Desktop Runtime and the Windows App Runtime must already be present.
+`ExplorerTabUtility_<version>_Setup_arm64.exe` — the same installer, built for ARM64.
+`ExplorerTabUtility_<version>_Portable_arm64.zip` — the portable folder for ARM64.
 
-Fixes in this build:
+Settings live in `%APPDATA%\ExplorerTabUtility\`, outside the install directory, so upgrading or reinstalling never clears them. The uninstaller asks whether to delete them; the default is to keep.
 
-- "Hide tray icon" is honoured on startup. Creating the tray icon always put it back in the notification
-  area, so the setting only lasted until the next launch — a restart brought the icon back even with the
-  option on.
-- Logoff and shutdown release the tray icon and the other XAML-owned resources on the UI thread before the
-  process exits. They used to be reclaimed while `Microsoft.UI.Xaml` was already shutting down, which is
-  the teardown order behind the "…has stopped working" dialog seen on the way out; the session-end path is
-  logged now, so a recurrence is diagnosable.
-- The settings column no longer has a maximum width. The cap added in a previous build pushed the column
-  outside the visible area as soon as the window was wide enough to reach it, cutting the enable switches
-  and expand chevrons off the right edge of every shortcut card.
-- A shortcut's action is no longer changed silently. If a stored profile holds an action its scope does
-  not allow — only reachable through an imported or hand-edited settings file — the reset is now saved and
-  reported, instead of leaving the editor showing one action while the hotkey did another.
-- A dialog left open can no longer block every later dialog and the tab-search picker for the rest of the
-  session: the wait is bounded and the log records why it gave up. Hiding the window while a dialog is open
-  is refused for the same reason.
-- The tab-search picker keeps the window in front while it is open, even over a fullscreen game, instead of
-  the promotion being dropped on a timer mid-selection.
-- After an Explorer restart, a window can no longer be mistaken for one that had already been hidden, which
-  used to leave that window out of the tab-folding path (recycled window handles).
-
-This refresh also carries everything published for this version earlier: outer-window-size persistence (no
-window that shrinks on every launch, and the sign-in start no longer saves the size before the window has
-been laid out), a measured minimum width, dialogs that surface a hidden window before opening, tab search
-sharing the one-dialog rule and the app theme, keyboard and screen-reader access to shortcut rows, and
-failure logging to `error.log`.
-
-- `ExplorerTabUtility_<version>_Setup.exe` — per-user install, no administrator rights required,
-  includes an uninstaller. If the .NET 10 Desktop Runtime or the Windows App Runtime is missing,
-  Setup offers to download and install it.
-- `ExplorerTabUtility_<version>_Portable_x64.zip` — framework-dependent: extract and run, but the
-  .NET 10 Desktop Runtime and the Windows App Runtime must already be present.
-- `ExplorerTabUtility_<version>_Setup_arm64.exe` — the same installer, built for ARM64.
-- `ExplorerTabUtility_<version>_Portable_arm64.zip` — the portable folder for ARM64.
-
-Settings live in `%APPDATA%\ExplorerTabUtility\`, outside the install directory, so upgrading or
-reinstalling never clears them. The uninstaller asks whether to delete them; the default is to keep.
+**A note**: since the app is not code-signed, your browser's security check and Windows may flag it as a potential risk. This is expected and nothing to worry about.
