@@ -344,15 +344,11 @@ internal sealed class ProfileCardView : IProfileCardView
         _handledCard = AddCheckRow(_detailPanel, "HandledTooltip", _handled);
         _asTabCard = AddCheckRow(_detailPanel, "TabTooltip", _asTab);
 
-        // Destructive action is the last row of the same group.
-        // The colour sits on the label, not on the button: the Button template overrides
-        // ContentPresenter.Foreground in its PointerOver / Pressed / Disabled states, so a red Button
-        // would lose its colour the moment the pointer is over it. See DestructiveActionTextStyle.
-        var deleteLabel = new TextBlock { Text = Loc("Delete") };
-        if (TryFindStyle("DestructiveActionTextStyle", out var destructiveStyle))
-            deleteLabel.Style = destructiveStyle;
-
-        var deleteButton = new Button { Content = deleteLabel };
+        // Destructive action is the last row of the same group. The button's solid fill comes from
+        // DestructiveButtonTemplate — keeping it red while hovered or pressed means overriding six
+        // Button* theme keys on the element itself, and those can only be declared in XAML.
+        var deleteButton = CreateDestructiveButton();
+        deleteButton.Content = Loc("Delete");
         deleteButton.Click += (_, _) =>
         {
             _callbacks.Remove(Profile);
@@ -370,7 +366,7 @@ internal sealed class ProfileCardView : IProfileCardView
         _localizers.Add(() =>
         {
             if (deleteCard.Header is TextBlock label) label.Text = Loc("DeleteProfileTooltip");
-            deleteLabel.Text = Loc("Delete");
+            deleteButton.Content = Loc("Delete");
         });
         _detailPanel.Children.Add(deleteCard);
         _rowCards.Add(deleteCard);
@@ -1068,5 +1064,31 @@ internal sealed class ProfileCardView : IProfileCardView
 
         style = found;
         return true;
+    }
+
+    /// <summary>
+    /// The destructive button, taken from <c>DestructiveButtonTemplate</c>.
+    /// <para>
+    /// The template exists because a solid critical fill has to override six <c>Button*</c> theme keys
+    /// on the element itself (the stock style repaints ContentPresenter's background, border and
+    /// foreground on hover and press), and those overrides have to be declared in XAML: the expand
+    /// button assigns <c>Transparent</c> from code because that value is theme-independent, while a
+    /// semantic colour fetched in code resolves against the application theme instead of the one in
+    /// effect — the trap App.xaml's styles are written to avoid.
+    /// </para>
+    /// <para>
+    /// A missing template is not fatal: the row still works, it is just not red.
+    /// </para>
+    /// </summary>
+    private static Button CreateDestructiveButton()
+    {
+        if (TryFindResource("DestructiveButtonTemplate", out var found)
+            && found is DataTemplate template
+            && template.LoadContent() is Button fromTemplate)
+        {
+            return fromTemplate;
+        }
+
+        return new Button();
     }
 }

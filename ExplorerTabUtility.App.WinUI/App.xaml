@@ -59,19 +59,41 @@
             </Style>
 
             <!--
-                破坏性操作的按钮文字（删除快捷键配置）。WinUI 没有"危险按钮"样式，
-                官方语义色里干这件事的就是 SystemFillColorCriticalBrush
-                （浅色 #C42B1C、深色 #FF99A4、高对比度取系统窗口文字色），所以没有新增任何色值。
+                破坏性操作的按钮（删除快捷键配置）：整块实心红。
+                WinUI 没有"危险按钮"样式。官方把 critical 当**填充**用时的配套前景是
+                TextFillColorInverseBrush —— InfoBar 的错误图标正是这一对
+                （SystemFillColorCriticalBrush + TextFillColorInverse：浅色 #C42B1C 配白字、
+                深色 #FF99A4 配近黑字，高对比度各有取值），所以这里没有新增任何色值。
 
-                ⛔ 不能只给 Button 设 Foreground。Button 模板在 PointerOver / Pressed / Disabled
-                三个状态下直接把 **ContentPresenter.Foreground** 顶成 ButtonForeground* 系列
-                （generic.xaml 里那三个 Setter）：只设 Button.Foreground 的话，鼠标一悬停红色就褪回
-                普通色、移开又变回红色。把颜色放在按钮**内容**上不受影响 —— 显式 Foreground 的
-                优先级高于继承，四个状态始终是红的，而按钮底色与边框仍完全走官方模板。
+                ⛔ 只在按钮上设 Background/Foreground 不够。DefaultButtonStyle 的 PointerOver /
+                Pressed 状态会把 **ContentPresenter** 的 Background、BorderBrush、Foreground
+                一起换成 ButtonBackground*/ButtonBorderBrush*/ButtonForeground* 那一套，鼠标一悬停
+                红色就没了。把这 6 个键放进按钮**自己的 Resources**：查找从 ContentPresenter 往上走，
+                在按钮这一层命中，所以只影响这一个按钮，既不动模板也不波及其他按钮。
+                颜色用 {ThemeResource}（跟 App.xaml 里已有的覆盖同一个道理，也让它们跟着实际主题解析）。
+
+                为什么是 DataTemplate：这个按钮由 ProfilesHost 用代码创建，而"按元素覆盖资源"
+                只能在 XAML 里声明，于是由模板承载按钮、由代码实例化它。
+                展开按钮用的是 `Resources[key] = new SolidColorBrush(Transparent)` 那一招，能成立是因为
+                Transparent 与主题无关；这里要的是随主题变化的语义色，而代码里取画刷会把颜色固定在
+                「应用主题」上（本应用在根元素上覆盖主题，两者可能不一致 —— 这正是下面那些 Style 的
+                注释在防的事），所以颜色必须从 {ThemeResource} 来。
+                模板找不到时代码回落到普通 Button（只是不红），不会因为一个资源缺失把页面带崩。
             -->
-            <Style x:Key="DestructiveActionTextStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
-            </Style>
+            <DataTemplate x:Key="DestructiveButtonTemplate">
+                <Button Background="{ThemeResource SystemFillColorCriticalBrush}"
+                        BorderBrush="{ThemeResource SystemFillColorCriticalBrush}"
+                        Foreground="{ThemeResource TextFillColorInverseBrush}">
+                    <Button.Resources>
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemFillColorCritical}" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemFillColorCritical}" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{ThemeResource SystemFillColorCritical}" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{ThemeResource SystemFillColorCritical}" />
+                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource TextFillColorInverse}" />
+                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource TextFillColorInverse}" />
+                    </Button.Resources>
+                </Button>
+            </DataTemplate>
 
             <!--
                 WinUI 3 的 ToggleSwitch 在「禁用 + 关」状态下把轨道整个画没了
