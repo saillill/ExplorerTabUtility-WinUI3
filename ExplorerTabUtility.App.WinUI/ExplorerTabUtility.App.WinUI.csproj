@@ -11,9 +11,15 @@
     <!-- 版本号单一来源：产品版本定义在根 Directory.Build.props 的 <AppVersion>，
          公共属性 Nullable/LangVersion/ImplicitUsings/SatelliteResourceLanguages 亦在该文件统一声明。 -->
     <Version>$(AppVersion)</Version>
-    <!-- 仅 x64；ARM64 通过 x64 模拟运行，安装器已放行（ArchitecturesAllowed=x64compatible arm64）。 -->
-    <Platforms>x64</Platforms>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- 双平台，x64 仍是默认发布目标。
+         不带 -p:Platform 时 Platform 为 AnyCPU，落到下面的 x64 分支，走的是与过去完全相同的
+         win-x64；ARM64 是**新增的一条腿**（-p:Platform=ARM64 → win-arm64），
+         而不是替换 —— 替换会让 release.py（硬编码 -r win-x64）与安装器链路一起断掉。
+         安装器侧 ArchitecturesAllowed=x64compatible arm64 原本就放行 arm64 机器，
+         即 ARM64 设备上的默认体验仍是"跑 x64 版"，原生 ARM64 是额外可选产物。 -->
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifier Condition="'$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Platform)' != 'ARM64'">win-x64</RuntimeIdentifier>
 
     <!-- 非打包（unpackaged）模型：保留 HKCU Run 开机自启、便携 zip 与现有安装器链路 -->
     <WindowsPackageType>None</WindowsPackageType>

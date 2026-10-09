@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Xml.Linq;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Managers;
 using ExplorerTabUtility.Models;
@@ -225,5 +227,119 @@ public class SettingsWriteTests : IDisposable
     {
         try { Directory.Delete(_directory, recursive: true); }
         catch { /* best effort: a temp directory left behind is harmless */ }
+    }
+}
+
+/// <summary>
+/// The architecture matrix, asserted as text because no compiler setting can catch its absence.
+/// <para>
+/// x64 and ARM64 have to be two legs of the same solution, not a swap. Core is a separate assembly
+/// consumed by the shell, and the shell is published per-RID, so a project that pins one architecture
+/// produces a package whose two assemblies disagree: an x64 <c>ExplorerTabUtility.dll</c> sitting next
+/// to an ARM64 <c>ExplorerTabUtility.Core.dll</c>. That combination only raises <c>CS8012</c>, and
+/// publish does not run with <c>-warnaserror</c>, so every check in <c>tools/release.py</c> still
+/// passes and the failure lands as <c>BadImageFormatException</c> on the user's machine — the "window
+/// never opens, no error anywhere" shape this repository keeps tripping over. These three facts
+/// fail loudly at build time instead.
+/// </para>
+/// <para>
+/// They are repo-layout assertions: outside a checkout (tests run from a copied directory) there is
+/// nothing to assert, so they no-op exactly like <c>Only_the_core_project_is_woven</c>.
+/// </para>
+/// </summary>
+public class ArchitectureMatrixTests
+{
+    private static readonly string[] ProjectPaths =
+    {
+        "ExplorerTabUtility.App.WinUI/ExplorerTabUtility.App.WinUI.csproj",
+        "ExplorerTabUtility.Core/ExplorerTabUtility.Core.csproj",
+        "ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj"
+    };
+
+    [Fact]
+    public void The_solution_declares_both_platforms_and_keeps_Any_CPU_first()
+    {
+        var root = FindRepositoryRoot();
+        if (root is null) return;
+
+        var solution = XDocument.Load(Path.Combine(root, "ExplorerTabUtility.slnx"));
+        var platforms = solution.Descendants("Platform")
+            .Select(element => element.Attribute("Name")?.Value)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .ToList();
+
+        // Without a declared platform the metaproj rejects the whole build with
+        // MSB4126 «指定的解决方案配置"Release|ARM64"无效» - it never reaches a compiler.
+        Assert.Contains("ARM64", platforms);
+
+        Assert.Contains("Any CPU", platforms);
+        Assert.Equal("Any CPU", platforms[0]);
+
+        // Why position matters: the default platform decides where the build lands. "Any CPU" keeps
+        // bin\Release\ (what the x64 leg of build.yml and release.py expect); promoting ARM64 to the
+        // front would silently move every output to bin\ARM64\Release\ and break their path checks.
+    }
+
+    [Fact]
+    public void Every_project_offers_both_architectures()
+    {
+        var root = FindRepositoryRoot();
+        if (root is null) return;
+
+        foreach (var relativePath in ProjectPaths)
+        {
+            var declared = ElementValue(Path.Combine(root, relativePath), "Platforms");
+            Assert.True(declared is not null,
+                $"{relativePath} declares no <Platforms>; a project that only knows one architecture " +
+                "cannot be built for the other one, and the solution build fails instead.");
+
+            var architectures = declared!.Split(';', StringSplitOptions.RemoveEmptyEntries |
+                                                   StringSplitOptions.TrimEntries);
+
+            Assert.Contains("x64", architectures);
+            Assert.Contains("ARM64", architectures);
+        }
+    }
+
+    [Fact]
+    public void No_project_pins_an_architecture_without_a_platform_condition()
+    {
+        var root = FindRepositoryRoot();
+        if (root is null) return;
+
+        foreach (var relativePath in ProjectPaths)
+        {
+            var document = XDocument.Load(Path.Combine(root, relativePath));
+
+            foreach (var name in new[] { "PlatformTarget", "RuntimeIdentifier" })
+            {
+                foreach (var element in document.Descendants(name))
+                {
+                    Assert.True(element.Attribute("Condition") is not null,
+                        $"{relativePath} sets <{name}>{element.Value}</{name}> with no Condition, so it " +
+                        "applies to every build - including the x64 one release.py ships. Condition it on " +
+                        "$(Platform), or drop it and let the host decide.");
+                }
+            }
+        }
+    }
+
+    private static string? ElementValue(string path, string elementName) =>
+        XDocument.Load(path).Descendants(elementName).Select(element => element.Value).FirstOrDefault();
+
+    private static string? FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "ExplorerTabUtility.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        return null;
     }
 }

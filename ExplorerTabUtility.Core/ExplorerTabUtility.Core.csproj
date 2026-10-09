@@ -5,7 +5,17 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>ExplorerTabUtility</RootNamespace>
     <AssemblyName>ExplorerTabUtility.Core</AssemblyName>
-    <PlatformTarget>x64</PlatformTarget>
+    <!-- 平台跟着宿主走：Platform=ARM64 时编成 ARM64，其余情况（含不带 -p:Platform 的
+         AnyCPU 默认）保持 x64 —— 因此现有 CI、release.py 与安装器链路完全不受影响。
+
+         为什么必须是"跟着走"而不是写死一个值：Core 同时被 x64 外壳引用（发布用的是
+         win-x64），所以它一旦写死成另一个架构，就会在 x64 发布包里出现
+         "x64 的 ExplorerTabUtility.dll + ARM64 的 ExplorerTabUtility.Core.dll"，
+         构建期只报一条 CS8012 警告（publish 不带 -warnaserror，release.py 的三道校验
+         也查不出架构不一致），运行时才以 BadImageFormatException 炸在用户机器上。 -->
+    <Platforms>x64;ARM64</Platforms>
+    <PlatformTarget Condition="'$(Platform)' == 'ARM64'">ARM64</PlatformTarget>
+    <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
     <!-- Core 是独立程序集，其程序集版本与产品版本（根 Directory.Build.props 的 <AppVersion>）有意分开：
          它不代表对外发布的产品版本号，请勿改来"对齐"。 -->
     <Version>3.0.0</Version>

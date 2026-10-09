@@ -6,9 +6,14 @@
     <RootNamespace>ExplorerTabUtility.Tests</RootNamespace>
     <AssemblyName>ExplorerTabUtility.Tests</AssemblyName>
     <IsPackable>false</IsPackable>
-    <!-- Core 是 x64 专用（PlatformTarget=x64），测试宿主也固定 x64，避免 AnyCPU 下加载失败。 -->
-    <PlatformTarget>x64</PlatformTarget>
-    <Platforms>x64</Platforms>
+    <!-- 测试宿主的架构必须等于 Core 的架构，否则测试程序集加载不了 Core。
+         默认（不带 -p:Platform）固定 x64，让 x64 runner 上的 `dotnet test` 照旧可用；
+         ARM64 由 -p:Platform=ARM64 显式启用，且只能在**真正的 arm64 runner** 上执行 ——
+         把这里写死成 ARM64 的后果是 x64 runner 连测试宿主都起不来：
+         "找不到 ARM64 体系结构的 dotnet.exe 主机 → 测试运行已中止"。 -->
+    <Platforms>x64;ARM64</Platforms>
+    <PlatformTarget Condition="'$(Platform)' == 'ARM64'">ARM64</PlatformTarget>
+    <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>

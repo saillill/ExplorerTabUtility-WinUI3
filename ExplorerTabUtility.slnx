@@ -1,5 +1,34 @@
 <Solution>
-  <Project Path="ExplorerTabUtility.App.WinUI/ExplorerTabUtility.App.WinUI.csproj" />
-  <Project Path="ExplorerTabUtility.Core/ExplorerTabUtility.Core.csproj" />
-  <Project Path="ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj" />
+  <!-- 两个平台，默认仍是 "Any CPU"。
+       ⛔ 别把 "Any CPU" 拿掉或换序：它是"不带 -p:Platform"时的解，也就是历史上一直用的那条路，
+          产物落在 bin\Release\ 下（不是 bin\x64\Release\），build.yml 里那条写死的卫星资源路径
+          和 release.py 的产物布局都依赖这一点。
+       ARM64 必须在这里显式登记，否则 `dotnet build -p:Platform=ARM64` 会直接抛
+          MSB4126: 指定的解决方案配置"Release|ARM64"无效。
+
+       Any CPU 在项目侧映射到 AnyCPU，由各 csproj 的 PlatformTarget 条件决定实际架构（默认 x64）；
+       ARM64 则一路传到三个项目，让 App/Core/Tests 同时编成 arm64 —— 三者必须同架构，
+       否则 Core 加载不进外壳或测试宿主。 -->
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="ARM64" />
+  </Configurations>
+  <Project Path="ExplorerTabUtility.App.WinUI/ExplorerTabUtility.App.WinUI.csproj">
+    <Platform Solution="Debug|Any CPU" Project="AnyCPU" />
+    <Platform Solution="Release|Any CPU" Project="AnyCPU" />
+    <Platform Solution="Debug|ARM64" Project="ARM64" />
+    <Platform Solution="Release|ARM64" Project="ARM64" />
+  </Project>
+  <Project Path="ExplorerTabUtility.Core/ExplorerTabUtility.Core.csproj">
+    <Platform Solution="Debug|Any CPU" Project="AnyCPU" />
+    <Platform Solution="Release|Any CPU" Project="AnyCPU" />
+    <Platform Solution="Debug|ARM64" Project="ARM64" />
+    <Platform Solution="Release|ARM64" Project="ARM64" />
+  </Project>
+  <Project Path="ExplorerTabUtility.Tests/ExplorerTabUtility.Tests.csproj">
+    <Platform Solution="Debug|Any CPU" Project="AnyCPU" />
+    <Platform Solution="Release|Any CPU" Project="AnyCPU" />
+    <Platform Solution="Debug|ARM64" Project="ARM64" />
+    <Platform Solution="Release|ARM64" Project="ARM64" />
+  </Project>
 </Solution>
