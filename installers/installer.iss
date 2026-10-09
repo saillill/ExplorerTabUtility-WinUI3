@@ -445,6 +445,26 @@ begin
   end;
 end;
 
+//------------------------------------------------------------------------------
+// 安装前结束正在运行的应用
+//------------------------------------------------------------------------------
+
+// ⛔ 不能只依赖 [Setup] 的 CloseApplications。应用把"关闭"解释为**收进托盘**
+//    （MainWindow.OnClosing → HideToTray，窗口藏起来但进程继续跑），而 Restart Manager 发的是
+//    WM_CLOSE —— 于是它等一个永远不会发生的退出，安装就卡在那里（用户看到的就是"关不掉应用"）。
+//    装文件之前直接结束它；卸载路径的 InitializeUninstall 早就是这么做的，release.py 里那句
+//    taskkill 也是同一个理由（应用会占住自己的文件）。
+//    taskkill 在进程不存在时返回非零，这里两种情况都无需区分。
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Log('closing any running instance before installing');
+  Exec('taskkill.exe', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  Result := '';
+end;
+
 function InitializeUninstall(): Boolean;
 var
   ResultCode: Integer;
