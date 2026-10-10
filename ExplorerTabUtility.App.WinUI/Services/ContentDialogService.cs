@@ -20,9 +20,10 @@ namespace ExplorerTabUtility.App.Services;
 /// background/STA thread. It queues the dialog and blocks only that calling thread.</item>
 /// </list>
 /// <para>
-/// <see cref="Show"/> also carries the host. <see cref="DialogHost.Standalone"/> leaves this machinery
-/// altogether and hands the message to the platform's own message box, a window of its own; the restore
-/// prompt asks for that, and everything else stays in-window.
+/// <see cref="Show"/> also carries the host. <see cref="DialogHost.Standalone"/> shows the same dialog on
+/// a window of its own (<c>DialogWindow</c>) instead of the app window's <see cref="XamlRoot"/> — movable,
+/// on screen without surfacing anything, and still the platform's control, drawn by the platform in the
+/// app's theme. The restore prompt asks for that; everything else stays in-window.
 /// </para>
 /// <para>
 /// <b>The one-dialog-at-a-time rule is process-wide, so its gate lives here and is shared.</b> WinUI
@@ -106,15 +107,39 @@ public sealed class ContentDialogService : IDialogService
         DialogResult defaultResult,
         DialogHost host)
     {
-        // A standalone dialog is the platform's own message box, which runs a modal loop of its own. It
-        // is shown here, on the calling thread, rather than posted to the UI thread: a Win32 modal loop
-        // on the UI thread keeps XAML's own pump from finishing for as long as the user looks at the
-        // dialog. It is also deliberately outside DialogGate and never surfaces the app window — it
-        // belongs to no XamlRoot, so it can neither block an open ContentDialog nor be blocked by one,
-        // and asking about File Explorer's windows must not drag the app window on screen.
         if (host == DialogHost.Standalone)
         {
-            return NativeMessageBox.Show(message, title, buttons, ToNativeIcon(icon));
+            // A window of its own, hosting the same platform dialog this class builds for every other
+            // call site (see DialogWindow). Building a XAML window has to happen on the UI thread, so the
+            // work is posted there — and the caller still blocks until the dialog is answered, which is
+            // the contract Core relies on.
+            var standalone = new TaskCompletionSource<DialogResult>();
+
+            _dispatcher.Post(async () =>
+            {
+                var window = new DialogWindow(title);
+                try
+                {
+                    // A XamlRoot only exists once the window has loaded.
+                    await window.LoadedAsync();
+
+                    // The window's caption carries the title (see DialogWindow), so the dialog itself is
+                    // built without one — the native arrangement, and it leaves the small window for the
+                    // question and its buttons.
+                    standalone.TrySetResult(await ShowAsync(
+                        message, string.Empty, buttons, icon, defaultResult, window.XamlRoot));
+                }
+                catch (Exception ex)
+                {
+                    standalone.TrySetException(ex);
+                }
+                finally
+                {
+                    window.Dispose();
+                }
+            });
+
+            return standalone.Task.GetAwaiter().GetResult();
         }
 
         // Called from Core's STA thread (e.g. the settings-page confirmations). Blocking here is fine —
@@ -137,11 +162,13 @@ public sealed class ContentDialogService : IDialogService
     }
 
     /// <summary>
-    /// Shows the dialog in the app window. Must be called on the UI thread.
+    /// Shows the dialog. Must be called on the UI thread.
     /// <para>
-    /// There is no host parameter here on purpose: the standalone host is the platform's message box,
-    /// which needs no <see cref="XamlRoot"/> and no UI thread, so callers that want it — always
-    /// background callers — go through <see cref="IDialogService.Show"/> instead.
+    /// <paramref name="hostXamlRoot"/> is for a dialog hosted by a window of its own
+    /// (<see cref="DialogHost.Standalone"/>): it skips both <see cref="DialogGate"/> and the
+    /// surface-the-app-window step below. The gate exists because WinUI refuses two ContentDialogs in one
+    /// <see cref="XamlRoot"/>, and this dialog is not in the app window's — being independent is the
+    /// point, so leaving it open must not hold up the app's own dialogs.
     /// </para>
     /// </summary>
     public async Task<DialogResult> ShowAsync(
@@ -149,8 +176,14 @@ public sealed class ContentDialogService : IDialogService
         string title,
         DialogButton buttons = DialogButton.OK,
         DialogIcon icon = DialogIcon.None,
-        DialogResult defaultResult = DialogResult.None)
+        DialogResult defaultResult = DialogResult.None,
+        XamlRoot? hostXamlRoot = null)
     {
+        if (hostXamlRoot is not null)
+        {
+            return await ShowCoreAsync(message, title, buttons, icon, defaultResult, hostXamlRoot);
+        }
+
         // Serialize: only one ContentDialog may be open at a time. Awaiting the gate on the UI thread
         // simply returns to the message loop, so a queued dialog appears once the current one closes
         // rather than throwing (AUD-20) — but only for so long, see DialogSlotTimeout.
@@ -178,15 +211,20 @@ public sealed class ContentDialogService : IDialogService
         string title,
         DialogButton buttons,
         DialogIcon icon,
-        DialogResult defaultResult)
+        DialogResult defaultResult,
+        XamlRoot? hostXamlRoot = null)
     {
         // Before anything else: a dialog needs a window the user can actually see and reach. Every
         // dialog the app raises from a background thread (the restore prompt, the second-instance
         // notice) can arrive while this window is hidden in the tray, and an invisible dialog cannot be
         // dismissed — which, with the gate below, would strand every later dialog and the blocked caller.
-        _ensureWindowVisible?.Invoke();
+        //
+        // A dialog hosted by its own window is the exception, and the reason it exists: that window is
+        // on screen with nobody's help, and surfacing the app window for a question about File Explorer's
+        // windows is exactly what it is there to avoid.
+        if (hostXamlRoot is null) _ensureWindowVisible?.Invoke();
 
-        var xamlRoot = _xamlRootProvider();
+        var xamlRoot = hostXamlRoot ?? _xamlRootProvider();
         if (xamlRoot is null)
         {
             // No window yet — nothing to host a ContentDialog on. Falling back to a native
@@ -258,7 +296,10 @@ public sealed class ContentDialogService : IDialogService
         }
 
         dialog.XamlRoot = xamlRoot;
-        dialog.Title = title;
+
+        // An empty title is deliberate: a standalone dialog carries its title in the window's caption
+        // (see DialogWindow) and must not show it twice.
+        if (!string.IsNullOrEmpty(title)) dialog.Title = title;
 
         var result = await dialog.ShowAsync();
 

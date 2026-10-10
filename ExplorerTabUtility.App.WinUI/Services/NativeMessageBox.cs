@@ -6,23 +6,12 @@ using ExplorerTabUtility.Helpers;
 namespace ExplorerTabUtility.App.Services;
 
 /// <summary>
-/// The platform's own message box: a real top-level window, movable and independent of the app window.
+/// The platform's own message box: a real top-level window, drawn by the system.
 /// <para>
-/// That independence is why the "restore previous windows?" prompt uses it (see
-/// <see cref="DialogHost.Standalone"/>). The question arrives from a background thread
-/// while the app window may be hidden in the tray, and a dialog that lives inside that window would have
-/// to drag it on screen first — the app window appearing out of nowhere to ask a question about
-/// <em>File Explorer</em>'s windows. File Explorer's own prompts are separate windows for the same
-/// reason.
-/// </para>
-/// <para>
-/// Also used where a <c>ContentDialog</c> is impossible because no <c>XamlRoot</c> exists yet — the
-/// "already running" notices shown before the app window is created.
-/// </para>
-/// <para>
-/// Its look and theme belong to the system: a Win32 message box cannot follow the theme this app applies
-/// to its own window. That is the price of a dialog that exists independently of it, and the reason
-/// everything else stays in-window.
+/// Used only where a <c>ContentDialog</c> is impossible because no <c>XamlRoot</c> exists yet — the
+/// "already running" notices and the startup-failure report, all of which run before the app window is
+/// created. Everything the user sees afterwards goes through <see cref="ContentDialogService"/>, which can
+/// follow the app's theme; this cannot, which is why it is the exception rather than the rule.
 /// </para>
 /// </summary>
 internal static class NativeMessageBox

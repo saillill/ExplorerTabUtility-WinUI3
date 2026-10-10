@@ -62,13 +62,18 @@ public sealed class TrayIconService : IDisposable
         // is the only mode that could theme the menu, and it was rejected for the reason below.
         _trayIcon.ContextFlyout = _menu;
 
-        // PopupMenu is H.NotifyIcon's default and the most compatible mode: it delegates to a real
-        // Win32 tray menu. "SecondWindow" (a WinUI-rendered overlay) is documented as preview-stage
-        // and behaves differently for unpackaged apps.
-        // IMPORTANT (BUG-01): in this mode the library rebuilds the MenuFlyout as a native Win32 popup
-        // and only executes each item's Command — the XAML Click event is never raised, so every menu
-        // entry in BuildMenu must be wired via Command, never via Click.
-        _trayIcon.ContextMenuMode = ContextMenuMode.PopupMenu;
+        // SecondWindow renders this flyout with XAML, in a window the library creates for it. That is what
+        // lets the menu follow the app's theme — which is why it is used here instead of the library's
+        // default: PopupMenu hands the menu to a native Win32 popup, whose colours belong to Windows and
+        // know nothing about the RequestedTheme this app sets on its root element, so a dark app came out
+        // with a light menu. The library themes its host window from this element's ActualTheme, so
+        // ApplyTheme below is the switch for the menu's appearance.
+        //
+        // IMPORTANT (BUG-01): menu behaviour must be wired through Command, never through Click. That was
+        // a hard requirement of PopupMenu mode (it only executes commands) and it stays the rule here, so
+        // the menu keeps working whichever mode is set.
+        _trayIcon.ContextMenuMode = ContextMenuMode.SecondWindow;
+        ApplyTheme();
 
         _trayIcon.DoubleClickCommand = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
 
@@ -298,6 +303,17 @@ public sealed class TrayIconService : IDisposable
         RunOnUi(ApplyMenuText);
         RefreshProfileMenus();
     }
+
+    /// <summary>
+    /// Matches the tray menu to the theme the app is actually using.
+    /// <para>
+    /// The menu is drawn in a window the library creates for it, and it takes that window's theme from
+    /// this element's <c>ActualTheme</c> (the library's context-menu window binds its own
+    /// <c>RequestedTheme</c> to it) — so this single assignment is what decides whether the menu comes up
+    /// light or dark. Called at startup and whenever the theme setting changes.
+    /// </para>
+    /// </summary>
+    public void ApplyTheme() => _trayIcon.RequestedTheme = ContentDialogService.ResolveTheme();
 
     /// <summary>Rebuilds the per-profile check lists under the keyboard / mouse submenus.</summary>
     public void RefreshProfileMenus()

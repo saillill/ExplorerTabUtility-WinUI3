@@ -502,28 +502,9 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ApplyTitleBarColors()
     {
-        var dark = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark;
-
-        // Fluent caption colours: full-strength glyph, dimmed when the window is inactive, and the
-        // standard subtle overlays for hover/pressed.
-        var foreground = dark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
-        var inactive = Windows.UI.Color.FromArgb(0x66, dark ? (byte)0xFF : (byte)0x00,
-                                                       dark ? (byte)0xFF : (byte)0x00,
-                                                       dark ? (byte)0xFF : (byte)0x00);
-        var hover = dark
-            ? Windows.UI.Color.FromArgb(0x15, 0xFF, 0xFF, 0xFF)
-            : Windows.UI.Color.FromArgb(0x0F, 0x00, 0x00, 0x00);
-        var pressed = dark
-            ? Windows.UI.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF)
-            : Windows.UI.Color.FromArgb(0x17, 0x00, 0x00, 0x00);
-
-        var bar = AppWindow.TitleBar;
-        bar.ButtonForegroundColor = foreground;
-        bar.ButtonInactiveForegroundColor = inactive;
-        bar.ButtonHoverForegroundColor = foreground;
-        bar.ButtonHoverBackgroundColor = hover;
-        bar.ButtonPressedForegroundColor = foreground;
-        bar.ButtonPressedBackgroundColor = pressed;
+        // The painting itself lives in CaptionColors: the dialog window needs exactly the same treatment,
+        // and two copies of the Fluent caption palette would drift apart.
+        CaptionColors.Apply(AppWindow, (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark);
     }
 
     /// <summary>

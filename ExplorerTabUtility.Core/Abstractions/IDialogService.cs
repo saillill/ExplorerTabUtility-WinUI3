@@ -33,9 +33,9 @@ public enum DialogResult
 /// <para>
 /// <see cref="InWindow"/> is the default: the dialog renders inside the app window (a
 /// <c>ContentDialog</c> in the WinUI shell), which means it moves with that window and cannot leave it.
-/// <see cref="Standalone"/> asks for a window of its own — movable, independent of the app window, and
-/// shown without surfacing it. The WinUI shell backs that with the platform's own message box, the way
-/// File Explorer's own prompts are separate windows.
+/// <see cref="Standalone"/> asks for a window of its own: movable, independent of the app window, and
+/// shown without surfacing it — the way File Explorer's own prompts behave. The dialog itself is the same
+/// platform control either way, so it follows the app's theme.
 /// </para>
 /// </summary>
 public enum DialogHost
