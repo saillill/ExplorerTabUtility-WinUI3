@@ -54,6 +54,12 @@ public sealed class TrayIconService : IDisposable
 
         // WinUI names it ContextFlyout (TaskbarIcon has no ContextMenu property). The flyout is a
         // plain MenuFlyout, so the menu visual is the system's, not ours.
+        //
+        // In PopupMenu mode that also means this menu cannot follow the app's theme, by construction:
+        // it is handed to a native Win32 popup, which knows nothing about the RequestedTheme the app
+        // sets on its root element, and Win32 menus do not darken at all without undocumented APIs. So
+        // the menu stays light while the window is dark. That is expected, not a defect — SecondWindow
+        // is the only mode that could theme the menu, and it was rejected for the reason below.
         _trayIcon.ContextFlyout = _menu;
 
         // PopupMenu is H.NotifyIcon's default and the most compatible mode: it delegates to a real
