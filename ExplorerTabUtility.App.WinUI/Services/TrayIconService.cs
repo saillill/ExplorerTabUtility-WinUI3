@@ -36,6 +36,8 @@ public sealed class TrayIconService : IDisposable
     private readonly ToggleMenuFlyoutItem _startupItem = new();
     private readonly MenuFlyoutSubItem _keyboardMenu = new();
     private readonly MenuFlyoutSubItem _mouseMenu = new();
+    private readonly MenuFlyoutItem _settingsItem = new();
+    private readonly MenuFlyoutItem _exitItem = new();
 
     private bool _savedReuseTabsState;
     private bool _disposed;
@@ -212,10 +214,8 @@ public sealed class TrayIconService : IDisposable
 
     private void BuildMenu()
     {
-        _keyboardMenu.Text = LocalizationService.Get("KeyboardShortcut");
-        _mouseMenu.Text = LocalizationService.Get("MouseShortcut");
+        ApplyMenuText();
 
-        _windowHookItem.Text = LocalizationService.Get("WindowIntercept");
         _windowHookItem.IsChecked = SettingsManager.IsWindowHookActive;
         // BUG-01: ContextMenuMode.PopupMenu rebuilds this MenuFlyout into a native Win32 popup and only
         // executes each item's Command — it never raises the XAML Click event. Menu behaviour must be a
@@ -227,7 +227,6 @@ public sealed class TrayIconService : IDisposable
             ToggleWindowHook();
         }));
 
-        _reuseTabsItem.Text = LocalizationService.Get("TabReuse");
         _reuseTabsItem.IsChecked = SettingsManager.ReuseTabs;
         _reuseTabsItem.Command = new RelayCommand(() => RunOnUi(() =>
         {
@@ -235,23 +234,20 @@ public sealed class TrayIconService : IDisposable
             ToggleReuseTabs();
         }));
 
-        _startupItem.Text = LocalizationService.Get("AddToStartup");
         _startupItem.IsChecked = RegistryManager.IsStartupEnabled;
         // ToggleStartup re-reads the registry, so it does not depend on a pre-flipped IsChecked.
         _startupItem.Command = new RelayCommand(() => RunOnUi(ToggleStartup));
 
-        var settingsItem = new MenuFlyoutItem { Text = LocalizationService.Get("Settings") };
         // Post rather than invoke inline: the click arrives while the Win32 tray popup still owns
         // the foreground, and the window cannot be activated until that popup has finished closing.
         // (Command, not Click — see BUG-01 note above.)
-        settingsItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
+        _settingsItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
 
-        var exitItem = new MenuFlyoutItem { Text = LocalizationService.Get("Exit") };
         // Same reason as the settings item above: this command runs while the native tray popup is
         // still finishing, and exiting tears down the tray icon, the hooks and the message loop. Post
         // it so the teardown never overlaps the popup's own shutdown — every other command in this
         // menu already goes through the dispatcher, and this was the single exception.
-        exitItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ExitRequested?.Invoke()));
+        _exitItem.Command = new RelayCommand(() => _uiDispatcher.TryPost(() => ExitRequested?.Invoke()));
 
         _menu.Items.Add(_keyboardMenu);
         _menu.Items.Add(_mouseMenu);
@@ -260,10 +256,40 @@ public sealed class TrayIconService : IDisposable
         _menu.Items.Add(_reuseTabsItem);
         _menu.Items.Add(new MenuFlyoutSeparator());
         _menu.Items.Add(_startupItem);
-        _menu.Items.Add(settingsItem);
+        _menu.Items.Add(_settingsItem);
         _menu.Items.Add(new MenuFlyoutSeparator());
-        _menu.Items.Add(exitItem);
+        _menu.Items.Add(_exitItem);
 
+        RefreshProfileMenus();
+    }
+
+    /// <summary>
+    /// Reads every string the menu shows.
+    /// <para>
+    /// Kept apart from <see cref="BuildMenu"/>, which appends to the flyout and therefore may only run
+    /// once, while a language change has to re-read the texts of items that already exist. Without that
+    /// the window follows the new language and the tray menu keeps the old one until the next start —
+    /// which is what "switching the language needs a restart" turned out to be.
+    /// </para>
+    /// </summary>
+    private void ApplyMenuText()
+    {
+        _keyboardMenu.Text = LocalizationService.Get("KeyboardShortcut");
+        _mouseMenu.Text = LocalizationService.Get("MouseShortcut");
+        _windowHookItem.Text = LocalizationService.Get("WindowIntercept");
+        _reuseTabsItem.Text = LocalizationService.Get("TabReuse");
+        _startupItem.Text = LocalizationService.Get("AddToStartup");
+        _settingsItem.Text = LocalizationService.Get("Settings");
+        _exitItem.Text = LocalizationService.Get("Exit");
+    }
+
+    /// <summary>
+    /// Re-reads the tray menu after a language change. The per-profile entries are rebuilt as well:
+    /// they are produced by the same pass and would otherwise stay in the previous language too.
+    /// </summary>
+    public void RefreshLocalization()
+    {
+        RunOnUi(ApplyMenuText);
         RefreshProfileMenus();
     }
 

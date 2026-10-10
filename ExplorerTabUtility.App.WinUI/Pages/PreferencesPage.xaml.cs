@@ -377,6 +377,9 @@ public sealed partial class PreferencesPage : Page
         // pick up the new culture (the previous version only refreshed this page).
         Localize();
         _services?.ProfileManager.RefreshLocalization();
+        // The tray menu is built once at startup and is not part of the window tree, so it does not
+        // follow ReloadForLanguage: without this its entries kept the language they were built in.
+        _services?.Tray?.RefreshLocalization();
         App.MainWindowInstance?.ReloadForLanguage();
     }
 
