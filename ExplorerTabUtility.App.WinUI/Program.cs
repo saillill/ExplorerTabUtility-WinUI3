@@ -56,7 +56,7 @@ public static class Program
                 NativeMessageBox.Show(
                     LocalizationService.Get("AlreadyRunning"),
                     Constants.AppName,
-                    NativeMessageBox.Icon.Information);
+                    icon: NativeMessageBox.Icon.Information);
                 return;
             }
 
@@ -102,7 +102,7 @@ public static class Program
             NativeMessageBox.Show(
                 $"{ex.GetType().Name}: {ex.Message}\n\n{StartupLog.FilePath}",
                 $"{Constants.AppName} - startup failed",
-                NativeMessageBox.Icon.Error);
+                icon: NativeMessageBox.Icon.Error);
         }
     }
 

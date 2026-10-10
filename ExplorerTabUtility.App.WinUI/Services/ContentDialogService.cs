@@ -20,6 +20,11 @@ namespace ExplorerTabUtility.App.Services;
 /// background/STA thread. It queues the dialog and blocks only that calling thread.</item>
 /// </list>
 /// <para>
+/// <see cref="Show"/> also carries the host. <see cref="DialogHost.Standalone"/> leaves this machinery
+/// altogether and hands the message to the platform's own message box, a window of its own; the restore
+/// prompt asks for that, and everything else stays in-window.
+/// </para>
+/// <para>
 /// <b>The one-dialog-at-a-time rule is process-wide, so its gate lives here and is shared.</b> WinUI
 /// throws a COMException if a second <see cref="ContentDialog"/> is opened while another is still up,
 /// and that applies to <em>every</em> ContentDialog in the same <see cref="XamlRoot"/> — including
@@ -98,10 +103,22 @@ public sealed class ContentDialogService : IDialogService
         string title,
         DialogButton buttons,
         DialogIcon icon,
-        DialogResult defaultResult)
+        DialogResult defaultResult,
+        DialogHost host)
     {
-        // Called from Core's STA thread (e.g. the "restore previous windows?" prompt inside
-        // ExplorerWatcher). Blocking here is fine — it is not the UI thread.
+        // A standalone dialog is the platform's own message box, which runs a modal loop of its own. It
+        // is shown here, on the calling thread, rather than posted to the UI thread: a Win32 modal loop
+        // on the UI thread keeps XAML's own pump from finishing for as long as the user looks at the
+        // dialog. It is also deliberately outside DialogGate and never surfaces the app window — it
+        // belongs to no XamlRoot, so it can neither block an open ContentDialog nor be blocked by one,
+        // and asking about File Explorer's windows must not drag the app window on screen.
+        if (host == DialogHost.Standalone)
+        {
+            return NativeMessageBox.Show(message, title, buttons, ToNativeIcon(icon));
+        }
+
+        // Called from Core's STA thread (e.g. the settings-page confirmations). Blocking here is fine —
+        // it is not the UI thread.
         var completion = new TaskCompletionSource<DialogResult>();
 
         _dispatcher.Post(async () =>
@@ -119,7 +136,14 @@ public sealed class ContentDialogService : IDialogService
         return completion.Task.GetAwaiter().GetResult();
     }
 
-    /// <summary>Shows the dialog. Must be called on the UI thread.</summary>
+    /// <summary>
+    /// Shows the dialog in the app window. Must be called on the UI thread.
+    /// <para>
+    /// There is no host parameter here on purpose: the standalone host is the platform's message box,
+    /// which needs no <see cref="XamlRoot"/> and no UI thread, so callers that want it — always
+    /// background callers — go through <see cref="IDialogService.Show"/> instead.
+    /// </para>
+    /// </summary>
     public async Task<DialogResult> ShowAsync(
         string message,
         string title,
@@ -175,7 +199,7 @@ public sealed class ContentDialogService : IDialogService
             // dialog is produced while MainWindow is being constructed (nothing subscribes to
             // anything until WireServices returns, and the window is Activate()d after that). If a
             // future call site ever fires before Activate(), its dialog comes out system-themed.
-            NativeMessageBox.Show(message, title, ToNativeIcon(icon));
+            NativeMessageBox.Show(message, title, buttons, ToNativeIcon(icon));
             return DialogResult.OK;
         }
 

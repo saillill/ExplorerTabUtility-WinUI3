@@ -106,7 +106,7 @@ public partial class App : Application
             NativeMessageBox.Show(
                 $"{ex.GetType().Name}: {ex.Message}\n\n{StartupLog.FilePath}",
                 "Explorer Tab Utility - startup failed",
-                NativeMessageBox.Icon.Error);
+                icon: NativeMessageBox.Icon.Error);
 
             // Do NOT stay in the message loop: a windowless process still owns the single-instance
             // mutex and the show-request event, so every later launch would "successfully" signal

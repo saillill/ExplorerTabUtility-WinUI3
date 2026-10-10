@@ -658,11 +658,16 @@ public class ExplorerWatcher : IHook
         // exception would only show up as an unobserved-task event. Contain it here (AUD-14).
         try
         {
+            // Standalone, not in-window: this asks about File Explorer's windows, and it arrives while
+            // the app window may be hidden in the tray. Dragging that window on screen just to ask the
+            // question is the wrong trade, so the prompt is a window of its own (the platform's message
+            // box) — movable, and shown without surfacing anything.
             var result = await RunInStaThread(() => _dialogService.Show(
                 LocalizationService.Get("RestoreWindowsPrompt"),
                 Constants.AppName,
                 DialogButton.YesNo,
-                DialogIcon.Question));
+                DialogIcon.Question,
+                host: DialogHost.Standalone));
 
             // Snapshot under the lock, then iterate outside it: OnQuit and OnExplorerProcessTerminated
             // append to _closedWindows from other threads, and the previous unguarded foreach threw

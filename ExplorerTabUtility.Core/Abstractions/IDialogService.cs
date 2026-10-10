@@ -29,6 +29,22 @@ public enum DialogResult
 }
 
 /// <summary>
+/// Where a dialog is hosted.
+/// <para>
+/// <see cref="InWindow"/> is the default: the dialog renders inside the app window (a
+/// <c>ContentDialog</c> in the WinUI shell), which means it moves with that window and cannot leave it.
+/// <see cref="Standalone"/> asks for a window of its own — movable, independent of the app window, and
+/// shown without surfacing it. The WinUI shell backs that with the platform's own message box, the way
+/// File Explorer's own prompts are separate windows.
+/// </para>
+/// </summary>
+public enum DialogHost
+{
+    InWindow,
+    Standalone
+}
+
+/// <summary>
 /// Shows a modal message dialog.
 /// <para>
 /// Exists so the Core library never references a UI toolkit. The WPF shell backs this with
@@ -42,5 +58,6 @@ public interface IDialogService
         string title,
         DialogButton buttons = DialogButton.OK,
         DialogIcon icon = DialogIcon.None,
-        DialogResult defaultResult = DialogResult.None);
+        DialogResult defaultResult = DialogResult.None,
+        DialogHost host = DialogHost.InWindow);
 }
