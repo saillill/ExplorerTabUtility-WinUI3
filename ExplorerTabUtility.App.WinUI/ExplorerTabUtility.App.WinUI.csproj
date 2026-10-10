@@ -53,8 +53,11 @@
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
     <PackageReference Include="CommunityToolkit.WinUI.Converters" Version="8.2.251219" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <!-- 托盘图标：WinUI 3 没有原生托盘控件，H.NotifyIcon 是同生态（H.Hooks 作者）的官方推荐替代 -->
-    <PackageReference Include="H.NotifyIcon.WinUI" Version="2.4.1" />
+    <!-- 托盘图标：WinUI 3 没有原生托盘控件，H.NotifyIcon 是同生态（H.Hooks 作者）的官方推荐替代。
+         版本刻意跟着 2.5.0 的预发布：主题化的原生菜单（ContextMenuThemeMode / PopupMenuThemeMode）
+         只在 2.5.0-beta.3 及以后（上游 PR #265），而 2.4.1 的 SecondWindow 模式在本机 175% 缩放下
+         会把菜单窗口算窄约一半（文字被截断）。2.5.0 出正式版后应升级到它。 -->
+    <PackageReference Include="H.NotifyIcon.WinUI" Version="2.5.0-beta.3" />
     <!-- SystemEvents.SessionEnding：WinUI 的 Application 没有 SessionEnding 事件 -->
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.12" />
   </ItemGroup>

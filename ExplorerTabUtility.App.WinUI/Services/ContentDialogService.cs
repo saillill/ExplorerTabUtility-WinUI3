@@ -123,11 +123,12 @@ public sealed class ContentDialogService : IDialogService
                     // A XamlRoot only exists once the window has loaded.
                     await window.LoadedAsync();
 
-                    // The window's caption carries the title (see DialogWindow), so the dialog itself is
-                    // built without one — the native arrangement, and it leaves the small window for the
-                    // question and its buttons.
+                    // The dialog shows the title: the window it lives in has no caption to carry it.
+                    // EnableDragging is handed the dialog itself — it is the only element whose pointer
+                    // events this window can see, since the dialog lives in a popup of its own and its
+                    // events never reach the window's root.
                     standalone.TrySetResult(await ShowAsync(
-                        message, string.Empty, buttons, icon, defaultResult, window.XamlRoot));
+                        message, title, buttons, icon, defaultResult, window.XamlRoot, window.EnableDragging));
                 }
                 catch (Exception ex)
                 {
@@ -177,11 +178,12 @@ public sealed class ContentDialogService : IDialogService
         DialogButton buttons = DialogButton.OK,
         DialogIcon icon = DialogIcon.None,
         DialogResult defaultResult = DialogResult.None,
-        XamlRoot? hostXamlRoot = null)
+        XamlRoot? hostXamlRoot = null,
+        Action<ContentDialog>? configureDialog = null)
     {
         if (hostXamlRoot is not null)
         {
-            return await ShowCoreAsync(message, title, buttons, icon, defaultResult, hostXamlRoot);
+            return await ShowCoreAsync(message, title, buttons, icon, defaultResult, hostXamlRoot, configureDialog);
         }
 
         // Serialize: only one ContentDialog may be open at a time. Awaiting the gate on the UI thread
@@ -212,7 +214,8 @@ public sealed class ContentDialogService : IDialogService
         DialogButton buttons,
         DialogIcon icon,
         DialogResult defaultResult,
-        XamlRoot? hostXamlRoot = null)
+        XamlRoot? hostXamlRoot = null,
+        Action<ContentDialog>? configureDialog = null)
     {
         // Before anything else: a dialog needs a window the user can actually see and reach. Every
         // dialog the app raises from a background thread (the restore prompt, the second-instance
@@ -296,10 +299,10 @@ public sealed class ContentDialogService : IDialogService
         }
 
         dialog.XamlRoot = xamlRoot;
+        dialog.Title = title;
 
-        // An empty title is deliberate: a standalone dialog carries its title in the window's caption
-        // (see DialogWindow) and must not show it twice.
-        if (!string.IsNullOrEmpty(title)) dialog.Title = title;
+        // Last, so the caller can attach to the finished dialog before it is shown.
+        configureDialog?.Invoke(dialog);
 
         var result = await dialog.ShowAsync();
 

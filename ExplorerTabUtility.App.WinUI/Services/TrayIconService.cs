@@ -62,21 +62,20 @@ public sealed class TrayIconService : IDisposable
         // is the only mode that could theme the menu, and it was rejected for the reason below.
         _trayIcon.ContextFlyout = _menu;
 
-        // ⛔ PopupMenu, not SecondWindow, and the reason is a defect in the library (2.4.1, the newest
-        //    stable — 2.5.0-dev.2 is the only thing newer). SecondWindow does render the menu with XAML in
-        //    a window it creates, which is what would let the menu follow the app's theme, but it sizes
-        //    that window from the flyout's measured size in effective pixels and hands those numbers to
-        //    AppWindow.MoveAndResize, which takes physical pixels. At 175% scaling the menu came out ~57%
-        //    of the width it needed: every label was cut off mid-word and the two submenu headers rendered
-        //    as a bare chevron. Measured on this machine before reverting.
-        //
-        //    So the menu stays a native Win32 popup and therefore keeps Windows' colours — it cannot
-        //    follow the RequestedTheme the app sets on its root element. Doing better means hosting the
-        //    flyout in a window of our own (with the DPI conversion done right), which is real work.
+        // ⛔ PopupMenu, not SecondWindow, and the reason is a defect in the library. SecondWindow renders
+        //    the flyout with XAML in a window it creates, but it sizes that window from the flyout's
+        //    measured size in *effective* pixels and hands those numbers to AppWindow.MoveAndResize, which
+        //    takes *physical* pixels. At this machine's 175% scaling the menu came out about 57% of the
+        //    width it needed: every label was cut off mid-word and both submenu headers rendered as a bare
+        //    chevron (measured, then reverted). PopupMenu has no such problem — it is a native menu — and
+        //    the theme is not lost by using it any more: the library switches native menus to dark through
+        //    uxtheme, which is what ApplyTheme below drives.
         //
         // IMPORTANT (BUG-01): menu behaviour is wired through Command, never through Click — a hard
         // requirement of PopupMenu mode, which only executes commands.
         _trayIcon.ContextMenuMode = ContextMenuMode.PopupMenu;
+
+        ApplyTheme();
 
         _trayIcon.DoubleClickCommand = new RelayCommand(() => _uiDispatcher.TryPost(() => ShowRequested?.Invoke()));
 
@@ -306,6 +305,24 @@ public sealed class TrayIconService : IDisposable
         RunOnUi(ApplyMenuText);
         RefreshProfileMenus();
     }
+
+    /// <summary>
+    /// Matches the tray menu to the theme the app is using.
+    /// <para>
+    /// The menu is a native Win32 popup, which knows nothing about the <c>RequestedTheme</c> this app sets
+    /// on its root element — it draws in Windows' colours unless the process asks otherwise. The library
+    /// does ask (uxtheme's <c>SetPreferredAppMode</c> + <c>FlushMenuThemes</c>) and exposes the choice as
+    /// this property, which is why the menu can be dark on a dark app without giving up the native menu
+    /// and its correct DPI handling. Called at startup and whenever the theme setting changes.
+    /// </para>
+    /// </summary>
+    public void ApplyTheme() => _trayIcon.ContextMenuThemeMode = SettingsManager.ThemeMode switch
+    {
+        1 => H.NotifyIcon.Core.PopupMenuThemeMode.Dark,
+        2 => H.NotifyIcon.Core.PopupMenuThemeMode.Light,
+        // "Follow system": let the shell decide, which is what the native menu did before any of this.
+        _ => H.NotifyIcon.Core.PopupMenuThemeMode.System
+    };
 
     /// <summary>Rebuilds the per-profile check lists under the keyboard / mouse submenus.</summary>
     public void RefreshProfileMenus()
