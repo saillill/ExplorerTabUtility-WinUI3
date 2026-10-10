@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>Sombre</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Clair</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>Enregistrer l’historique</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Enregistre les fenêtres fermées pour les rouvrir plus tard</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Conserve les onglets et fenêtres fermés après un redémarrage, pour pouvoir les rouvrir</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restaurer les fenêtres précédentes</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Demande au prochain démarrage s’il faut rouvrir les fenêtres d’avant le redémarrage ou le plantage</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Masquer l’icône de la zone de notification</value></data>

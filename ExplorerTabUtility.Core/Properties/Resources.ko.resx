@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>어둡게</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>밝게</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>닫은 기록 저장</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>닫은 창의 기록을 저장해 나중에 다시 열 수 있습니다</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>닫은 탭과 창의 기록을 다시 시작한 뒤에도 유지하여 다시 열 수 있습니다</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>이전 창 복원</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>다음 시작 시 다시 시작하거나 중단되기 전에 열려 있던 창을 다시 열지 물어봅니다</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>트레이 아이콘 숨기기</value></data>

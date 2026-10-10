@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>深色</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>淺色</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>儲存關閉記錄</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>儲存已關閉視窗的歷史記錄，以便稍後重新開啟</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>重新啟動後仍保留已關閉的分頁和視窗，可供重新開啟使用</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>還原之前的視窗</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>下次啟動時詢問是否重新開啟重新啟動或當機前開著的視窗</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>隱藏系統匣圖示</value></data>

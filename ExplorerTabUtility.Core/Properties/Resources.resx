@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>Dark</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Light</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>Save closed history</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Save closed windows so you can reopen them later</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Keeps closed tabs and windows across restarts, so you can still reopen them</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restore previous windows</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Asks on the next start whether to reopen windows from before the restart or crash</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Hide tray icon</value></data>

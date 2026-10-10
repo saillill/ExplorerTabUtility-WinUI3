@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>Dunkel</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Hell</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>Geschlossene Verläufe speichern</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Geschlossene Fenster speichern, um sie später wieder zu öffnen</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Behält geschlossene Tabs und Fenster über einen Neustart hinweg, damit sie sich weiterhin öffnen lassen</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Vorherige Fenster wiederherstellen</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Fragt beim nächsten Start, ob die Fenster von vor dem Neustart oder Absturz wieder geöffnet werden sollen</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Infobereichssymbol ausblenden</value></data>

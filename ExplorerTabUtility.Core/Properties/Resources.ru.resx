@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>Тёмная</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Светлая</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>Сохранять историю закрытых окон</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Сохраняет закрытые окна, чтобы позже их открыть</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Сохраняет закрытые вкладки и окна после перезапуска, чтобы их можно было открыть снова</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Восстанавливать прежние окна</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>При следующем запуске спрашивает, открывать ли окна, которые были открыты до перезапуска или сбоя</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Скрывать значок в области уведомлений</value></data>

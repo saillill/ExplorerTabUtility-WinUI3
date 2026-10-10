@@ -17,7 +17,7 @@
   <data name="ThemeDark" xml:space="preserve"><value>Oscuro</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Claro</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>Guardar el historial cerrado</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Guarda las ventanas cerradas para poder reabrirlas más tarde</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Conserva las pestañas y ventanas cerradas tras reiniciar, para poder reabrirlas</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restaurar las ventanas anteriores</value></data>
   <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Pregunta al iniciar si se deben reabrir las ventanas de antes del reinicio o bloqueo</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Ocultar el icono de la bandeja</value></data>
