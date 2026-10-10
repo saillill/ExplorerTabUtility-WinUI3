@@ -42,8 +42,6 @@ public class ExplorerWatcher : IHook
     private readonly ConcurrentDictionary<nint, byte> _processedHWnds = new();
     private readonly DualKeyDictionary<ExplorerWindow, nint?, WindowInfo> _windowEntryDict = [];
     private readonly List<WindowRecord> _closedWindows = new();
-    /// <summary>Set while the shell is being rebuilt after explorer.exe died.</summary>
-    private bool _shellTornDown;
 
     /// <summary>The restore offer runs at most once per session.</summary>
     private bool _restorePrompted;
@@ -976,10 +974,8 @@ public class ExplorerWatcher : IHook
                 _mainExplorerProcessId = 0;
 
                 // The shell died under us, so the windows recorded now are genuinely lost and worth
-                // offering back. A plain app shutdown must NOT set this: there the shell keeps its
-                // windows, and re-offering them would duplicate them.
-                _shellTornDown = true;
-
+                // offering back; DisposeShellObjects persists them with Restore set, and the prompt on
+                // the next start decides whether the user wants them.
                 DisposeShellObjects();
                 StartExplorerProcessCheck();
                 return;
@@ -1084,7 +1080,6 @@ public class ExplorerWatcher : IHook
         }
 
         // Hook the event handlers for already-open windows
-        var hasOpen = false;
         var count = _shellWindows.Count;
         for (var i = 0; i < count; i++)
         {
@@ -1092,7 +1087,6 @@ public class ExplorerWatcher : IHook
             {
                 var window = _shellWindows.Item(i);
                 if (window is null) continue;
-                hasOpen = true;
 
                 var windowInfo = new WindowInfo(PreExistingWindowTimestamp);
 
@@ -1113,16 +1107,19 @@ public class ExplorerWatcher : IHook
             }
         }
 
-        // Restore flags are only meaningful when the shell was rebuilt (explorer.exe restart) or
-        // when no window survived at all. Clearing them whenever *any* window happened to be open
-        // disabled the feature in its main scenario: after an Explorer restart the shell recreates a
-        // window before this initialisation runs, so "a window exists" says nothing about whether the
-        // user's previous windows survived.
-        if (hasOpen && !_shellTornDown)
-            lock (_closedWindowsLock)
-                foreach (var window in _closedWindows) window.Restore = false;
-
-        _shellTornDown = false;
+        // Recorded windows stay on offer until they have been offered once — whatever happens to be
+        // open right now is not consulted.
+        //
+        // The rule used to be "clear every Restore flag when a window is open and the shell was not
+        // torn down", on the grounds that reopening windows the shell still has would duplicate them.
+        // That is true, but it is a question for the user, and it is the question RestoreWindowsPrompt
+        // already asks. Clearing the flags instead meant the feature did nothing in its most ordinary
+        // case: starting the app while Explorer windows are already open, where the settings toggle and
+        // the tooltip promised a restore that could never happen.
+        //
+        // Repeating the prompt is not a risk: RestorePreviousWindows marks every record it offers as
+        // consumed whether the answer is yes or no, and MaybeRestorePreviousWindows runs at most once
+        // per session.
         _shellInitialized = true;
     }
     private void DisposeShellObjects()
