@@ -354,10 +354,6 @@ public sealed partial class PreferencesPage : Page
         // The window owns the one place that maps ThemeMode to an ElementTheme, so the picker and
         // the startup path can never drift apart.
         App.MainWindowInstance?.ApplySavedTheme();
-
-        // The tray menu is not part of the window tree and does not follow it, so it needs the same
-        // answer applied to it — otherwise it keeps the theme it was built with until the next start.
-        _services?.Tray?.ApplyTheme();
     }
 
     private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)

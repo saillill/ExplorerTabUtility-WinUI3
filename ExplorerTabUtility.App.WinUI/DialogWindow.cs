@@ -4,6 +4,7 @@ using ExplorerTabUtility.App.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
 namespace ExplorerTabUtility.App;
@@ -50,7 +51,12 @@ internal sealed class DialogWindow : IDisposable
         {
             // The caption carries the dialog's title, so the dialog itself does not repeat it.
             Title = title,
-            Content = _root
+            Content = _root,
+
+            // Same backdrop as the main window, and not only for looks: a WinUI window paints nothing
+            // itself, so without a backdrop the area the dialog does not cover came out black — a black
+            // frame around the dialog card.
+            SystemBackdrop = new MicaBackdrop()
         };
 
         var appWindow = _window.AppWindow;
