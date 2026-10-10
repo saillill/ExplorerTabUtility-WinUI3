@@ -19,7 +19,7 @@
   <data name="SaveClosedHistory" xml:space="preserve"><value>閉じた履歴を保存</value></data>
   <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>閉じたウィンドウを記録し、後で開き直せるようにします</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>以前のウィンドウを復元</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>再起動やエクスプローラーのクラッシュ後に以前のウィンドウを復元します</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>次回起動時に、再起動やクラッシュの前に開いていたウインドウを開き直すか確認します</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>トレイアイコンを隠す</value></data>
   <data name="Language" xml:space="preserve"><value>言語</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">

@@ -19,7 +19,7 @@
   <data name="SaveClosedHistory" xml:space="preserve"><value>Enregistrer l’historique</value></data>
   <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Enregistre les fenêtres fermées pour les rouvrir plus tard</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restaurer les fenêtres précédentes</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Restaure les fenêtres après un redémarrage ou un plantage de l’Explorateur</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Demande au prochain démarrage s’il faut rouvrir les fenêtres d’avant le redémarrage ou le plantage</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Masquer l’icône de la zone de notification</value></data>
   <data name="Language" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">

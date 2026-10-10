@@ -19,7 +19,7 @@
   <data name="SaveClosedHistory" xml:space="preserve"><value>Save closed history</value></data>
   <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Save closed windows so you can reopen them later</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Restore previous windows</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Restore windows after restart or Explorer crash</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Asks on the next start whether to reopen windows from before the restart or crash</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Hide tray icon</value></data>
   <data name="Language" xml:space="preserve"><value>Language</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">

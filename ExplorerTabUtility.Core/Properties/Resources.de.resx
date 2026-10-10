@@ -19,7 +19,7 @@
   <data name="SaveClosedHistory" xml:space="preserve"><value>Geschlossene Verläufe speichern</value></data>
   <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>Geschlossene Fenster speichern, um sie später wieder zu öffnen</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>Vorherige Fenster wiederherstellen</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Stellt Fenster nach Neustart oder Explorer-Absturz wieder her</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>Fragt beim nächsten Start, ob die Fenster von vor dem Neustart oder Absturz wieder geöffnet werden sollen</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>Infobereichssymbol ausblenden</value></data>
   <data name="Language" xml:space="preserve"><value>Sprache</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
