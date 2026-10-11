@@ -31,6 +31,13 @@ internal static class CaptionColors
             : Color.FromArgb(0x17, 0x00, 0x00, 0x00);
 
         var bar = window.TitleBar;
+
+        // Transparent, because the app paints the caption area itself (the content extends into it). Left to the
+        // system, the close button comes up as a solid block of its own colour over the app's surface — the blue
+        // square that showed on the standalone dialog's ✕.
+        bar.ButtonBackgroundColor = Colors.Transparent;
+        bar.ButtonInactiveBackgroundColor = Colors.Transparent;
+
         bar.ButtonForegroundColor = foreground;
         bar.ButtonInactiveForegroundColor = inactive;
         bar.ButtonHoverForegroundColor = foreground;

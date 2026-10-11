@@ -300,16 +300,10 @@ public sealed class ContentDialogService : IDialogService
         // A standalone dialog is the only thing its window shows, so the smoke layer that normally dims the
         // content behind a dialog has nothing to dim — it would paint a translucent rectangle around the
         // card and read as a frame. Overridden per dialog, not app-wide: an in-window dialog must keep it.
-        //
-        // The card's own border goes the same way. It is a hairline meant to separate the card from the
-        // content behind it, and with nothing behind it, it read as the "inconsistent light edge" around the
-        // dialog. Both are theme resources the dialog's template looks up, so overriding them here is the
-        // supported way in.
         if (hostXamlRoot is not null)
         {
-            var transparent = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            dialog.Resources["ContentDialogSmokeLayerBackgroundBrush"] = transparent;
-            dialog.Resources["ContentDialogBorderBrush"] = transparent;
+            dialog.Resources["ContentDialogSmokeLayerBackgroundBrush"] =
+                new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
         }
         dialog.DefaultButton = ToDefaultButton(buttons, defaultResult);
 
