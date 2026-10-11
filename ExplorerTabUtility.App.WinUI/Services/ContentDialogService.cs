@@ -130,11 +130,11 @@ public sealed class ContentDialogService : IDialogService
                     await window.LoadedAsync();
 
                     // The dialog shows the title: the window it lives in has no caption to carry it.
-                    // EnableDragging is handed the dialog itself — it is the only element whose pointer
-                    // events this window can see, since the dialog lives in a popup of its own and its
-                    // events never reach the window's root.
+                    // FitTo sizes the window to the dialog and hands it the drag — with the dialog itself,
+                    // because a dialog lives in a popup of its own and its pointer events never reach the
+                    // window's root.
                     standalone.TrySetResult(await ShowAsync(
-                        message, title, buttons, icon, defaultResult, window.XamlRoot, window.EnableDragging));
+                        message, title, buttons, icon, defaultResult, window.XamlRoot, window.FitTo));
                 }
                 catch (Exception ex)
                 {
@@ -296,6 +296,15 @@ public sealed class ContentDialogService : IDialogService
         // closing or activating" (0x80000019). Content, button text and DefaultButton first; the two
         // that attach the dialog to the tree last.
         dialog.Content = BuildContent(message, icon);
+
+        // A standalone dialog is the only thing its window shows, so the smoke layer that normally dims the
+        // content behind a dialog has nothing to dim — it would paint a translucent rectangle around the
+        // card and read as a frame. Overridden per dialog, not app-wide: an in-window dialog must keep it.
+        if (hostXamlRoot is not null)
+        {
+            dialog.Resources["ContentDialogSmokeLayerBackgroundBrush"] =
+                new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
         dialog.DefaultButton = ToDefaultButton(buttons, defaultResult);
 
         switch (buttons)
