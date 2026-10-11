@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
 using ExplorerTabUtility.App.Services;
+using ExplorerTabUtility.WinAPI;
 using H.NotifyIcon.Interop;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Windows.Foundation;
 using Windows.Graphics;
 
 namespace ExplorerTabUtility.App;
@@ -43,11 +43,7 @@ internal sealed class DialogWindow : IDisposable
     private double _widthInEpx = DefaultWidthInEpx;
     private double _heightInEpx = DefaultHeightInEpx;
 
-    private uint _dragPointer;
     private FrameworkElement? _dragSurface;
-    private Point _dragCursor;
-    private PointInt32 _windowOrigin;
-    private bool _dragging;
 
     public DialogWindow(string title)
     {
@@ -158,28 +154,46 @@ internal sealed class DialogWindow : IDisposable
             var card = LargestFilledBorder(dialog);
             if (card is null || card.ActualWidth <= 0 || card.ActualHeight <= 0) return;
 
-            _widthInEpx = Math.Min(card.ActualWidth, MaxWidthInEpx);
-            _heightInEpx = Math.Min(card.ActualHeight, MaxHeightInEpx);
+            FitToCard(card);
 
-            ApplyLayout();
+            // The border is dropped again here, not only in ApplyLayout: that runs while the window is still
+            // being set up, and the DWM attribute is applied to the frame it has at the time. Doing it once
+            // more with the window shown is what makes it stick.
+            RemoveBorder();
 
-            // Attached to the dialog, which is what the report of "the window follows the mouse but drifts
-            // in a small box" proves receives these events: a real mouse produced that, so the handler runs.
-            // (Attaching them to this window's root instead does nothing, and script-injected mouse input
-            // never reaches WinUI's pointer stack at all, so the drag cannot be judged from a script either
-            // way — this is a hand-test-only path.)
-            //
-            // handleEventsToo, and never marking them handled, so the dialog's own buttons keep receiving
-            // everything. The header-only rule in OnPointerPressed is what separates a drag from a click.
+            // Measured again whenever the card's own size changes: at Opened it is not final (the text has
+            // not necessarily been measured yet), and sizing the window to that first number clipped the
+            // bottom of the message row — reported as the icon and text being cut off.
+            card.SizeChanged += (_, _) => FitToCard(card);
+
+            // Attached to the dialog, which is what receives these events (a ContentDialog's content lives in
+            // a popup of its own, so handlers on this window's root never fire, and script-injected mouse
+            // input does not reach WinUI's pointer stack at all — this path is judged by hand or not at all).
             _dragSurface = dialog;
             dialog.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
-            dialog.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
-            dialog.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
         }
         catch (Exception ex)
         {
             StartupLog.Fail("DialogWindow: fit to the card", ex);
         }
+    }
+
+    /// <summary>
+    /// Sizes the window onto the card. Skipped when it already fits, so the resize that follows cannot feed
+    /// back into the card's own size and oscillate.
+    /// </summary>
+    private void FitToCard(FrameworkElement card)
+    {
+        var width = Math.Min(card.ActualWidth, MaxWidthInEpx);
+        var height = Math.Min(card.ActualHeight, MaxHeightInEpx);
+
+        if (width <= 0 || height <= 0) return;
+        if (Math.Abs(width - _widthInEpx) < 1 && Math.Abs(height - _heightInEpx) < 1) return;
+
+        _widthInEpx = width;
+        _heightInEpx = height;
+
+        ApplyLayout();
     }
 
     private static Border? LargestFilledBorder(DependencyObject root)
@@ -271,6 +285,23 @@ internal sealed class DialogWindow : IDisposable
 
         // Rounded like every other WinUI surface — a borderless window is square without this.
         DesktopWindowsManagerMethods.SetRoundedCorners((nint)WinRT.Interop.WindowNative.GetWindowHandle(_window));
+
+        RemoveBorder();
+    }
+
+    /// <summary>
+    /// Drops the window's DWM border. Windows draws it in its own colours, which is the light line that showed
+    /// around this dark dialog. Removed rather than coloured — no part of the window frame should be visible
+    /// when the window is the dialog.
+    /// </summary>
+    private void RemoveBorder()
+    {
+        var none = WinApi.DWMWA_COLOR_NONE;
+        _ = WinApi.DwmSetWindowAttribute(
+            (nint)WinRT.Interop.WindowNative.GetWindowHandle(_window),
+            WinApi.DWMWA_BORDER_COLOR,
+            ref none,
+            sizeof(int));
     }
 
     /// <summary>
@@ -295,73 +326,26 @@ internal sealed class DialogWindow : IDisposable
     {
         if (_dragSurface is not { } surface) return;
 
-        // Only the header drags, and deciding that here is also what keeps this from stealing the pointer
-        // from the dialog's buttons: a press below the header never captures anything.
+        // Only the header drags, so the dialog's buttons keep behaving like buttons.
         if (e.GetCurrentPoint(surface).Position.Y > surface.ActualHeight * DragAreaFraction) return;
 
-        _dragPointer = e.Pointer.PointerId;
-        _dragCursor = ScreenPointOf(surface, e.GetCurrentPoint(surface).Position);
-        _windowOrigin = _window.AppWindow.Position;
-        _dragging = false;
-
-        // Captured, so the drag keeps working once the pointer leaves the card — which it does quickly,
-        // because the window is moving out from under it.
-        surface.CapturePointer(e.Pointer);
-    }
-
-    private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
-    {
-        if (_dragSurface is not { } surface || _dragPointer != e.Pointer.PointerId) return;
-
-        var cursor = ScreenPointOf(surface, e.GetCurrentPoint(surface).Position);
-        var dx = cursor.X - _dragCursor.X;
-        var dy = cursor.Y - _dragCursor.Y;
-
-        if (!_dragging && Math.Abs(dx) + Math.Abs(dy) < DragThresholdInEpx) return;
-
-        _dragging = true;
-
-        var scale = _root.XamlRoot?.RasterizationScale ?? 1.0;
-        _window.AppWindow.Move(new PointInt32(
-            _windowOrigin.X + (int)Math.Round(dx * scale),
-            _windowOrigin.Y + (int)Math.Round(dy * scale)));
-    }
-
-    private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        if (_dragPointer != e.Pointer.PointerId) return;
-
-        _dragPointer = 0;
-        _dragging = false;
-        _dragSurface?.ReleasePointerCapture(e.Pointer);
-    }
-
-    /// <summary>
-    /// Where the pointer is on screen, in effective pixels.
-    /// <para>
-    /// The pointer's position is reported relative to the dialog, and the dialog sits in the window that is
-    /// being moved — so the window's own position (converted out of the physical pixels <c>AppWindow</c>
-    /// works in) is added to get a value that does not change while the window moves under the cursor. An
-    /// earlier version moved the window by the pointer's position <em>inside</em> the window, which the move
-    /// itself changes: it solved to half speed, which is what "follows the mouse but stays in a small box
-    /// near the middle" was.
-    /// </para>
-    /// </summary>
-    private Point ScreenPointOf(FrameworkElement surface, Point positionInSurface)
-    {
-        var scale = _root.XamlRoot?.RasterizationScale ?? 1.0;
-        var window = _window.AppWindow.Position;
-
-        return new Point(
-            (window.X / scale) + positionInSurface.X,
-            (window.Y / scale) + positionInSurface.Y);
+        // The drag is handed to the system — the same drag a caption starts — rather than moving the window
+        // ourselves on every pointer move.
+        //
+        // Doing it by hand flickered (reported), which is expected: each Move is a fresh re-composition of the
+        // window. A visible title bar would be the other way to get a system drag, and that is exactly the
+        // thing this window was changed to get rid of. This way it is smooth, it snaps, and it is one message
+        // instead of a Move per pointer event.
+        _ = WinApi.ReleaseCapture();
+        _ = WinApi.SendMessage(
+            (nint)WinRT.Interop.WindowNative.GetWindowHandle(_window),
+            WinApi.WM_NCLBUTTONDOWN,
+            WinApi.HTCAPTION,
+            0);
     }
 
     /// <summary>How much of the dialog's top moves the window when dragged. Its header, in practice.</summary>
     private const double DragAreaFraction = 0.25;
-
-    /// <summary>Slop before a press becomes a drag, so a click in the header is still just a click.</summary>
-    private const int DragThresholdInEpx = 3;
 
     /// <summary>
     /// Centres on the primary display, using the size the window actually has — <c>DisplayArea.WorkArea</c>

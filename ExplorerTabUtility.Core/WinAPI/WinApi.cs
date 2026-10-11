@@ -45,6 +45,33 @@ public static class WinApi
     [DllImport("user32.dll")]
     public static extern nint SetWinEventHook(uint eventMin, uint eventMax, nint hModWinEventProc, WinEventDelegate lPfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
 
+    /// <summary>Non-client left button down — used with <see cref="HTCAPTION"/> to let the system drag a window
+    /// that draws no caption of its own.</summary>
+    public const int WM_NCLBUTTONDOWN = 0x00A1;
+
+    /// <summary>Hit-test result for the caption area.</summary>
+    public const nint HTCAPTION = 2;
+
+    /// <summary>
+    /// Releases the mouse capture. The system's caption drag needs this: while a capture is held the window
+    /// never receives the non-client message the drag is started with.
+    /// </summary>
+    [DllImport("user32.dll")]
+    public static extern bool ReleaseCapture();
+
+    /// <summary>The DWM window border colour attribute (Windows 11).</summary>
+    public const int DWMWA_BORDER_COLOR = 34;
+
+    /// <summary>"No colour": the DWM window border is not drawn at all.</summary>
+    public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
+
+    /// <summary>
+    /// Sets a DWM window attribute. Used to drop the window border, which Windows draws in its own colours —
+    /// a light line around a window whose frame the app paints itself.
+    /// </summary>
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);
+
     [DllImport("user32.dll")]
     public static extern bool UnhookWinEvent(nint hWinEventHook);
 
