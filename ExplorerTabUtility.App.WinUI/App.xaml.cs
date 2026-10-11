@@ -81,15 +81,6 @@ public partial class App : Application
             // subscribed exactly once — subscribing here as well made every tray command run twice.
             _window.Activate();
             StartupLog.Step("OnLaunched: Activate called");
-            if (Environment.GetCommandLineArgs().Contains("--preview-dialog"))
-            {
-                ExplorerTabUtility.Abstractions.IDialogService dialogs = Services.Dialogs;
-                _ = System.Threading.Tasks.Task.Run(() => dialogs.Show(
-                    "是否恢复之前打开的窗口？", "Explorer Tab Utility",
-                    ExplorerTabUtility.Abstractions.DialogButton.YesNo,
-                    ExplorerTabUtility.Abstractions.DialogIcon.Question,
-                    host: ExplorerTabUtility.Abstractions.DialogHost.Standalone));
-            }
 
             // Launched by the Windows sign-in entry: start in the tray when the user asked for it.
             // The window is activated first so the tray icon, XamlRoot and backdrop are all live;
