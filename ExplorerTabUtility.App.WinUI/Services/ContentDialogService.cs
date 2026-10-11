@@ -117,9 +117,15 @@ public sealed class ContentDialogService : IDialogService
 
             _dispatcher.Post(async () =>
             {
-                var window = new DialogWindow(title);
+                // Inside the try: building the window throws for invalid presenter combinations, and the
+                // version that created it outside lost the dialog entirely — the exception escaped, the
+                // caller was never answered and nothing appeared.
+                var window = (DialogWindow?)null;
+
                 try
                 {
+                    window = new DialogWindow(title);
+
                     // A XamlRoot only exists once the window has loaded.
                     await window.LoadedAsync();
 
@@ -132,11 +138,24 @@ public sealed class ContentDialogService : IDialogService
                 }
                 catch (Exception ex)
                 {
-                    standalone.TrySetException(ex);
+                    StartupLog.Fail("standalone dialog window, falling back to the app window", ex);
+
+                    // Answer with a dialog in the app window rather than with nothing: the caller is
+                    // blocked on this result, and a question that never appears is a question the user
+                    // cannot answer.
+                    try
+                    {
+                        standalone.TrySetResult(await ShowAsync(message, title, buttons, icon, defaultResult));
+                    }
+                    catch (Exception fallback)
+                    {
+                        StartupLog.Fail("standalone dialog fallback", fallback);
+                        standalone.TrySetResult(defaultResult == DialogResult.None ? DialogResult.Cancel : defaultResult);
+                    }
                 }
                 finally
                 {
-                    window.Dispose();
+                    window?.Dispose();
                 }
             });
 

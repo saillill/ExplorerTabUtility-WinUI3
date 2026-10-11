@@ -71,12 +71,14 @@ internal sealed class DialogWindow : IDisposable
         var appWindow = _window.AppWindow;
         if (appWindow.Presenter is OverlappedPresenter presenter)
         {
-            // No visible caption: the dialog is the window, and a title bar made this read as a Win32 window
-            // wrapped around a WinUI dialog, which it was. The title bar itself stays — with the content
-            // extended into it nothing of it is drawn, and a borderless window with the caption removed
-            // entirely cannot be dragged at all (measured: SetDragRectangles had no effect until the caption
-            // came back).
-            presenter.SetBorderAndTitleBar(false, true);
+            // No caption and no border: the dialog is the window. A title bar made this read as a Win32 window
+            // wrapped around a WinUI dialog, which it was.
+            //
+            // ⛔ Do not "fix" this to SetBorderAndTitleBar(false, true) to bring the caption back for
+            //    dragging: that combination is invalid and throws "Border=false, TitleBar=true" from the
+            //    constructor, which is a dialog that never appears at all. The caption is either there with
+            //    its border (the old title-bar look) or the window has neither.
+            presenter.SetBorderAndTitleBar(false, false);
             presenter.IsResizable = false;
             presenter.IsMaximizable = false;
             presenter.IsMinimizable = false;
