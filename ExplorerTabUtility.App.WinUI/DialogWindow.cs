@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using ExplorerTabUtility.App.Services;
 using H.NotifyIcon.Interop;
@@ -45,8 +45,9 @@ internal sealed class DialogWindow : IDisposable
 
     private uint _dragPointer;
     private FrameworkElement? _dragSurface;
-    private Point _dragPoint;
+    private Point _dragCursor;
     private PointInt32 _windowOrigin;
+    private bool _dragging;
 
     public DialogWindow(string title)
     {
@@ -132,28 +133,25 @@ internal sealed class DialogWindow : IDisposable
         // carries the smoke layer and stretches to whatever constraint it is given — so that measurement is
         // always the constraint back, not the card. What is wanted is the card's real size, and that only
         // exists once the dialog has been arranged.
-        dialog.Opened += (_, _) => FitToCard(dialog);
-
-        // The drag is attached to the dialog rather than to this window's root: the dialog lives in a popup
-        // of its own and its pointer events never reach the root element (measured — attaching them there
-        // did nothing). handleEventsToo, and never marking them handled, so the dialog's own buttons keep
-        // receiving everything.
-        _dragSurface = dialog;
-        dialog.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
-        dialog.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
-        dialog.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
+        dialog.Opened += (_, _) => OnDialogOpened(dialog);
     }
 
     /// <summary>
-    /// Shrinks the window onto the dialog's card, which is what removes the ring around it.
+    /// Shrinks the window onto the dialog's card and makes the card the drag handle.
     /// <para>
-    /// The card is the largest filled <see cref="Border"/> inside the dialog — the only reliable way to ask
-    /// a <c>ContentDialog</c> how big its card came out, since the dialog element itself is stretched to fill
-    /// the whole <c>XamlRoot</c>. If nothing filled is found, the window keeps the size it has: a dialog with
-    /// a ring around it beats no dialog.
+    /// The drag is attached to the card itself, not to the dialog element and not to this window's root:
+    /// neither of those receives the dialog's pointer events. A <c>ContentDialog</c>'s content lives in a
+    /// popup of its own, and events from it do not reach the dialog element (measured — handlers on both the
+    /// dialog and the root did nothing).
+    /// </para>
+    /// <para>
+    /// The card is the largest filled <see cref="Border"/> inside the dialog — the only reliable way to ask a
+    /// <c>ContentDialog</c> how big its card came out, since the dialog element itself is stretched to fill
+    /// the whole <c>XamlRoot</c>. If nothing filled is found, the window keeps the size it has and the drag
+    /// stays unwired: a dialog with a ring around it and no drag beats no dialog.
     /// </para>
     /// </summary>
-    private void FitToCard(ContentDialog dialog)
+    private void OnDialogOpened(ContentDialog dialog)
     {
         try
         {
@@ -164,6 +162,19 @@ internal sealed class DialogWindow : IDisposable
             _heightInEpx = Math.Min(card.ActualHeight, MaxHeightInEpx);
 
             ApplyLayout();
+
+            // Attached to the dialog, which is what the report of "the window follows the mouse but drifts
+            // in a small box" proves receives these events: a real mouse produced that, so the handler runs.
+            // (Attaching them to this window's root instead does nothing, and script-injected mouse input
+            // never reaches WinUI's pointer stack at all, so the drag cannot be judged from a script either
+            // way — this is a hand-test-only path.)
+            //
+            // handleEventsToo, and never marking them handled, so the dialog's own buttons keep receiving
+            // everything. The header-only rule in OnPointerPressed is what separates a drag from a click.
+            _dragSurface = dialog;
+            dialog.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
+            dialog.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
+            dialog.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
         }
         catch (Exception ex)
         {
@@ -284,33 +295,73 @@ internal sealed class DialogWindow : IDisposable
     {
         if (_dragSurface is not { } surface) return;
 
+        // Only the header drags, and deciding that here is also what keeps this from stealing the pointer
+        // from the dialog's buttons: a press below the header never captures anything.
+        if (e.GetCurrentPoint(surface).Position.Y > surface.ActualHeight * DragAreaFraction) return;
+
         _dragPointer = e.Pointer.PointerId;
-        _dragPoint = e.GetCurrentPoint(surface).Position;
+        _dragCursor = ScreenPointOf(surface, e.GetCurrentPoint(surface).Position);
         _windowOrigin = _window.AppWindow.Position;
+        _dragging = false;
+
+        // Captured, so the drag keeps working once the pointer leaves the card — which it does quickly,
+        // because the window is moving out from under it.
+        surface.CapturePointer(e.Pointer);
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_dragSurface is not { } surface || _dragPointer != e.Pointer.PointerId) return;
 
-        var position = e.GetCurrentPoint(surface).Position;
+        var cursor = ScreenPointOf(surface, e.GetCurrentPoint(surface).Position);
+        var dx = cursor.X - _dragCursor.X;
+        var dy = cursor.Y - _dragCursor.Y;
 
-        // Only the top of the dialog drags: below it are the buttons and the text, which have to keep
-        // behaving like buttons and text.
-        if (position.Y > surface.ActualHeight * DragAreaFraction) return;
+        if (!_dragging && Math.Abs(dx) + Math.Abs(dy) < DragThresholdInEpx) return;
 
+        _dragging = true;
+
+        var scale = _root.XamlRoot?.RasterizationScale ?? 1.0;
         _window.AppWindow.Move(new PointInt32(
-            _windowOrigin.X + (int)Math.Round(position.X - _dragPoint.X),
-            _windowOrigin.Y + (int)Math.Round(position.Y - _dragPoint.Y)));
+            _windowOrigin.X + (int)Math.Round(dx * scale),
+            _windowOrigin.Y + (int)Math.Round(dy * scale)));
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (_dragPointer == e.Pointer.PointerId) _dragPointer = 0;
+        if (_dragPointer != e.Pointer.PointerId) return;
+
+        _dragPointer = 0;
+        _dragging = false;
+        _dragSurface?.ReleasePointerCapture(e.Pointer);
+    }
+
+    /// <summary>
+    /// Where the pointer is on screen, in effective pixels.
+    /// <para>
+    /// The pointer's position is reported relative to the dialog, and the dialog sits in the window that is
+    /// being moved — so the window's own position (converted out of the physical pixels <c>AppWindow</c>
+    /// works in) is added to get a value that does not change while the window moves under the cursor. An
+    /// earlier version moved the window by the pointer's position <em>inside</em> the window, which the move
+    /// itself changes: it solved to half speed, which is what "follows the mouse but stays in a small box
+    /// near the middle" was.
+    /// </para>
+    /// </summary>
+    private Point ScreenPointOf(FrameworkElement surface, Point positionInSurface)
+    {
+        var scale = _root.XamlRoot?.RasterizationScale ?? 1.0;
+        var window = _window.AppWindow.Position;
+
+        return new Point(
+            (window.X / scale) + positionInSurface.X,
+            (window.Y / scale) + positionInSurface.Y);
     }
 
     /// <summary>How much of the dialog's top moves the window when dragged. Its header, in practice.</summary>
     private const double DragAreaFraction = 0.25;
+
+    /// <summary>Slop before a press becomes a drag, so a click in the header is still just a click.</summary>
+    private const int DragThresholdInEpx = 3;
 
     /// <summary>
     /// Centres on the primary display, using the size the window actually has — <c>DisplayArea.WorkArea</c>
