@@ -1,0 +1,45 @@
+{
+  "developer": "developer.png",
+  "supporters": [
+    {
+      "name": "Someone",
+      "profileUrl": null,
+      "avatar": "Someone.png"
+    },
+    {
+      "name": "papa",
+      "profileUrl": null,
+      "avatar": "papa.png"
+    },
+    {
+      "name": "blakeNaccarato",
+      "profileUrl": "https://blakenaccarato.com",
+      "avatar": "blakeNaccarato.png"
+    },
+    {
+      "name": "Kano",
+      "profileUrl": null,
+      "avatar": "Kano.png"
+    },
+    {
+      "name": "DIGITALYCHEE (lizhi.shop)",
+      "profileUrl": null,
+      "avatar": "DIGITALYCHEE__lizhi.shop_.png"
+    },
+    {
+      "name": "Creedzzz",
+      "profileUrl": "https://github.com/Creedzzz",
+      "avatar": "Creedzzz.png"
+    },
+    {
+      "name": "spicymanp",
+      "profileUrl": "https://github.com/spicymanp",
+      "avatar": "spicymanp.png"
+    },
+    {
+      "name": "dmatrix1968",
+      "profileUrl": "https://github.com/dmatrix1968",
+      "avatar": "dmatrix1968.png"
+    }
+  ]
+}

@@ -83,6 +83,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+
+    <!-- 关于页的开发者/赞助者名单与头像随应用一起分发：此前每次首访都要联网取 SVG、再下载并解码头像，
+         所以名单要等到第二次进入才显示完，头像也每次都像在重新加载。头像由 SVG 内嵌的 WebP 转成 PNG
+         （WinUI 没有 WebP 编解码器，原始 payload 永远解不出来），因此本地这一份既能离线用、也一定能显示。 -->
+    <Content Include="Assets\Supporters.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="Assets\Supporters\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

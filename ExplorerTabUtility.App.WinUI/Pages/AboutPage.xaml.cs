@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.IO;
+using System.Text.Json;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -166,20 +168,101 @@ public sealed partial class AboutPage : Page
 
     private async Task LoadSupportersAsync()
     {
+        // The copy that ships with the app first: it is what makes the list appear with the page instead of
+        // finishing a network round trip later. The network path below stays as the fallback for an install whose
+        // assets are missing.
+        if (TryLoadBundledSupporters() is { Count: > 0 } bundled)
+        {
+            BindSupporters(bundled);
+            StartupLog.Step($"About: supporters={bundled.Count} avatars={bundled.Count(i => i.Avatar != null)} (bundled)");
+            return;
+        }
+
         var supporters = await Helper.GetSupporters();
 
         var items = supporters
             .Select(s => new SupporterView(s.Name, s.ProfileUrl, s.ImageUrl))
             .ToList();
 
+        BindSupporters(items);
+
+        await Task.WhenAll(items.Select(LoadAvatarAsync));
+        StartupLog.Step($"About: supporters={items.Count} avatars={items.Count(i => i.Avatar != null)} (network)");
+    }
+
+    private void BindSupporters(List<SupporterView> items)
+    {
         SupportersList.ItemsSource = items;
 
         // Only show the placeholder when there really is nobody.
         SupportersEmptyText.Visibility =
             items.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
 
-        await Task.WhenAll(items.Select(LoadAvatarAsync));
-        StartupLog.Step($"About: supporters={items.Count} avatars={items.Count(i => i.Avatar != null)}");
+    /// <summary>
+    /// Reads the supporters that ship with the app: names, profile links and avatars.
+    /// <para>
+    /// Built from the sponsors SVG at build time — see the csproj. The avatars are PNGs converted from the SVG's
+    /// embedded WebP payloads, which is a second reason to bundle them: WinUI has no WebP codec, so those
+    /// payloads could never be decoded at runtime and the entries fell back to initials.
+    /// </para>
+    /// <para>
+    /// Returns null when the assets are not there, which leaves the network path in charge.
+    /// </para>
+    /// </summary>
+    private static List<SupporterView>? TryLoadBundledSupporters()
+    {
+        try
+        {
+            var directory = Path.Combine(AppContext.BaseDirectory, "Assets", "Supporters");
+            var index = Path.Combine(AppContext.BaseDirectory, "Assets", "Supporters.json");
+            if (!File.Exists(index)) return null;
+
+            // Case-insensitive: the file is camelCase, System.Text.Json matches property names exactly by
+            // default, and the mismatch silently yields empty objects.
+            var data = JsonSerializer.Deserialize<SupportersFile>(
+                File.ReadAllText(index, Encoding.UTF8),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (data?.Supporters is not { Count: > 0 } entries) return null;
+
+            var views = new List<SupporterView>(entries.Count);
+
+            foreach (var entry in entries)
+            {
+                var view = new SupporterView(entry.Name ?? string.Empty, entry.ProfileUrl, null);
+
+                var avatar = Path.Combine(directory, entry.Avatar ?? string.Empty);
+                if (!string.IsNullOrEmpty(entry.Avatar) && File.Exists(avatar))
+                {
+                    view.Avatar = GetOrCreateLocalImage(
+                        $"supporter:{entry.Avatar}",
+                        () => new BitmapImage(new Uri(avatar)));
+                }
+
+                views.Add(view);
+            }
+
+            return views;
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Step($"About: bundled supporters unavailable ({ex.GetType().Name}) — falling back to the network");
+            return null;
+        }
+    }
+
+    /// <summary>One entry of <c>Assets/Supporters.json</c>.</summary>
+    private sealed class SupportersFile
+    {
+        public string? Developer { get; set; }
+        public List<SupporterEntry>? Supporters { get; set; }
+    }
+
+    private sealed class SupporterEntry
+    {
+        public string? Name { get; set; }
+        public string? ProfileUrl { get; set; }
+        public string? Avatar { get; set; }
     }
 
     /// <summary>
@@ -195,9 +278,29 @@ public sealed partial class AboutPage : Page
     /// initials instead of an empty box.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The developer's picture, from the copy that ships with the app; the network is the fallback only.
+    /// </summary>
     private async Task LoadDeveloperAvatarAsync()
-        => DeveloperAvatar.Source = await TryLoadImageAsync(
+    {
+        try
+        {
+            var bundled = Path.Combine(AppContext.BaseDirectory, "Assets", "Supporters", "developer.png");
+            if (File.Exists(bundled))
+            {
+                DeveloperAvatar.Source = GetOrCreateLocalImage(
+                    "supporter:developer", () => new BitmapImage(new Uri(bundled)));
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Step($"About: bundled developer avatar unavailable ({ex.GetType().Name})");
+        }
+
+        DeveloperAvatar.Source = await TryLoadImageAsync(
             "https://avatars.githubusercontent.com/u/6666887?s=96");
+    }
 
     private static async Task LoadAvatarAsync(SupporterView view)
     {
