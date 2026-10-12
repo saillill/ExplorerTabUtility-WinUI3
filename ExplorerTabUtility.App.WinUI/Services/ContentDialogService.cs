@@ -252,6 +252,9 @@ public sealed class ContentDialogService : IDialogService
             {
                 if (FindDialogWindow().Handle is var handle && handle != 0)
                 {
+                    // Placed before it is raised: raising activates the window, and a window that is moved after
+                    // being activated can be seen jumping.
+                    CentreOnExplorerWindow(handle);
                     WinApi.ForceToTop(handle);
                     ready.TrySetResult(handle);
                     return;
@@ -265,6 +268,34 @@ public sealed class ContentDialogService : IDialogService
         });
 
         return ready.Task;
+    }
+
+    /// <summary>
+    /// Moves the dialog onto the File Explorer window in front, when that is what is in front.
+    /// <para>
+    /// The question is about Explorer's windows, so it belongs over the one the user is looking at rather than in
+    /// the middle of the display — asked for as "detect where the File Explorer window is and show in the middle
+    /// of it". When the window in front is anything else (this app's own settings window, say), nothing is moved
+    /// and the library's own centring stands.
+    /// </para>
+    /// </summary>
+    private static void CentreOnExplorerWindow(nint dialog)
+    {
+        if (!Helper.IsFileExplorerForeground(out var explorer)) return;
+        if (!WinApi.GetWindowRect(explorer, out var target)) return;
+        if (!WinApi.GetWindowRect(dialog, out var self)) return;
+
+        var width = self.Right - self.Left;
+        var height = self.Bottom - self.Top;
+
+        _ = WinApi.SetWindowPos(
+            dialog,
+            0,
+            target.Left + (((target.Right - target.Left) - width) / 2),
+            target.Top + (((target.Bottom - target.Top) - height) / 2),
+            0,
+            0,
+            WinApi.SWP_NOSIZE | WinApi.SWP_NOZORDER | WinApi.SWP_NOACTIVATE);
     }
 
     /// <summary>
