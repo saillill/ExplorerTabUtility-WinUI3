@@ -625,45 +625,26 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            // Raise the window on both paths; both end in ForceToTop. The release policy differs by what
-            // happens next, not by how the window was surfaced:
-            //   visible -> raise, then show the notice   (the caller releases when it is dismissed)
-            //   hidden  -> un-hide and raise, then show the notice
-            // The visible case is the one the user reported: the window was perfectly visible, just
-            // buried under a fullscreen game, so the notice rendered inside a window nobody could see.
-            // Visibility is not the question here — being on top is.
+            // The notice is a dialog in a window of its own, and that window brings itself to the top — so this
+            // no longer raises the app window to put the notice in front of it.
             //
-            // ShowFromTray() is deliberately not used on the visible path: it calls AppWindow.Show(),
-            // and this window may not be hidden at all. UnhideAndPresent() does the part that matters
-            // (restore from the tray only where it is needed) and logs honestly which case it was.
-            //
-            // Both paths deliberately use OnDialogDismissed. The grace-period timer must not arbitrate
-            // here, because a dialog IS about to be shown: on a fullscreen game, dropping the promotion
-            // while the user is still reading hands the top of the Z order back to the game and the
-            // notice disappears (~2.5s, measured 3/3).
-            if (AppWindow.IsVisible)
-                PresentWindow("SecondInstance", TopmostRelease.OnDialogDismissed);
-            else
-                UnhideAndPresent("SecondInstance", TopmostRelease.OnDialogDismissed);
-
-            await _services.Dialogs.ShowAsync(
+            // That raising is what the code here used to do, with a topmost promotion, an un-hide from the tray
+            // and a release policy arranged around the notice being shown *inside* this window (a window buried
+            // under a fullscreen game rendered the notice where nobody could see it — the report that started
+            // it). None of that applies to a standalone window: it is not inside this one, it does not need this
+            // window on screen to be visible, and it does not care whether this window is hidden in the tray.
+            // Leaving the window exactly where the user had it is also the smaller surprise: asking twice for the
+            // app does not have to drag the settings window out of the tray.
+            await _services.Dialogs.ShowStandaloneAsync(
                 LocalizationService.Get("AlreadyRunning"),
                 LocalizationService.Get("AppTitle"),
                 DialogButton.OK,
-                DialogIcon.Information);
+                DialogIcon.Information,
+                DialogResult.OK);
         }
         catch (Exception ex)
         {
             StartupLog.Fail("MainWindow.OnSecondInstanceRequested", ex);
-        }
-        finally
-        {
-            // The window only needed the front so this notice would be seen, so give the promotion up
-            // as soon as the notice is gone. In `finally` rather than after the await: OnDialogDismissed
-            // means the backstop timer is NOT armed on this path, so if ShowAsync throws, nothing else
-            // would ever release it and the window would stay pinned above everything — the exact
-            // outcome ReleaseTopmostNow exists to prevent. Safe when nothing was promoted.
-            ReleaseTopmostNow();
         }
     }
 

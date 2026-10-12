@@ -1,11 +1,14 @@
-using System;
+﻿using System;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Controls;
 using SuGarToolkit.Controls.Dialogs;
 using ExplorerTabUtility.Abstractions;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Managers;
+using ExplorerTabUtility.WinAPI;
 
 namespace ExplorerTabUtility.App.Services;
 
@@ -110,68 +113,23 @@ public sealed class ContentDialogService : IDialogService
     {
         if (host == DialogHost.Standalone)
         {
-            // A dialog in a window of its own, from SuGarToolkit.Controls.Dialogs — see the package reference in
-            // the csproj for why this is a dependency rather than something written here.
-            //
-            // Three things this library does that were each tried by hand in this file first, and each came out
-            // wrong: it sizes the window with ResizeClient and takes the 30 DIP of caption off the height (its
-            // own source notes that AppWindow.Resize is inaccurate and that ResizeClient over-reports with the
-            // content extended into the caption — which is exactly the clipping that was reported); it makes the
-            // card's title area the drag handle through SetTitleBar, so the dialog moves like a caption would,
-            // with no visible title bar; and it centres on the display when it has no owner window.
-            //
-            // Building the window has to happen on the UI thread, so the work is posted there — and the caller
-            // still blocks until the dialog is answered, which is the contract Core relies on.
+            // Posted to the UI thread (a XAML window has to be built there) while the caller blocks, which keeps
+            // the contract Core relies on for callers that are not on the UI thread. On the UI thread, use
+            // ShowStandaloneAsync instead — blocking there would deadlock against this very post.
             var standalone = new TaskCompletionSource<DialogResult>();
 
             _dispatcher.Post(async () =>
             {
                 try
                 {
-                    var (primary, secondary, close) = ButtonTexts(buttons);
-
-                    var dialog = new WindowedContentDialog
-                    {
-                        Title = title,
-
-                        // For the shell (alt-tab, taskbar); the dialog shows the title itself.
-                        WindowTitle = title,
-                        Content = message,
-                        RequestedTheme = ResolveTheme(),
-
-                        // No owner window: that window may be hidden in the tray, and this dialog exists precisely
-                        // so that asking about File Explorer's windows does not drag it on screen. Centred, but
-                        // on the display rather than on a parent — without this the window lands wherever the
-                        // system's cascade puts it, in the top-left corner.
-                        CenterInParent = true,
-
-                        // The card is the whole window. A second title bar above it is what made the first
-                        // version read as a Win32 window wrapped around a WinUI dialog.
-                        IsTitleBarVisible = false,
-
-                        DefaultButton = ToDefaultButton(buttons, defaultResult),
-                        PrimaryButtonText = primary,
-                        SecondaryButtonText = secondary,
-                        CloseButtonText = close
-                    };
-
-                    standalone.TrySetResult(ToResult(buttons, await dialog.ShowAsync()));
+                    standalone.TrySetResult(await ShowStandaloneAsync(message, title, buttons, icon, defaultResult));
                 }
                 catch (Exception ex)
                 {
-                    StartupLog.Fail("standalone dialog window, falling back to the app window", ex);
-
-                    // Answer with a dialog in the app window rather than with nothing: the caller is blocked on
-                    // this result, and a question that never appears is a question the user cannot answer.
-                    try
-                    {
-                        standalone.TrySetResult(await ShowAsync(message, title, buttons, icon, defaultResult));
-                    }
-                    catch (Exception fallback)
-                    {
-                        StartupLog.Fail("standalone dialog fallback", fallback);
-                        standalone.TrySetResult(defaultResult == DialogResult.None ? DialogResult.Cancel : defaultResult);
-                    }
+                    // Nothing should reach here — ShowStandaloneAsync falls back to the app window itself — but
+                    // the caller is blocked on this result and must be answered either way.
+                    StartupLog.Fail("standalone dialog", ex);
+                    standalone.TrySetResult(defaultResult == DialogResult.None ? DialogResult.Cancel : defaultResult);
                 }
             });
 
@@ -198,10 +156,170 @@ public sealed class ContentDialogService : IDialogService
     }
 
     /// <summary>
+    /// Shows the dialog in a window of its own. Must be called on the UI thread.
+    /// <para>
+    /// A dialog in a window of its own, from SuGarToolkit.Controls.Dialogs — see the package reference in the
+    /// csproj for why this is a dependency rather than something written here. Three things it does that were
+    /// each tried by hand in this file first, and each came out wrong: it sizes the window with ResizeClient and
+    /// takes the caption's 30 DIP off the height (its own source notes that AppWindow.Resize is inaccurate and
+    /// that ResizeClient over-reports height with the content extended into the caption — which is exactly the
+    /// clipping that was reported); it makes the card's title area the drag handle through SetTitleBar, so the
+    /// system runs the drag with no visible title bar; and it centres itself when it has no owner window.
+    /// </para>
+    /// <para>
+    /// Falls back to a dialog in the app window if the window cannot be built, so a question is never lost.
+    /// </para>
+    /// </summary>
+    public async Task<DialogResult> ShowStandaloneAsync(
+        string message,
+        string title,
+        DialogButton buttons,
+        DialogIcon icon,
+        DialogResult defaultResult)
+    {
+        try
+        {
+            var (primary, secondary, close) = ButtonTexts(buttons);
+
+            var dialog = new WindowedContentDialog
+            {
+                Title = title,
+
+                // For the shell (alt-tab, taskbar); the dialog shows the title itself.
+                WindowTitle = title,
+                Content = message,
+                RequestedTheme = ResolveTheme(),
+
+                // No owner window: that window may be hidden in the tray, and this dialog exists precisely so
+                // that asking about File Explorer's windows does not drag it on screen. Centred, but on the
+                // display rather than on a parent.
+                CenterInParent = true,
+
+                // The card is the whole window. A second title bar above it is what made the first version read
+                // as a Win32 window wrapped around a WinUI dialog.
+                IsTitleBarVisible = false,
+
+                DefaultButton = ToDefaultButton(buttons, defaultResult),
+                PrimaryButtonText = primary,
+                SecondaryButtonText = secondary,
+                CloseButtonText = close
+            };
+
+            // The window is created inside ShowAsync, so it cannot be raised before that has been started. The
+            // wait for it runs on a background thread, not on the UI thread: while the library is showing its
+            // dialog the UI thread is inside that call, so an awaited delay here never resumes until the dialog
+            // has already been answered (measured — the log said no window was ever found, although the dialog
+            // was on screen). Enumerating windows and raising one are pure Win32 and do not need the UI thread.
+            var showing = dialog.ShowAsync();
+            var raised = RaiseToTopWhenReady();
+
+            try
+            {
+                return ToResult(buttons, await showing);
+            }
+            finally
+            {
+                // Paired with the promotion above, as ForceToTop requires: HWND_TOPMOST is a sticky style, and
+                // the library hides its window rather than destroying it, so leaving it on would keep a
+                // discarded dialog above the user's windows for the rest of the session.
+                if (await raised is var handle && handle != 0) WinApi.ReleaseTop(handle);
+            }
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("standalone dialog window, falling back to the app window", ex);
+            return await ShowAsync(message, title, buttons, icon, defaultResult);
+        }
+    }
+
+    /// <summary>
+    /// Raises the dialog's window as soon as it is on screen, waiting for it on a background thread.
+    /// <para>
+    /// Nothing is awaited here before returning, so the UI thread is never blocked: while the library is showing
+    /// its dialog the UI thread is inside that call, so a delay awaited there never resumes until the dialog has
+    /// already been answered (measured — the log reported that no window was ever found although the dialog was
+    /// on screen). Enumerating windows and raising one are pure Win32 and need no UI thread. The handle comes
+    /// back through the task, and zero means no such window ever appeared.
+    /// </para>
+    /// </summary>
+    private static Task<nint> RaiseToTopWhenReady()
+    {
+        var ready = new TaskCompletionSource<nint>();
+
+        _ = Task.Run(async () =>
+        {
+            for (var attempt = 0; attempt < 60; attempt++)
+            {
+                if (FindDialogWindow().Handle is var handle && handle != 0)
+                {
+                    WinApi.ForceToTop(handle);
+                    ready.TrySetResult(handle);
+                    return;
+                }
+
+                await Task.Delay(50);
+            }
+
+            StartupLog.Step("standalone dialog: its window never showed up to be raised");
+            ready.TrySetResult(0);
+        });
+
+        return ready.Task;
+    }
+
+    /// <summary>
+    /// Finds the dialog's window: the visible top-level window of this process that is not the app window.
+    /// <para>
+    /// The library keeps its window to itself — its <c>ContentDialogWindow</c> property is internal in 2.1.1
+    /// (public only on the project's main branch) — so it is found the way any other window of a process can be,
+    /// by enumerating them. <see cref="WinApi.ForceToTop"/> also restores a minimised window first, which is half
+    /// of what was reported ("it does not come to the top, it stays down in the taskbar").
+    /// </para>
+    /// </summary>
+    private static (nint Handle, string Title) FindDialogWindow()
+    {
+        var appWindow = App.MainWindowInstance is { } main
+            ? (nint)WinRT.Interop.WindowNative.GetWindowHandle(main)
+            : 0;
+
+        var pid = (uint)Environment.ProcessId;
+        nint found = 0;
+        var title = string.Empty;
+
+        // The lambda's parameters are named rather than discarded with '_': a parameter called '_' is not a
+        // discard, so the '_ =' below would assign to it instead (it type-checks as a nint, which is how that
+        // reads as "cannot convert uint to nint" rather than anything about discards).
+        _ = WinApi.EnumWindows((window, lparam) =>
+        {
+            _ = lparam;
+            if (window == appWindow || !WinApi.IsWindowVisible(window)) return true;
+
+            _ = WinApi.GetWindowThreadProcessId(window, out var owner);
+            if (owner != pid) return true;
+
+            // Named, so this process's hidden helper windows are skipped even if one is visible.
+            var text = GetWindowTitle(window);
+            if (text.Length == 0) return true;
+
+            found = window;
+            title = text;
+            return false;
+        }, 0);
+
+        return (found, title);
+    }
+
+    private static string GetWindowTitle(nint window)
+    {
+        var buffer = new StringBuilder(256);
+        return WinApi.GetWindowText(window, buffer, buffer.Capacity) > 0 ? buffer.ToString() : string.Empty;
+    }
+
+    /// <summary>
     /// Shows the dialog in the app window. Must be called on the UI thread.
     /// <para>
-    /// A dialog in a window of its own (<see cref="DialogHost.Standalone"/>) does not come through here at all:
-    /// it is built by the library that owns that window, in <see cref="IDialogService.Show"/>.
+    /// A dialog in a window of its own (<see cref="DialogHost.Standalone"/>) does not come through here: it is
+    /// built by the library that owns that window, in <see cref="ShowStandaloneAsync"/>.
     /// </para>
     /// </summary>
     public async Task<DialogResult> ShowAsync(

@@ -45,6 +45,18 @@ public static class WinApi
     [DllImport("user32.dll")]
     public static extern nint SetWinEventHook(uint eventMin, uint eventMax, nint hModWinEventProc, WinEventDelegate lPfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
 
+    /// <summary>Callback for <see cref="EnumWindows"/>. Return <c>true</c> to keep enumerating.</summary>
+    public delegate bool EnumWindowsProc(nint hWnd, nint lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(nint hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetWindowText(nint hWnd, StringBuilder text, int maxCount);
+
     /// <summary>Non-client left button down — used with <see cref="HTCAPTION"/> to let the system drag a window
     /// that draws no caption of its own.</summary>
     public const int WM_NCLBUTTONDOWN = 0x00A1;
