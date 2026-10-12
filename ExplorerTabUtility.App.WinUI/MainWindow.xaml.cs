@@ -1256,7 +1256,7 @@ public sealed partial class MainWindow : Window
 
         StartupLog.Step("EnsureWindowVisible: window was hidden in the tray, showing it for a pending dialog");
 
-        AppWindow.Show();
+        ShowWindowWithMotion();
         Activate();
     }
 
@@ -1278,8 +1278,23 @@ public sealed partial class MainWindow : Window
         // report "wasHidden=False" for a genuine tray restore.
         StartupLog.Step($"{reason}: restoring from the tray (was hidden)");
 
-        AppWindow.Show();
+        ShowWindowWithMotion();
         PresentWindow(reason, releaseWhen);
+    }
+
+    /// <summary>
+    /// Shows a window that was hidden in the tray, fading its content in.
+    /// <para>
+    /// The fade is the one animation in this window that no platform control provides — showing a window is not
+    /// a control transition — so it comes from <see cref="Motion"/>, which is where the app's motion vocabulary
+    /// lives: linear, over the faster control duration (83ms), and applied as a final value rather than animated
+    /// when the system's animation setting is off.
+    /// </para>
+    /// </summary>
+    private void ShowWindowWithMotion()
+    {
+        AppWindow.Show();
+        Motion.FadeIn((UIElement)Content);
     }
 
     /// <summary>
