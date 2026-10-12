@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CommunityToolkit.WinUI.Controls;
@@ -113,30 +113,35 @@ internal sealed class ProfileCardView : IProfileCardView
 {
     // ---- Summary row ---------------------------------------------------------
 
-    // Spacing 0 on both panels: consecutive SettingsCards then butt against each other and read as
-    // one connected group with a single hairline seam, which is the look the reference design uses.
-    // (A gap would render them as separate detached cards.)
-    private readonly StackPanel _root = new() { Spacing = 0 };
-    private readonly SettingsCard _summaryCard = new();
+    /// <summary>
+    /// The card itself: the toolkit's <see cref="SettingsExpander"/>.
+    /// <para>
+    /// It is the control the reference layout comes from — the Windows Settings page is built with it, which is
+    /// why it, and not the platform's own <c>Expander</c>, is what this card uses. It draws the official header
+    /// slots (icon, header, description, trailing content), joins the expanded rows to the header with the
+    /// separator the reference has, and animates the disclosure itself.
+    /// </para>
+    /// <para>
+    /// This control was dropped once, for two reasons: a full-width hairline above the expanded content, and
+    /// content that did not stretch. The hairline is in the reference — it is the separator between the header and
+    /// the rows. The stretch is handled by the rows themselves, each of which is a <c>SettingsCard</c> with
+    /// <c>HorizontalAlignment.Stretch</c>.
+    /// </para>
+    /// </summary>
+    private readonly SettingsExpander _root = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        IsExpanded = false
+    };
+
     private readonly TextBlock _summary = new();
     private readonly TextBlock _summaryDetail = new();
     private readonly ToggleSwitch _enabled = new();
     private readonly CheckBox _handled = new();
     private readonly CheckBox _asTab = new();
-    private readonly FontIcon _chevron = new();
-
-    /// <summary>
-    /// The expand/collapse affordance. A real <see cref="Button"/> — not the bare glyph it draws —
-    /// because this is the single most important control in a collapsed row: it has to be reachable
-    /// with <c>Tab</c>, activatable with space/enter, and exposed to assistive technology as an
-    /// invoke-able element, none of which an unfocusable <see cref="FontIcon"/> with a
-    /// <c>Tapped</c> handler can offer. Its size is the Fluent touch-target floor.
-    /// </summary>
-    private readonly Button _expandButton = new();
 
     // ---- Detail rows ---------------------------------------------------------
 
-    private readonly StackPanel _detailPanel = new() { Spacing = 0 };
     private readonly TextBox _name = new();
     private readonly TextBox _hotKeys = new() { IsReadOnly = true };
     private readonly ComboBox _scope = new();
@@ -207,23 +212,25 @@ internal sealed class ProfileCardView : IProfileCardView
 
     private void BuildUi()
     {
-        _root.HorizontalAlignment = HorizontalAlignment.Stretch;
-
         BuildSummaryRow();
         BuildDetailRows();
 
-        _root.Children.Add(_summaryCard);
+        // The toolkit's slots, which are the layout the reference uses: icon, header, description, and the
+        // trailing content (the enable switch). The rows go into Items, which is what draws them joined to the
+        // header — nothing is added or removed per toggle, the control reveals what is already there.
+        _root.Header = _summary;
+        _root.Description = _summaryDetail;
+        _root.HeaderIcon = new FontIcon { Glyph = ProfileGlyph, FontSize = 16 };
+        _root.Content = _enabled;
 
-        // Playing the entrance transition when the detail panel is added is the native way to animate a
-        // disclosure region — no custom Storyboard needed. The offsets are overridden because the stock
-        // ones animate from a 40 epx *horizontal* offset, which makes a full-width settings group slide
-        // in sideways; a disclosure rises into place instead.
-        _root.ChildrenTransitions = new TransitionCollection
-        {
-            new EntranceThemeTransition { FromHorizontalOffset = 0, FromVerticalOffset = 12 }
-        };
+        _root.Expanded += (_, _) => OnExpandedChanged(expanded: true);
+        _root.Collapsed += (_, _) => OnExpandedChanged(expanded: false);
 
         WireHandlers();
+
+        // The control's own state, not the field's default: the corner radii and the row seams depend on whether
+        // the card starts open, and the events only fire on user interaction.
+        _isExpanded = _root.IsExpanded;
         ApplyCornerRadii();
     }
 
@@ -243,12 +250,8 @@ internal sealed class ProfileCardView : IProfileCardView
 
         // Styled rather than coloured: the style's {ThemeResource} setter re-resolves with the theme
         // that is actually in effect, which a brush fetched in code does not.
-        if (TryFindStyle("SecondaryCaptionTextStyle", out var captionStyle))
+        if (TryFindStyle("SecondaryCaptionTextBlockStyle", out var captionStyle))
             _summaryDetail.Style = captionStyle;
-
-        var header = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        header.Children.Add(_summary);
-        header.Children.Add(_summaryDetail);
 
         // WinUI renders OnContent/OffContent to the leading side of the switch, which is exactly the
         // "开 [switch]" arrangement in the reference design.
@@ -256,66 +259,29 @@ internal sealed class ProfileCardView : IProfileCardView
         _enabled.OffContent = Loc("ToggleOff");
         _enabled.VerticalAlignment = VerticalAlignment.Center;
 
-        _chevron.Glyph = ChevronCollapsedGlyph;
-        _chevron.FontSize = 14;
-
-        BuildExpandButton();
-
-        var controls = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        controls.Children.Add(_enabled);
-        controls.Children.Add(_expandButton);
-
-        _summaryCard.Header = header;
-        _summaryCard.HeaderIcon = new FontIcon { Glyph = ProfileGlyph, FontSize = 16 };
-        _summaryCard.Content = controls;
-        _summaryCard.HorizontalAlignment = HorizontalAlignment.Stretch;
-
-        _rowCards.Add(_summaryCard);
+        // Nothing else is laid out here: SettingsExpander has the header slots — icon, header, description,
+        // trailing content — and lays them out the way the reference does. The hand-built Grid that stood in
+        // for them is gone with the platform Expander that needed it.
     }
 
     /// <summary>
-    /// Wraps the chevron glyph in a real button so the disclosure region is operable without a mouse.
-    /// <para>
-    /// Only the <b>rest</b> background and border are neutralised, and they are neutralised by
-    /// overriding the two theme resources the official style reads for those states — so the control
-    /// still reads as a bare icon at rest (the reference design) while hover, press, focus and disabled
-    /// keep the platform's own feedback instead of a hand-drawn one. No template is replaced and no
-    /// colour is invented; the filled states that appear on interaction are the stock ones.
-    /// </para>
-    /// <para>
-    /// The glyph stays a <see cref="FontIcon"/> inside the button: WinUI ships no bare-icon button
-    /// style, and the previous arrangement — an unfocusable icon with a <c>Tapped</c> handler — could
-    /// not be reached by keyboard or by assistive technology at all, which is a worse trade than a
-    /// button that shows the official hover fill.
-    /// </para>
+    /// Follows the Expander's own state. The detail rows are always in its content, so there is nothing to attach
+    /// or detach — what changes is the corner radii, because the group is taller when it is open, and the log line
+    /// that records the measured row heights.
     /// </summary>
-    private void BuildExpandButton()
+    private void OnExpandedChanged(bool expanded)
     {
-        _expandButton.Content = _chevron;
-        _expandButton.Width = ExpandButtonSize;
-        _expandButton.Height = ExpandButtonSize;
-        _expandButton.Padding = new Thickness(0);
-        _expandButton.VerticalAlignment = VerticalAlignment.Center;
-        _expandButton.Click += (_, _) => ToggleExpanded();
+        _isExpanded = expanded;
 
-        _expandButton.Resources[ButtonBackgroundResourceKey] =
-            new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-        _expandButton.Resources[ButtonBorderBrushResourceKey] =
-            new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        // Which corners count as "outer" changes with the group's height.
+        ApplyCornerRadii();
 
-        SetExpandButtonAccessibilityText();
-    }
+        if (_rowsLogged) return;
+        _rowsLogged = true;
 
-    private void SetExpandButtonAccessibilityText()
-    {
-        var label = Loc("ExpandProfile");
-        AutomationProperties.SetName(_expandButton, label);
-        ToolTipService.SetToolTip(_expandButton, label);
+        _queue.TryEnqueue(() => StartupLog.Step(
+            $"rows: card={_root.ActualHeight:F0} " +
+            $"detail={string.Join("/", _rowCards.Select(row => row.ActualHeight.ToString("F0")))}"));
     }
 
     /// <summary>
@@ -329,20 +295,20 @@ internal sealed class ProfileCardView : IProfileCardView
     /// </summary>
     private void BuildDetailRows()
     {
-        AddCard(_detailPanel, "Name", _name);
-        AddCard(_detailPanel, "HotKeys", _hotKeys);
-        AddCard(_detailPanel, "Scope", _scope);
-        AddCard(_detailPanel, "Action", _action);
+        AddCard(_root.Items, "Name", _name);
+        AddCard(_root.Items, "HotKeys", _hotKeys);
+        AddCard(_root.Items, "Scope", _scope);
+        AddCard(_root.Items, "Action", _action);
 
         // These three only apply to some actions; ApplyOptionVisibility() hides the ones the
         // selected action ignores. Each label therefore states what the field is for instead of
         // relying on a second line of explanatory text.
-        _pathCard = AddCard(_detailPanel, "Path", _path);
-        _delayCard = AddCard(_detailPanel, "Delay", _delay);
+        _pathCard = AddCard(_root.Items, "Path", _path);
+        _delayCard = AddCard(_root.Items, "Delay", _delay);
 
         // Booleans: leading check box whose label is the statement it asserts.
-        _handledCard = AddCheckRow(_detailPanel, "HandledTooltip", _handled);
-        _asTabCard = AddCheckRow(_detailPanel, "TabTooltip", _asTab);
+        _handledCard = AddCheckRow(_root.Items, "HandledTooltip", _handled);
+        _asTabCard = AddCheckRow(_root.Items, "TabTooltip", _asTab);
 
         // Destructive action is the last row of the same group. The button's solid fill comes from
         // DestructiveButtonTemplate — keeping it red while hovered or pressed means overriding six
@@ -368,7 +334,7 @@ internal sealed class ProfileCardView : IProfileCardView
             if (deleteCard.Header is TextBlock label) label.Text = Loc("DeleteProfileTooltip");
             deleteButton.Content = Loc("Delete");
         });
-        _detailPanel.Children.Add(deleteCard);
+        _root.Items.Add(deleteCard);
         _rowCards.Add(deleteCard);
     }
 
@@ -380,7 +346,7 @@ internal sealed class ProfileCardView : IProfileCardView
     /// belongs in the label rather than in a second line under it.
     /// </para>
     /// </summary>
-    private SettingsCard AddCheckRow(StackPanel host, string statementKey, CheckBox checkBox)
+    private SettingsCard AddCheckRow(IList<object> host, string statementKey, CheckBox checkBox)
     {
         checkBox.Content = Loc(statementKey);
         checkBox.MinWidth = 0;
@@ -396,7 +362,7 @@ internal sealed class ProfileCardView : IProfileCardView
 
         _localizers.Add(() => checkBox.Content = Loc(statementKey));
 
-        host.Children.Add(card);
+        host.Add(card);
         _rowCards.Add(card);
 
         return card;
@@ -513,33 +479,6 @@ internal sealed class ProfileCardView : IProfileCardView
         return 4;
     }
 
-    private void ToggleExpanded()
-    {
-        _isExpanded = !_isExpanded;
-
-        if (_isExpanded)
-        {
-            // Adding (rather than un-hiding) the panel is what lets ChildrenTransitions run.
-            _root.Children.Add(_detailPanel);
-        }
-        else
-        {
-            _root.Children.Remove(_detailPanel);
-        }
-
-        _chevron.Glyph = _isExpanded ? ChevronExpandedGlyph : ChevronCollapsedGlyph;
-
-        // Which corners count as "outer" changes with the group's height.
-        ApplyCornerRadii();
-
-        if (_rowsLogged) return;
-        _rowsLogged = true;
-
-        _queue.TryEnqueue(() => StartupLog.Step(
-            $"rows: summary={_summaryCard.ActualHeight:F0} " +
-            $"detail={string.Join("/", _rowCards.Skip(1).Select(row => row.ActualHeight.ToString("F0")))}"));
-    }
-
     private bool _isExpanded;
     private bool _rowsLogged;
 
@@ -626,7 +565,7 @@ internal sealed class ProfileCardView : IProfileCardView
     /// apply at all are hidden rather than annotated.
     /// </para>
     /// </summary>
-    private SettingsCard AddCard(StackPanel host, string labelKey, FrameworkElement content)
+    private SettingsCard AddCard(IList<object> host, string labelKey, FrameworkElement content)
     {
         // SettingsCard places Content on the trailing edge; keep it compact so the label always has
         // room on the leading side.
@@ -656,7 +595,7 @@ internal sealed class ProfileCardView : IProfileCardView
 
         _localizers.Add(() => label.Text = Loc(labelKey));
 
-        host.Children.Add(card);
+        host.Add(card);
         _rowCards.Add(card);
 
         return card;
@@ -828,7 +767,11 @@ internal sealed class ProfileCardView : IProfileCardView
         _enabled.OnContent = Loc("ToggleOn");
         _enabled.OffContent = Loc("ToggleOff");
 
-        SetExpandButtonAccessibilityText();
+        // The Expander draws the disclosure affordance, so its accessible name is the only label left to refresh
+        // here — the hand-built button that used to carry one is gone.
+        var expandLabel = Loc("ExpandProfile");
+        AutomationProperties.SetName(_root, expandLabel);
+        ToolTipService.SetToolTip(_root, expandLabel);
 
         var scope = Profile.Scope;
         var action = Profile.Action;
@@ -1006,8 +949,6 @@ internal sealed class ProfileCardView : IProfileCardView
 
     // ---- Official glyphs and resource lookups --------------------------------
 
-    private const string ChevronCollapsedGlyph = "\uE70D";
-    private const string ChevronExpandedGlyph = "\uE70E";
     private const string ProfileGlyph = "\uE765";
 
     /// <summary>
@@ -1031,19 +972,22 @@ internal sealed class ProfileCardView : IProfileCardView
     private const double CompactRowMinHeight = 60;
 
     /// <summary>
-    /// Edge length of the expand/collapse button. Fluent's touch-target floor is 40 epx; the glyph
-    /// inside stays 14, so this only widens the hit area.
-    /// </summary>
-    private const double ExpandButtonSize = 40;
-
     /// <summary>
-    /// The two theme resources the stock <see cref="Button"/> style reads for its <b>rest</b> state.
-    /// Overriding these (and only these) makes the button read as a bare icon until it is interacted
-    /// with, without touching the template or the interactive states.
+    /// The theme resources the stock <see cref="Button"/> style reads for its border, narrowed to a bare icon.
+    /// <para>
+    /// The rest state alone was neutralised at first, on the reasoning that the interactive states are the
+    /// platform's own feedback and worth keeping. Asked for: only the icon should show — so the border is
+    /// neutralised in the interactive states too. The <b>fill</b> those states use is deliberately left alone:
+    /// the button keeps the stock hover and press feedback, which is what makes it still read as a button.
+    /// No template is replaced and no colour is invented.
+    /// </para>
     /// </summary>
     private const string ButtonBackgroundResourceKey = "ButtonBackground";
 
     private const string ButtonBorderBrushResourceKey = "ButtonBorderBrush";
+    private const string ButtonBorderBrushPointerOverResourceKey = "ButtonBorderBrushPointerOver";
+    private const string ButtonBorderBrushPressedResourceKey = "ButtonBorderBrushPressed";
+    private const string ButtonBorderBrushDisabledResourceKey = "ButtonBorderBrushDisabled";
 
     private static string Loc(string key) => LocalizationService.Get(key);
 

@@ -49,10 +49,10 @@
             </Grid>
 
             <StackPanel x:Name="ProfilesPanel" Spacing="4" Margin="0,12,0,0">
-                <!-- 官方入场过渡：配置卡片出现时淡入并上移。卡片是运行时加入的，正是这个过渡的适用场景；
-                     同样跟随系统"减少动画"设置。 -->
+                <!-- 官方入场过渡：卡片出现时自下而上淡入。IsStaggeringEnabled 让每张卡片在前一张之后
+                     再入场（自上而下依次），这正是"一张一张逐渐向上淡入"；关闭时跟随系统"减少动画"设置。 -->
                 <StackPanel.ChildrenTransitions>
-                    <EntranceThemeTransition FromVerticalOffset="8" />
+                    <EntranceThemeTransition FromVerticalOffset="12" IsStaggeringEnabled="True" />
                 </StackPanel.ChildrenTransitions>
             </StackPanel>
         </StackPanel>
