@@ -461,6 +461,16 @@ code comments.
 
 CI (`.github/workflows/build.yml`) only compiles and tests. It deliberately has no release step.
 
+## Contributors
+
+In the order the work came: the original application, its first outside contribution, and this rewrite.
+
+| | | |
+| --- | --- | --- |
+| <img src="https://github.com/w4po.png?size=72" width="40" alt="w4po" /> | [**w4po**](https://github.com/w4po) | Original [ExplorerTabUtility](https://github.com/w4po/ExplorerTabUtility) (WPF): the design, the features and the codebase this rewrite is a port of. |
+| <img src="https://github.com/bircni.png?size=72" width="40" alt="bircni" /> | [**bircni**](https://github.com/bircni) | First outside contribution to the original project: the winget installation instructions. |
+| <img src="https://github.com/saillill.png?size=72" width="40" alt="saillill" /> | [**saillill**](https://github.com/saillill) | The WinUI 3 rewrite. |
+
 ## Contributing
 
 Contributions are welcome! Feel free to submit issues and pull requests.
