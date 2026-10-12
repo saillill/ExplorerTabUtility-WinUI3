@@ -109,6 +109,18 @@ public class LocalizationService
             var resolved = string.IsNullOrWhiteSpace(value) ? SystemLanguage : ResolveSupported(value);
 
             var culture = CreateCulture(resolved);
+
+            // Both scopes, deliberately. The thread-scoped pair covers the UI thread that is setting this; the
+            // process-wide pair is what makes the choice hold on threads created later — the culture is a
+            // per-thread property, so without it every new thread resolves against the neutral (English)
+            // resources rather than the chosen language.
+            //
+            // This is not what made the "already running" notice come out in English: that was the stored
+            // language itself being the pre-picker fallback "en" while the window's own XAML follows the system
+            // language, so the two halves of the UI disagreed. It is fixed here regardless, because a background
+            // thread resolving to a different language than the UI thread is a bug waiting for a call site.
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
+            CultureInfo.DefaultThreadCurrentCulture = culture;
             CultureInfo.CurrentUICulture = culture;
             CultureInfo.CurrentCulture = culture;
         }
