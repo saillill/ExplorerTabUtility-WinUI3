@@ -48,13 +48,21 @@
                 </StackPanel>
             </Grid>
 
-            <StackPanel x:Name="ProfilesPanel" Spacing="4" Margin="0,12,0,0">
-                <!-- 官方入场过渡：卡片出现时自下而上淡入。IsStaggeringEnabled 让每张卡片在前一张之后
-                     再入场（自上而下依次），这正是"一张一张逐渐向上淡入"；关闭时跟随系统"减少动画"设置。 -->
-                <StackPanel.ChildrenTransitions>
-                    <EntranceThemeTransition FromVerticalOffset="12" IsStaggeringEnabled="True" />
-                </StackPanel.ChildrenTransitions>
-            </StackPanel>
+            <!-- 卡片用 ItemsControl 承载：官方把"逐个入场"定义在 ItemsControl 的 ItemContainerTransitions 上
+                 （Panel.ChildrenTransitions 只是普通过渡，不会错峰 ✗ —— 这正是之前做成"整体浮出"的原因）。
+                 入场与错峰都由平台负责（ItemContainerTransitions + IsStaggeringEnabled）。这一步是唯一被确认"能感觉到错峰"的配置。） -->
+            <ItemsControl x:Name="ProfilesPanel" Margin="0,12,0,0">
+                <ItemsControl.ItemContainerTransitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="32" IsStaggeringEnabled="True" />
+                    </TransitionCollection>
+                </ItemsControl.ItemContainerTransitions>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
         </StackPanel>
     </ScrollViewer>
 </Page>

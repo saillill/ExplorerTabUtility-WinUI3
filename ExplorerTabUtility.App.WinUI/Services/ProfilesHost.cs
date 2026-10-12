@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Linq;
 using CommunityToolkit.WinUI.Controls;
 using H.Hooks;
@@ -26,7 +27,7 @@ namespace ExplorerTabUtility.App.Services;
 public sealed class ProfilesHost : IProfilesHost
 {
     private readonly List<IProfileCardView> _cards = [];
-    private Panel? _panel;
+    private ItemsControl? _panel;
 
     public IReadOnlyList<IProfileCardView> Cards => _cards;
 
@@ -37,7 +38,7 @@ public sealed class ProfilesHost : IProfilesHost
     /// navigation does not churn its visual tree.
     /// </para>
     /// </summary>
-    public void Attach(Panel panel)
+    public void Attach(ItemsControl panel)
     {
         if (panel is null) throw new ArgumentNullException(nameof(panel));
         if (ReferenceEquals(_panel, panel)) return;
@@ -45,9 +46,57 @@ public sealed class ProfilesHost : IProfilesHost
         Detach();
         _panel = panel;
 
-        foreach (var card in _cards)
-            _panel.Children.Add(((ProfileCardView)card).Root);
+        // The cards go in once the panel is in the tree and the window can show them.
+        //
+        // Both halves are measured rather than assumed. A transition plays for items added after the control has
+        // been rendered, and this is called from OnNavigatedTo, which runs before that — so adding them there
+        // meant no transition at all. And the window's content is not painted until about 470ms after the window
+        // appears, so an animation started in that gap plays behind a blank window: a frame series showed the
+        // window blank from 16.56 to 16.70 while the entrance ran from 16.36 to 16.86.
+        if (panel.IsLoaded)
+        {
+            AddCardsAfterStartup(panel);
+            return;
+        }
+
+        void OnPanelLoaded(object sender, RoutedEventArgs e)
+        {
+            panel.Loaded -= OnPanelLoaded;
+            AddCardsAfterStartup(panel);
+        }
+
+        panel.Loaded += OnPanelLoaded;
     }
+
+    /// <summary>
+    /// Adds the cards once the window has painted, so the entrance they play can be seen, and paces them so the
+    /// staggering is legible.
+    /// <para>
+    /// The wait before the first card is the measured start-up time plus a margin. The pace between cards is this
+    /// app's choice, and it has to be: <c>EntranceThemeTransition</c> has no property for the interval between
+    /// items — the runtime picks it, and what it picks reads as the cards arriving together. Spacing the adds is
+    /// not a hand-written animation; each card still enters through the platform's own item transition, which is
+    /// what <c>ItemContainerTransitions</c> is for. The pace is one of the guidance's durations, so the timing
+    /// stays inside the set this was asked for.
+    /// </para>
+    /// </summary>
+    private async void AddCardsAfterStartup(ItemsControl panel)
+    {
+        await Task.Delay(EntranceDelay);
+
+        // All at once, deliberately. The staggering is the platform's, from the control's
+        // ItemContainerTransitions, and it applies to the items the control takes on as a group. Adding them one
+        // at a time to pace the stagger by hand was tried and made no visible difference: the item transition
+        // does not appear to run for items added long after the control has loaded, so the cards simply appeared,
+        // spaced out. This arrangement is also the only one whose stagger has been reported as visible.
+        foreach (var card in _cards)
+            panel.Items.Add(((ProfileCardView)card).Root);
+
+        StartupLog.Step($"profiles: {_cards.Count} cards added");
+    }
+
+    /// <summary>How long the page stays card-less, waiting for the window's first paint.</summary>
+    private static readonly TimeSpan EntranceDelay = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
     /// Releases the cards from their current parent.
@@ -72,7 +121,7 @@ public sealed class ProfilesHost : IProfilesHost
 
     public void Clear()
     {
-        _panel?.Children.Clear();
+        _panel?.Items.Clear();
         _cards.Clear();
     }
 
@@ -82,13 +131,13 @@ public sealed class ProfilesHost : IProfilesHost
 
         var root = ((ProfileCardView)card).Root;
         RemoveFromParent(root);
-        _panel?.Children.Add(root);
+        _panel?.Items.Add(root);
     }
 
     public void Remove(IProfileCardView card)
     {
         _cards.Remove(card);
-        _panel?.Children.Remove(((ProfileCardView)card).Root);
+        _panel?.Items.Remove(((ProfileCardView)card).Root);
     }
 }
 

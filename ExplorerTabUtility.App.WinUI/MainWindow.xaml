@@ -92,13 +92,7 @@
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 
-            <Frame x:Name="ContentFrame">
-                <!-- 官方页面过渡：新页从右滑入、旧页淡出。用平台控件而不是自造动画，
-                     并且它本身就跟随系统"减少动画"设置（关闭时直接切换）。 -->
-                <Frame.ContentTransitions>
-                    <NavigationThemeTransition />
-                </Frame.ContentTransitions>
-            </Frame>
+            <Frame x:Name="ContentFrame" />
         </NavigationView>
     </Grid>
 </Window>
