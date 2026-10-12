@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using SuGarToolkit.Controls.Dialogs;
 using ExplorerTabUtility.Abstractions;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Managers;
@@ -109,40 +110,59 @@ public sealed class ContentDialogService : IDialogService
     {
         if (host == DialogHost.Standalone)
         {
-            // A window of its own, hosting the same platform dialog this class builds for every other
-            // call site (see DialogWindow). Building a XAML window has to happen on the UI thread, so the
-            // work is posted there — and the caller still blocks until the dialog is answered, which is
-            // the contract Core relies on.
+            // A dialog in a window of its own, from SuGarToolkit.Controls.Dialogs — see the package reference in
+            // the csproj for why this is a dependency rather than something written here.
+            //
+            // Three things this library does that were each tried by hand in this file first, and each came out
+            // wrong: it sizes the window with ResizeClient and takes the 30 DIP of caption off the height (its
+            // own source notes that AppWindow.Resize is inaccurate and that ResizeClient over-reports with the
+            // content extended into the caption — which is exactly the clipping that was reported); it makes the
+            // card's title area the drag handle through SetTitleBar, so the dialog moves like a caption would,
+            // with no visible title bar; and it centres on the display when it has no owner window.
+            //
+            // Building the window has to happen on the UI thread, so the work is posted there — and the caller
+            // still blocks until the dialog is answered, which is the contract Core relies on.
             var standalone = new TaskCompletionSource<DialogResult>();
 
             _dispatcher.Post(async () =>
             {
-                // Inside the try: building the window throws for invalid presenter combinations, and the
-                // version that created it outside lost the dialog entirely — the exception escaped, the
-                // caller was never answered and nothing appeared.
-                var window = (DialogWindow?)null;
-
                 try
                 {
-                    window = new DialogWindow(title);
+                    var (primary, secondary, close) = ButtonTexts(buttons);
 
-                    // A XamlRoot only exists once the window has loaded.
-                    await window.LoadedAsync();
+                    var dialog = new WindowedContentDialog
+                    {
+                        Title = title,
 
-                    // The dialog shows the title: the window it lives in has no caption to carry it.
-                    // FitTo sizes the window to the dialog and hands it the drag — with the dialog itself,
-                    // because a dialog lives in a popup of its own and its pointer events never reach the
-                    // window's root.
-                    standalone.TrySetResult(await ShowAsync(
-                        message, title, buttons, icon, defaultResult, window.XamlRoot, window.FitTo));
+                        // For the shell (alt-tab, taskbar); the dialog shows the title itself.
+                        WindowTitle = title,
+                        Content = message,
+                        RequestedTheme = ResolveTheme(),
+
+                        // No owner window: that window may be hidden in the tray, and this dialog exists precisely
+                        // so that asking about File Explorer's windows does not drag it on screen. Centred, but
+                        // on the display rather than on a parent — without this the window lands wherever the
+                        // system's cascade puts it, in the top-left corner.
+                        CenterInParent = true,
+
+                        // The card is the whole window. A second title bar above it is what made the first
+                        // version read as a Win32 window wrapped around a WinUI dialog.
+                        IsTitleBarVisible = false,
+
+                        DefaultButton = ToDefaultButton(buttons, defaultResult),
+                        PrimaryButtonText = primary,
+                        SecondaryButtonText = secondary,
+                        CloseButtonText = close
+                    };
+
+                    standalone.TrySetResult(ToResult(buttons, await dialog.ShowAsync()));
                 }
                 catch (Exception ex)
                 {
                     StartupLog.Fail("standalone dialog window, falling back to the app window", ex);
 
-                    // Answer with a dialog in the app window rather than with nothing: the caller is
-                    // blocked on this result, and a question that never appears is a question the user
-                    // cannot answer.
+                    // Answer with a dialog in the app window rather than with nothing: the caller is blocked on
+                    // this result, and a question that never appears is a question the user cannot answer.
                     try
                     {
                         standalone.TrySetResult(await ShowAsync(message, title, buttons, icon, defaultResult));
@@ -152,10 +172,6 @@ public sealed class ContentDialogService : IDialogService
                         StartupLog.Fail("standalone dialog fallback", fallback);
                         standalone.TrySetResult(defaultResult == DialogResult.None ? DialogResult.Cancel : defaultResult);
                     }
-                }
-                finally
-                {
-                    window?.Dispose();
                 }
             });
 
@@ -182,13 +198,10 @@ public sealed class ContentDialogService : IDialogService
     }
 
     /// <summary>
-    /// Shows the dialog. Must be called on the UI thread.
+    /// Shows the dialog in the app window. Must be called on the UI thread.
     /// <para>
-    /// <paramref name="hostXamlRoot"/> is for a dialog hosted by a window of its own
-    /// (<see cref="DialogHost.Standalone"/>): it skips both <see cref="DialogGate"/> and the
-    /// surface-the-app-window step below. The gate exists because WinUI refuses two ContentDialogs in one
-    /// <see cref="XamlRoot"/>, and this dialog is not in the app window's — being independent is the
-    /// point, so leaving it open must not hold up the app's own dialogs.
+    /// A dialog in a window of its own (<see cref="DialogHost.Standalone"/>) does not come through here at all:
+    /// it is built by the library that owns that window, in <see cref="IDialogService.Show"/>.
     /// </para>
     /// </summary>
     public async Task<DialogResult> ShowAsync(
@@ -196,15 +209,8 @@ public sealed class ContentDialogService : IDialogService
         string title,
         DialogButton buttons = DialogButton.OK,
         DialogIcon icon = DialogIcon.None,
-        DialogResult defaultResult = DialogResult.None,
-        XamlRoot? hostXamlRoot = null,
-        Action<ContentDialog>? configureDialog = null)
+        DialogResult defaultResult = DialogResult.None)
     {
-        if (hostXamlRoot is not null)
-        {
-            return await ShowCoreAsync(message, title, buttons, icon, defaultResult, hostXamlRoot, configureDialog);
-        }
-
         // Serialize: only one ContentDialog may be open at a time. Awaiting the gate on the UI thread
         // simply returns to the message loop, so a queued dialog appears once the current one closes
         // rather than throwing (AUD-20) — but only for so long, see DialogSlotTimeout.
@@ -232,21 +238,15 @@ public sealed class ContentDialogService : IDialogService
         string title,
         DialogButton buttons,
         DialogIcon icon,
-        DialogResult defaultResult,
-        XamlRoot? hostXamlRoot = null,
-        Action<ContentDialog>? configureDialog = null)
+        DialogResult defaultResult)
     {
         // Before anything else: a dialog needs a window the user can actually see and reach. Every
         // dialog the app raises from a background thread (the restore prompt, the second-instance
         // notice) can arrive while this window is hidden in the tray, and an invisible dialog cannot be
         // dismissed — which, with the gate below, would strand every later dialog and the blocked caller.
-        //
-        // A dialog hosted by its own window is the exception, and the reason it exists: that window is
-        // on screen with nobody's help, and surfacing the app window for a question about File Explorer's
-        // windows is exactly what it is there to avoid.
-        if (hostXamlRoot is null) _ensureWindowVisible?.Invoke();
+        _ensureWindowVisible?.Invoke();
 
-        var xamlRoot = hostXamlRoot ?? _xamlRootProvider();
+        var xamlRoot = _xamlRootProvider();
         if (xamlRoot is null)
         {
             // No window yet — nothing to host a ContentDialog on. Falling back to a native
@@ -296,53 +296,41 @@ public sealed class ContentDialogService : IDialogService
         // closing or activating" (0x80000019). Content, button text and DefaultButton first; the two
         // that attach the dialog to the tree last.
         dialog.Content = BuildContent(message, icon);
-
-        // A standalone dialog is the only thing its window shows, so the smoke layer that normally dims the
-        // content behind a dialog has nothing to dim — it would paint a translucent rectangle around the
-        // card and read as a frame. Overridden per dialog, not app-wide: an in-window dialog must keep it.
-        if (hostXamlRoot is not null)
-        {
-            dialog.Resources["ContentDialogSmokeLayerBackgroundBrush"] =
-                new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-        }
         dialog.DefaultButton = ToDefaultButton(buttons, defaultResult);
 
-        switch (buttons)
-        {
-            case DialogButton.OK:
-                // Use the resource key rather than a hard-coded "OK": the string is already translated in
-                // all 9 resource files, and hard-coding it left that key unused (AUD report §5.1).
-                dialog.CloseButtonText = LocalizationService.Get("OK");
-                break;
-
-            case DialogButton.OKCancel:
-                dialog.PrimaryButtonText = LocalizationService.Get("OK");
-                dialog.CloseButtonText = LocalizationService.Get("Cancel");
-                break;
-
-            case DialogButton.YesNo:
-                dialog.PrimaryButtonText = LocalizationService.Get("Yes");
-                dialog.CloseButtonText = LocalizationService.Get("No");
-                break;
-        }
+        var (primaryText, secondaryText, closeText) = ButtonTexts(buttons);
+        dialog.PrimaryButtonText = primaryText;
+        dialog.SecondaryButtonText = secondaryText;
+        dialog.CloseButtonText = closeText;
 
         dialog.XamlRoot = xamlRoot;
         dialog.Title = title;
 
-        // Last, so the caller can attach to the finished dialog before it is shown.
-        configureDialog?.Invoke(dialog);
-
-        var result = await dialog.ShowAsync();
-
-        return (buttons, result) switch
-        {
-            (DialogButton.YesNo, ContentDialogResult.Primary) => DialogResult.Yes,
-            (DialogButton.YesNo, _) => DialogResult.No,
-            (DialogButton.OKCancel, ContentDialogResult.Primary) => DialogResult.OK,
-            (DialogButton.OKCancel, _) => DialogResult.Cancel,
-            _ => DialogResult.OK
-        };
+        return ToResult(buttons, await dialog.ShowAsync());
     }
+
+    /// <summary>
+    /// The three button labels for a dialog, from the resource keys — they are translated in all 9 resource
+    /// files, and hard-coding "OK" left that key unused (AUD report §5.1).
+    /// </summary>
+    private static (string? Primary, string? Secondary, string? Close) ButtonTexts(DialogButton buttons) =>
+        buttons switch
+        {
+            DialogButton.OK => (null, null, LocalizationService.Get("OK")),
+            DialogButton.OKCancel => (LocalizationService.Get("OK"), null, LocalizationService.Get("Cancel")),
+            DialogButton.YesNo => (LocalizationService.Get("Yes"), null, LocalizationService.Get("No")),
+            _ => (null, null, null)
+        };
+
+    /// <summary>Maps what the user pressed back to the caller's vocabulary.</summary>
+    private static DialogResult ToResult(DialogButton buttons, ContentDialogResult result) => (buttons, result) switch
+    {
+        (DialogButton.YesNo, ContentDialogResult.Primary) => DialogResult.Yes,
+        (DialogButton.YesNo, _) => DialogResult.No,
+        (DialogButton.OKCancel, ContentDialogResult.Primary) => DialogResult.OK,
+        (DialogButton.OKCancel, _) => DialogResult.Cancel,
+        _ => DialogResult.OK
+    };
 
     /// <summary>
     /// ContentDialog has no icon slot, so the semantic icon becomes an official

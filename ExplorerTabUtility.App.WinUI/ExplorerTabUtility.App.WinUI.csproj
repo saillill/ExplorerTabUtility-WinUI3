@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -58,6 +58,16 @@
          只在 2.5.0-beta.3 及以后（上游 PR #265），而 2.4.1 的 SecondWindow 模式在本机 175% 缩放下
          会把菜单窗口算窄约一半（文字被截断）。2.5.0 出正式版后应升级到它。 -->
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.5.0-beta.3" />
+    <!-- 独立窗口里的 ContentDialog：WinUI 3 没有"对话框自己的窗口"这种控件，社区里成熟且仍在维护的做法是
+         SuGar0218/WindowedContentDialog（MIT，包名 SuGarToolkit.Controls.Dialogs）。它把三件原先在这里手写、
+         且每一件都写错了的事做对了：
+           * 尺寸用 ResizeClient 并把 30 DIP 标题栏从高度里扣掉 —— 它自己的注释写明 AppWindow.Resize 不准、
+             内容延伸到标题栏时 ResizeClient 高度会多算，这正是"文字被截断"的成因；
+           * 用 SetTitleBar(卡片标题区) 让系统拖动 —— 不需要可见标题栏（伪造 WM_NCLBUTTONDOWN 在 WinUI 3 上
+             只在松开时拖动，见 StackOverflow 79078428）；
+           * 无 owner 时居中到显示器。
+         代价是多一个依赖；收益是与手写窗口相关的一整类问题（尺寸/拖动/取消/关闭）不再由本项目承担。 -->
+    <PackageReference Include="SuGarToolkit.Controls.Dialogs" Version="2.1.1" />
     <!-- SystemEvents.SessionEnding：WinUI 的 Application 没有 SessionEnding 事件 -->
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.12" />
   </ItemGroup>
