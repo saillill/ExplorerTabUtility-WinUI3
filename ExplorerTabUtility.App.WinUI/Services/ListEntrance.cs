@@ -10,10 +10,10 @@ namespace ExplorerTabUtility.App.Services;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The entrance has to start at the moment the items appear, and for a list that moment is not "when they
-/// were added": an <c>ItemsControl</c> generates its item containers during the layout pass that follows,
-/// so at the moment of the add there is nothing yet to animate. What the two events share is the layout
-/// pass, which is what this waits for.
+/// The entrance has to start at the moment the items appear on screen, and for a list that moment is not
+/// "when they were added": an <c>ItemsControl</c> generates its item containers during the layout pass that
+/// follows, so at the moment of the add there is nothing yet to animate. What the two share is the layout
+/// pass, which is what the pending flag waits for.
 /// </para>
 /// <para>
 /// Deliberately not <c>ItemContainerTransitions</c>. That is the platform's own item entrance, and it is
@@ -21,18 +21,12 @@ namespace ExplorerTabUtility.App.Services;
 /// the move: it has no property for the interval between items — so the pace was the runtime's choice, and
 /// what the runtime chose read as the items arriving together — and it cannot stop the interval from
 /// growing, so a long list would have kept the wave running well past the point where the user was already
-/// looking at the content. Both are the entrance's own business, and both are why a shared behavior has
-/// them.
+/// looking at the content.
 /// </para>
 /// <para>
 /// Items that arrived after the first wave get an entrance of their own: what is animated is the run of
 /// items that has not been animated yet, and the stagger is indexed from the start of <em>that</em> run. One
-/// card added by hand therefore enters alone, and a list rebuilt in one go enters as a wave.
-/// </para>
-/// <para>
-/// One subscription per control, kept for the control's lifetime. The handler's first act is a boolean that
-/// is false except during the one layout pass that matters, and <c>LayoutUpdated</c> is otherwise an empty
-/// call.
+/// card added by hand therefore enters alone, and a list handed over in one go enters as a wave.
 /// </para>
 /// </remarks>
 internal static class ListEntrance
@@ -59,24 +53,43 @@ internal static class ListEntrance
     public static void Queue(ItemsControl list)
     {
         if (list is null) return;
-
-        var state = States.GetValue(list, static l =>
-        {
-            var created = new State();
-            l.LayoutUpdated += (_, _) => Play(l, created);
-            return created;
-        });
-
-        state.Pending = true;
+        StateOf(list).Pending = true;
     }
 
     /// <summary>
-    /// Forgets what has been animated, for a list whose contents are about to be replaced wholesale.
+    /// Plays the entrance again for a list whose items are already there — the page is being entered again,
+    /// or the window is being shown again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This exists because queuing alone made the entrance a once-per-process event. That is what the
+    /// trigger it replaced did too — the platform's item transition only fires for items a control takes on
+    /// — and it is wrong for a cached page and for a tray-resident window: neither of those hands the list
+    /// its items again, so nothing animates, and the only way to ever see the effect was to restart the app.
+    /// </para>
+    /// <para>
+    /// It plays on the spot as well as queueing, because one of the two callers has no layout pass coming:
+    /// showing a window that is already laid out does not invalidate layout, so waiting for a pass would
+    /// leave the flag set forever. If the list is not ready at this moment — items handed over during a
+    /// navigation, whose containers do not exist yet — the attempt does nothing and the pass plays instead.
+    /// </para>
+    /// </remarks>
+    public static void Replay(ItemsControl list)
+    {
+        if (list is null) return;
+
+        Reset(list);
+        Queue(list);
+        Play(list, StateOf(list));
+    }
+
+    /// <summary>
+    /// Forgets what has been animated, for a list that is about to be handed its items again.
     /// </summary>
     /// <remarks>
     /// Needed because the two cases are indistinguishable from the item count alone: one item fewer means
-    /// either "something was removed, nothing left to animate" or "the list was cleared and is being filled
-    /// again, everything is new". Only the caller knows which it is.
+    /// either "something was removed, nothing left to animate" or "the list is being filled again, everything
+    /// is new". Only the caller knows which it is.
     /// </remarks>
     public static void Reset(ItemsControl list)
     {
@@ -84,35 +97,41 @@ internal static class ListEntrance
         if (States.TryGetValue(list, out var state)) state.Animated = 0;
     }
 
+    private static State StateOf(ItemsControl list) =>
+        States.GetValue(list, static l =>
+        {
+            var created = new State();
+            l.LayoutUpdated += (_, _) => Play(l, created);
+            return created;
+        });
+
     /// <summary>
-    /// Plays the entrance again for a list whose items are already there — the page is being (re)entered and
-    /// the content is arriving on screen for the second, third or tenth time.
+    /// The element to animate for the item at <paramref name="index"/>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// This exists because <see cref="Queue"/> alone made the entrance a once-per-process event. That is
-    /// what the trigger it replaced did too — the platform's item transition only fires for items a control
-    /// takes on — and it is wrong for a cached page: navigating away and back does not remove the cards, so
-    /// the list is never "given" its items again, nothing animates, and the only way to ever see this effect
-    /// was to restart the app. Which is not how a tray-resident app is used, and is exactly how it was
-    /// being reported as missing.
-    /// </para>
-    /// <para>
-    /// Deliberately routed through the same pending flag rather than animating here and now: this is called
-    /// from a page's navigation handler, which runs before the page is back in the visual tree, and an
-    /// element that is not in the tree has no visual to animate. Waiting for the layout pass that follows
-    /// the navigation is both correct and free.
-    /// </para>
+    /// An item that is itself an element is preferred over the container the panel generated for it: the item
+    /// element is held by the panel rather than generated, so it survives the panel rebuilding its containers
+    /// — which is what happens when a cached page is re-attached. Data-templated lists have no such element
+    /// (their items are plain objects) and fall back to the container.
     /// </remarks>
-    public static void Replay(ItemsControl list)
+    private static UIElement? Target(ItemsControl list, int index)
     {
-        Reset(list);
-        Queue(list);
+        if (index < list.Items.Count && list.Items[index] is UIElement item)
+            return item;
+
+        return list.ContainerFromIndex(index) as UIElement;
     }
 
     private static void Play(ItemsControl list, State state)
     {
         if (!state.Pending) return;
+
+        // A list that is not in the tree must not be animated: its elements have no visual yet, or — worse —
+        // one that is about to be replaced when the page is re-attached. The item elements of a list that is
+        // being handed over again do exist at that moment, which is exactly why this is checked here rather
+        // than left to the target lookup. Waiting for the pass that follows re-attachment both puts the list
+        // back on screen and gives it its final containers.
+        if (!list.IsLoaded) return;
 
         var count = list.Items.Count;
 
@@ -129,22 +148,19 @@ internal static class ListEntrance
             return;
         }
 
-        var animated = false;
+        var targets = new UIElement[count];
 
-        for (var i = state.Animated; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
-            if (list.ContainerFromIndex(i) is not UIElement container) continue;
+            // Not realised yet — the containers are generated during this very pass, so the ones that are
+            // missing will be there for the next one. Leaving the flag set is what retries.
+            if (Target(list, i) is not { } element) return;
 
-            Motion.PosterEnter(container, i - state.Animated);
-            animated = true;
+            targets[i] = element;
         }
 
-        // Nothing realised yet: leave the flag set and try again on the next layout pass. That is the
-        // normal case for the first pass after items are added, and the retry is what makes this work
-        // without knowing when the panel will get around to generating its containers. It also means an
-        // item that is never realised — one a virtualising panel keeps below the fold — is animated
-        // whenever it first *is* realised, i.e. when it is scrolled into view, rather than not at all.
-        if (!animated) return;
+        for (var i = state.Animated; i < count; i++)
+            Motion.PosterEnter(targets[i], i - state.Animated);
 
         state.Animated = count;
         state.Pending = false;

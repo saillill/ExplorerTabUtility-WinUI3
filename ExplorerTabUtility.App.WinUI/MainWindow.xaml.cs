@@ -1340,6 +1340,13 @@ public sealed partial class MainWindow : Window
     {
         AppWindow.Show();
         Motion.FadeIn((UIElement)Content);
+
+        // Showing a hidden window is the other moment the page's content arrives on screen, and it is the one
+        // that happens with the tree already settled — which is what the entrance needs. Only for the page
+        // that is actually showing: the cards are the shortcuts page's, and a replay while another page is up
+        // would animate elements nobody is looking at.
+        if (ContentFrame.Content is ShortcutsPage)
+            _services.Profiles.Replay();
     }
 
     /// <summary>

@@ -102,6 +102,42 @@ public sealed class ProfilesHost : IProfilesHost
     private static readonly TimeSpan EntranceDelay = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
+    /// Gives the panel its cards again, so the entrance plays for a page that is being entered again — or a
+    /// window that is being shown again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Re-taking the items is the point, not an implementation detail. Animating the containers the panel
+    /// already had does not work for a page that is being re-entered: the frame detaches a cached page and
+    /// re-attaches it, the panel rebuilds its containers in the process, and an animation started on the old
+    /// ones is never seen — it reports success, sets the right values, and plays on a visual that is about to
+    /// be thrown away. That is what the replayed entrance was doing, and it is why the effect appeared only
+    /// on the first population.
+    /// </para>
+    /// <para>
+    /// Handing the items over again puts the entrance back on the path that is known to work: fresh
+    /// containers, generated in a tree that is already settled. What survives is the cards themselves — they
+    /// are the items — so an expanded card stays expanded across the re-entry.
+    /// </para>
+    /// <para>
+    /// One cost, recorded rather than hidden: a column taller than the window loses its scroll position,
+    /// because the panel is briefly empty. With the handful of cards this page holds that is not reachable;
+    /// if a long list ever needs it, the offset has to be saved and restored around this call.
+    /// </para>
+    /// </remarks>
+    public void Replay()
+    {
+        if (_panel is null) return;
+
+        _panel.Items.Clear();
+
+        foreach (var card in _cards)
+            _panel.Items.Add(((ProfileCardView)card).Root);
+
+        ListEntrance.Replay(_panel);
+    }
+
+    /// <summary>
     /// Releases the cards from their current parent.
     /// <para>
     /// WinUI allows an element only one parent, so a card reused by a new page must be removed from
