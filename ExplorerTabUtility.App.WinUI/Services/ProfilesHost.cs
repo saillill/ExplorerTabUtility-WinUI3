@@ -129,6 +129,12 @@ public sealed class ProfilesHost : IProfilesHost
     {
         if (_panel is null) return;
 
+        // Nothing to replay on the first visit: the panel is still empty, and the delayed add that gives the
+        // page its cards has not run yet. Handing them over here as well would put them on screen before the
+        // window has painted — which is exactly what the delay exists to avoid — and would leave that add
+        // adding elements the panel already holds.
+        if (_panel.Items.Count == 0) return;
+
         _panel.Items.Clear();
 
         foreach (var card in _cards)

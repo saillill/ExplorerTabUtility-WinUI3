@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 
 namespace ExplorerTabUtility.App.Services;
 
@@ -41,10 +43,28 @@ internal static class ListEntrance
         /// index minus this, which is what keeps a late arrival from inheriting the whole list's delays.
         /// </summary>
         public int Animated;
+
+        /// <summary>
+        /// The visuals the last entrance was started on, kept so that a list whose elements were given new
+        /// ones underneath it can be noticed — see <see cref="PlayedOnLiveVisuals"/>.
+        /// </summary>
+        public Visual?[]? PlayedOn;
+
+        /// <summary>How many times the entrance has been restarted for a rebuilt list.</summary>
+        public int Restarts;
     }
 
     /// <summary>Per-control state. Weak so a discarded page does not keep its list alive.</summary>
     private static readonly ConditionalWeakTable<ItemsControl, State> States = new();
+
+    /// <summary>
+    /// How many times an entrance may be restarted because the list was rebuilt underneath it.
+    /// </summary>
+    /// <remarks>
+    /// Bounded so that a list which never stops rebuilding cannot keep the entrance running forever. Three is
+    /// enough for the case this exists for — a page re-attached, which settles within a pass or two.
+    /// </remarks>
+    private const int RestartLimit = 3;
 
     /// <summary>
     /// Marks <paramref name="list"/> as having just taken on items, so they are given their entrance on the
@@ -94,7 +114,13 @@ internal static class ListEntrance
     public static void Reset(ItemsControl list)
     {
         if (list is null) return;
-        if (States.TryGetValue(list, out var state)) state.Animated = 0;
+        if (!States.TryGetValue(list, out var state)) return;
+
+        state.Animated = 0;
+
+        // What the previous entrance was started on describes a list that is about to stop existing.
+        state.PlayedOn = null;
+        state.Restarts = 0;
     }
 
     private static State StateOf(ItemsControl list) =>
@@ -124,6 +150,8 @@ internal static class ListEntrance
 
     private static void Play(ItemsControl list, State state)
     {
+        if (state.PlayedOn is not null && !PlayedOnLiveVisuals(list, state)) return;
+
         if (!state.Pending) return;
 
         // A list that is not in the tree must not be animated: its elements have no visual yet, or — worse —
@@ -164,5 +192,63 @@ internal static class ListEntrance
 
         state.Animated = count;
         state.Pending = false;
+
+        // What the entrance was actually started on. Asked again on the next pass: an element that is moved
+        // to a new parent is given a new visual, and an animation left on the old one is gone — it starts,
+        // reports success and plays nowhere at all, which is the one failure this effect kept having.
+        state.PlayedOn = new Visual?[count];
+        for (var i = 0; i < count; i++)
+            state.PlayedOn[i] = VisualOf(targets[i]);
     }
+
+    /// <summary>
+    /// Whether the elements the entrance was started on still have the visuals it was started on.
+    /// </summary>
+    /// <remarks>
+    /// The list cannot be asked whether it is about to rebuild itself, so it is asked afterwards instead:
+    /// if the visuals changed, the entrance went nowhere and is started again on the current ones. This is
+    /// what makes the effect survive a cached page being re-attached, rather than depending on getting the
+    /// timing right by guesswork.
+    /// </remarks>
+    /// <returns>True when the entrance is still on live visuals, false when it was restarted.</returns>
+    private static bool PlayedOnLiveVisuals(ItemsControl list, State state)
+    {
+        var played = state.PlayedOn!;
+        var stale = false;
+
+        for (var i = 0; i < played.Length; i++)
+        {
+            if (Target(list, i) is not { } element || !ReferenceEquals(VisualOf(element), played[i]))
+            {
+                stale = true;
+                break;
+            }
+        }
+
+        if (!stale)
+        {
+            state.PlayedOn = null;
+            state.Restarts = 0;
+            return true;
+        }
+
+        if (state.Restarts >= RestartLimit)
+        {
+            StartupLog.Step($"entrance: the list kept being rebuilt, leaving it to settle ({state.Restarts})");
+            state.PlayedOn = null;
+            state.Restarts = 0;
+            return true;
+        }
+
+        state.Restarts++;
+        StartupLog.Step($"entrance: the list was rebuilt under the entrance, playing it again ({state.Restarts})");
+
+        state.PlayedOn = null;
+        state.Animated = 0;
+        state.Pending = true;
+        return false;
+    }
+
+    private static Visual VisualOf(UIElement element) =>
+        ElementCompositionPreview.GetElementVisual(element);
 }
