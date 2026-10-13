@@ -54,6 +54,14 @@ public static class WinApi
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(nint hWnd);
 
+    /// <summary>
+    /// True while <paramref name="hWnd"/> still names a live window. Explorer destroys windows as readily as
+    /// it creates them, so any handle cached from an earlier event must be re-validated before use: a closed
+    /// HWND compares equal to a stale entry but no longer answers to any message (upstream #137).
+    /// </summary>
+    [DllImport("user32.dll")]
+    public static extern bool IsWindow(nint hWnd);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern int GetWindowText(nint hWnd, StringBuilder text, int maxCount);
 

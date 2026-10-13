@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using ExplorerTabUtility.Abstractions;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Interop;
@@ -62,6 +63,12 @@ public class ExplorerWatcher : IHook
     /// <summary>True between a successful <see cref="InitializeShellObjects"/> and its teardown.</summary>
     private bool _shellInitialized;
 
+    /// <summary>Guards the resume rebuild against a second <c>PowerModeChanged</c> overlapping it.</summary>
+    private int _resumeRebuildInProgress;
+
+    /// <summary>Set by <see cref="OnPowerModeChanged"/>; read by the STA thread that rebuilds the shell.</summary>
+    private volatile bool _shellRebuildRequested;
+
     private nint _eventObjectShowHookId;
     private WinEventDelegate? _eventObjectShowHookCallback;
     private Action<int>? _windowRegisteredHandler;
@@ -85,6 +92,10 @@ public class ExplorerWatcher : IHook
         _processWatcher = new ProcessWatcher("explorer");
         _processWatcher.ProcessTerminated += OnExplorerProcessTerminated;
         StartExplorerProcessCheck();
+
+        // Power events are the only notification that the shell COM objects below have gone stale without
+        // our process learning about it any other way; see OnPowerModeChanged (upstream #137).
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
     }
 
     public void StartHook()
@@ -104,6 +115,84 @@ public class ExplorerWatcher : IHook
     {
         lock (_closedWindowsLock)
             _closedWindows.Clear();
+    }
+
+    /// <summary>
+    /// Number of tracked windows that still exist, pruning entries whose HWND Explorer has already
+    /// destroyed. Callers must use this for liveness tests, never <c>_windowEntryDict.Count</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>Count</c> answers "how many windows have we ever tracked and not yet unhooked", which is not
+    /// "how many windows are on screen". Explorer can destroy a window without the unhook running first —
+    /// a crash, a forced close, a shell restart after resume — leaving a dead entry behind. Because
+    /// <c>CabinetWClass</c> handles are recycled, that dead entry can even compare equal to a live window
+    /// later. Every decision of the form "are there other windows?" was reading <c>Count</c> and so could
+    /// believe in windows that no longer exist: <c>OpenTabNavigateWithSelection</c> then takes the
+    /// "reuse an existing tab" branch against a ghost and drops the user's navigation entirely (upstream
+    /// #137). Pruning here makes the count a fact instead of an estimate.
+    /// </remarks>
+    private int GetLiveWindowCount()
+    {
+        ExplorerWindow[] candidates;
+        lock (_windowEntryDictLock)
+            candidates = _windowEntryDict.Keys.ToArray();
+
+        foreach (var window in candidates)
+            if (!IsWindowAlive(window))
+                RemoveWindowEntry(window);
+
+        lock (_windowEntryDictLock)
+            return _windowEntryDict.Count;
+    }
+
+    /// <summary>
+    /// Whether an <see cref="ExplorerWindow"/> still refers to a live top-level window.
+    /// </summary>
+    /// <remarks>
+    /// The HWND test alone is not enough: <c>IsWindow</c> is satisfied by any window that has taken over
+    /// the recycled handle, including one that is not an Explorer window at all, so the class name is
+    /// checked too. Reading <c>window.HWND</c> goes through COM and is wrapped because the object itself
+    /// can already be detached, in which case it is equally dead to us.
+    /// </remarks>
+    private static bool IsWindowAlive(ExplorerWindow window)
+    {
+        nint hWnd;
+        try
+        {
+            hWnd = new IntPtr(window.HWND);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"IsWindowAlive: reading HWND failed, treating as dead: {ex.Message}");
+            return false;
+        }
+
+        return hWnd != 0 && WinApi.IsWindow(hWnd) && WinApi.IsWindowHasClassName(hWnd, "CabinetWClass");
+    }
+
+    /// <summary>
+    /// Drops a window from the tracking table, tolerating the not-present case.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="DualKeyDictionary{TKey,TKey2,TValue}"/> has a two-key identity, so evicting through one
+    /// key alone removes it from <c>Keys</c> while a stale secondary mapping can survive; both the HWND and
+    /// the tab-handle key are therefore removed when they are known. Removal is deliberately silent when
+    /// the entry is already gone — pruning races with the normal unhook path and must never throw.
+    /// </remarks>
+    private void RemoveWindowEntry(ExplorerWindow window)
+    {
+        try
+        {
+            if (_windowEntryDict.TryGetValue(window, out WindowEntry entry) && entry.OptionalKey is { } tabHandle and > 0)
+                _windowEntryDict.Remove(tabHandle);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"RemoveWindowEntry: secondary-key removal failed: {ex.Message}");
+        }
+
+        lock (_windowEntryDictLock)
+            _windowEntryDict.Remove(window);
     }
 
     public IReadOnlyCollection<WindowRecord> GetWindows()
@@ -269,7 +358,9 @@ public class ExplorerWatcher : IHook
             return;
         }
 
-        if (_windowEntryDict.Count > 0)
+        // Liveness, not bookkeeping: a leftover entry for a destroyed window must not route this down
+        // the "there is a window to put the tab in" path (upstream #137).
+        if (GetLiveWindowCount() > 0)
         {
             OpenNewTab(windowHandle, normalizedPath);
             return;
@@ -279,7 +370,12 @@ public class ExplorerWatcher : IHook
     }
     public void OpenNewTab(nint windowHandle, string location)
     {
-        _ = OpenTabNavigateWithSelection(new WindowRecord(location, windowHandle), windowHandle);
+        // Nothing depends on the outcome here: the target window is the caller's own, it is not hidden and
+        // nothing is destroyed, so a failure just means the tab did not open. The task is still observed
+        // (a discarded faulted task would otherwise surface as an unobserved-exception event).
+        _ = OpenTabNavigateWithSelection(new WindowRecord(location, windowHandle), windowHandle)
+            .ContinueWith(t => Debug.WriteLine($"OpenNewTab: failed for {location}: {t.Exception?.GetBaseException().Message}"),
+                CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }
     public async Task DuplicateActiveTab(nint windowHandle, bool asTab)
     {
@@ -394,7 +490,7 @@ public class ExplorerWatcher : IHook
 
         if (!WinApi.IsWindowHasClassName(hWnd, "CabinetWClass")) return;
 
-        if (_windowEntryDict.Count < 2 || Helper.IsCtrlShiftDown()) return;
+        if (GetLiveWindowCount() < 2 || Helper.IsCtrlShiftDown()) return;
         Helper.HideWindow(hWnd);
 
         // Mirror OnShellWindowRegistered: schedule the delayed cache eviction afterwards. The two
@@ -481,7 +577,7 @@ public class ExplorerWatcher : IHook
 
             // Check if this is a single tab window and there are other windows
             var shouldReopenAsTab = (_isForcingTabs || _reuseTabs) &&
-                                    _windowEntryDict.Count > 1 &&
+                                    GetLiveWindowCount() > 1 &&
                                     hWnd != _mainWindowHandle &&
                                     Helper.GetAllExplorerTabs(hWnd).Take(2).Count() == 1;
 
@@ -503,14 +599,32 @@ public class ExplorerWatcher : IHook
 
             if (shouldReopenAsTab)
             {
-                showAgain = false;
+                // Await the conversion before deciding the window's fate (upstream #137). This used to be
+                // fire-and-forget with an unconditional `window.Quit()` right after, so any failure inside —
+                // no new tab within the 2s budget, the window not appearing in the table, Navigate refused,
+                // no NavigateComplete2 within 5s — destroyed a window that had already been hidden by
+                // `Helper.HideWindow(hWnd)` above. The tab was never created and the window was gone: the
+                // user's folder simply disappeared, with no way to get it back.
+                var converted = await OpenTabNavigateWithSelection(new WindowRecord(location, hWnd, GetSelectedItems(window)), _mainWindowHandle);
 
-                _ = OpenTabNavigateWithSelection(new WindowRecord(location, hWnd, GetSelectedItems(window)), _mainWindowHandle);
+                if (converted)
+                {
+                    showAgain = false;
 
-                window.Quit();
-                lock (_closedWindowsLock)
-                    _closedWindows.RemoveAll(w => string.Equals(w.Location, location, StringComparison.OrdinalIgnoreCase));
-                RemoveWindowAndUnhookEvents(window, windowInfo);
+                    window.Quit();
+                    lock (_closedWindowsLock)
+                        _closedWindows.RemoveAll(w => string.Equals(w.Location, location, StringComparison.OrdinalIgnoreCase));
+                    RemoveWindowAndUnhookEvents(window, windowInfo);
+                    return;
+                }
+
+                // Conversion failed. This must be the state the normal "not a tab-conversion" path ends in,
+                // which is `showAgain` still true: the window was already hidden above, so the finally block
+                // is the only thing that brings it back, and leaving `showAgain` false here would turn "the
+                // tab was not created" into "and the window is gone too" — the very outcome being fixed.
+                // `window.Quit()` is deliberately not called and the window stays hooked, so it is still a
+                // fully functional Explorer window rather than one the watcher has stopped looking after.
+                Debug.WriteLine($"OnShellWindowRegistered: could not convert {location} to a tab; restoring the window");
                 return;
             }
 
@@ -682,7 +796,12 @@ public class ExplorerWatcher : IHook
 
                 if (result != DialogResult.Yes) continue;
 
-                _ = OpenTabNavigateWithSelection(record);
+                // Deliberately not awaited: each restore takes the tab lock in turn and the window has to
+                // stay responsive while they run. Observed for faults so a failing restore is logged rather
+                // than swallowed (a bare `_ =` on a task that throws raises UnobservedTaskException).
+                _ = OpenTabNavigateWithSelection(record)
+                    .ContinueWith(t => Debug.WriteLine($"RestorePreviousWindows: failed for {record.Location}: {t.Exception?.GetBaseException().Message}"),
+                        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
             }
         }
         catch (Exception ex)
@@ -743,12 +862,22 @@ public class ExplorerWatcher : IHook
                 _toOpenWindowsLock.Release();
         }
     }
-    private async Task OpenTabNavigateWithSelection(WindowRecord windowToOpen, nint windowHandle = 0, bool isDuplicate = false, bool forceTabReuse = false)
+    /// <summary>
+    /// Opens <paramref name="windowToOpen"/>'s location as a tab, restoring its selection once navigation
+    /// completes. Returns whether the conversion succeeded, which decides whether the caller may destroy
+    /// the window it came from (upstream #137).
+    /// </summary>
+    private async Task<bool> OpenTabNavigateWithSelection(WindowRecord windowToOpen, nint windowHandle = 0, bool isDuplicate = false, bool forceTabReuse = false)
     {
         await _toOpenWindowsLock.WaitAsync();
         try
         {
-            if ((_reuseTabs || forceTabReuse) && !isDuplicate && _windowEntryDict.Count > 0)
+            // Reusing an existing tab is only a shortcut if the tab is still there. `_windowEntryDict.Count`
+            // says "we once tracked windows" and reads > 0 for a session whose windows are all gone, so this
+            // branch used to look for (and fail to find) a tab, and then still skip the window path below —
+            // the navigation was dropped on the floor (upstream #137). The live count removes that outcome:
+            // with no windows left, it is 0 and the "open a window" fallback below runs instead.
+            if ((_reuseTabs || forceTabReuse) && !isDuplicate && GetLiveWindowCount() > 0)
             {
                 var existingTab = SearchForTab(windowToOpen.Location);
                 if (existingTab != 0)
@@ -756,7 +885,7 @@ public class ExplorerWatcher : IHook
                     windowHandle = WinApi.GetParent(existingTab);
                     await SelectTabByHandle(windowHandle, existingTab);
                     WinApi.RestoreWindowToForeground(windowHandle);
-                    return;
+                    return true;
                 }
             }
 
@@ -768,7 +897,7 @@ public class ExplorerWatcher : IHook
             if (mainWindowHWnd == 0)
             {
                 await OpenNewWindowWithSelection(windowToOpen, lockToOpenWindows: false);
-                return;
+                return true;
             }
 
             // Store the current tabs
@@ -779,41 +908,97 @@ public class ExplorerWatcher : IHook
 
             // Wait for the new tab
             var newTabHandle = await Helper.ListenForNewExplorerTabAsync(mainWindowHWnd, currentTabs, 2_000);
-            if (newTabHandle == 0) return;
+            if (newTabHandle == 0) return false;
 
             // Get the window object
             var window = await Helper.DoUntilNotDefaultAsync(() => GetWindowByTabHandle(newTabHandle), 2_000, 50);
-            if (window == null) return;
+            if (window == null) return false;
 
-            var tcs = new TaskCompletionSource<bool>();
-            Action<object?, object?> navigateHandler = null!;
-            navigateHandler = (_, _) =>
-            {
-                window.NavigateComplete2 -= navigateHandler;
-                tcs.TrySetResult(true);
-                SelectItems(window, windowToOpen.SelectedItems);
-            };
-
-            window.NavigateComplete2 += navigateHandler;
-            try
-            {
-                Navigate(window, windowToOpen.Location);
-            }
-            catch
-            {
-                window.NavigateComplete2 -= navigateHandler;
-                tcs.TrySetResult(false);
-            }
+            var navigated = await NavigateAndSelectAsync(window, windowToOpen);
 
             WinApi.RestoreWindowToForeground(mainWindowHWnd);
 
-            var timeoutTask = Task.Delay(5000);
-            await Task.WhenAny(tcs.Task, timeoutTask);
+            return navigated;
         }
         finally
         {
             _toOpenWindowsLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Navigates <paramref name="window"/> to <paramref name="windowToOpen"/>'s location and applies its
+    /// selection, reporting whether the navigation completed.
+    /// </summary>
+    /// <remarks>
+    /// Two things this must not do, both of them #142:
+    ///
+    /// <para>It must not leave the <c>NavigateComplete2</c> handler attached. The event source outlives the
+    /// call, so a handler that is only unsubscribed from inside itself stays attached forever whenever
+    /// navigation never completes — exactly the case the timeout below exists for. The next navigation to
+    /// that window would then re-enter a handler whose <c>TaskCompletionSource</c> has already finished, and
+    /// this method's own locals are kept alive by the subscription it never dropped.</para>
+    ///
+    /// <para>It must not resume the await inline on Explorer's COM callback stack. The continuation runs
+    /// <c>RequestToOpenNewTab</c>/<c>SelectItems</c> and releases <c>_toOpenWindowsLock</c>; a plain
+    /// <c>TaskCompletionSource</c> runs all of that on the thread that raised the event (Explorer's), where a
+    /// blocking call stalls the shell that just raised it and can deadlock against the lock the callback
+    /// path may already hold. <see cref="TaskCreationOptions.RunContinuationsAsynchronously"/> forces the
+    /// continuation onto the pool.</para>
+    ///
+    /// <para>The item selection is also taken off the callback stack for the same reason — it is a stream of
+    /// blocking COM calls (<c>SelectItem</c> per item), and doing that inside a shell event handler blocks
+    /// the shell's own message pump.</para>
+    /// </remarks>
+    private static async Task<bool> NavigateAndSelectAsync(ExplorerWindow window, WindowRecord windowToOpen)
+    {
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void NavigateHandler(object? _, object? __) => tcs.TrySetResult(true);
+
+        try
+        {
+            window.NavigateComplete2 += NavigateHandler;
+
+            try
+            {
+                Navigate(window, windowToOpen.Location);
+            }
+            catch (Exception ex)
+            {
+                // A refused Navigate never raises NavigateComplete2, so without this the await below would
+                // always burn the full timeout before reporting the same failure.
+                Debug.WriteLine($"NavigateAndSelectAsync: Navigate failed: {ex.Message}");
+                return false;
+            }
+
+            // Task.WhenAny rather than WhenAll: a navigation that never reports completion must not wedge
+            // the caller, and the tab it was aimed at already exists either way.
+            if (await Task.WhenAny(tcs.Task, Task.Delay(5_000)) != tcs.Task)
+            {
+                Debug.WriteLine($"NavigateAndSelectAsync: no NavigateComplete2 for {windowToOpen.Location} within 5s");
+                return false;
+            }
+        }
+        finally
+        {
+            // Unconditional: this is the fix. The handler above is a closure over `window`, so leaving it
+            // attached pins an Explorer COM object for the life of that window's process.
+            try
+            {
+                window.NavigateComplete2 -= NavigateHandler;
+            }
+            catch (Exception ex)
+            {
+                // The window can be gone by now; that detaches the handler just as well.
+                Debug.WriteLine($"NavigateAndSelectAsync: unsubscribing NavigateComplete2 failed: {ex.Message}");
+            }
+        }
+
+        // Off the COM callback stack (see remarks): the navigation is done, the selection is not urgent.
+        SelectItems(window, windowToOpen.SelectedItems);
+
+        return true;
     }
     private bool TryGetRecentlyClosedWindow(string location, out WindowRecord? closedWindow, int maxAge = 2_000)
     {
@@ -953,13 +1138,82 @@ public class ExplorerWatcher : IHook
 
         lock (_processLock)
         {
-            if (_mainExplorerProcessId != 0) return;
+            // `_shellRebuildRequested` overrides the id check: after a resume the shell may have come back
+            // under the same pid, in which case the id is non-zero and this would otherwise conclude the
+            // shell was never re-created and leave the stale COM objects in place (upstream #137).
+            if (_mainExplorerProcessId != 0 && !_shellRebuildRequested) return;
 
             _mainExplorerProcessId = process.Id;
+            _shellRebuildRequested = false;
             InitializeShellObjects();
             OnShellInitialized?.Invoke();
         }
     }
+
+    /// <summary>
+    /// Rebuilds the Shell COM objects after the machine wakes from sleep (upstream #137).
+    /// </summary>
+    /// <remarks>
+    /// A modern standby cycle can take the shell down and bring it back without <c>explorer.exe</c> ever
+    /// terminating, and possibly without a new process id — so neither <see cref="OnExplorerProcessTerminated"/>
+    /// nor the <c>_mainExplorerProcessId</c> check notices. Every <c>ShellWindows</c> / <c>ShellFolderView</c>
+    /// interface obtained before that point is then a stale marshaller: calls to it fail or, worse, succeed
+    /// against an object the shell no longer uses, and no window registered afterwards reaches the
+    /// <c>WindowRegistered</c> handler because the connection point died with the old object. The visible
+    /// result is a tray app that is still running and still claims its hook is active, but silently stops
+    /// managing tabs until it is restarted.
+    ///
+    /// <para>Only <c>Resume</c> is handled. <c>StatusChange</c> fires on every battery/AC transition and
+    /// <c>Suspend</c> fires while the machine is going down, where tearing the shell down would discard
+    /// state for no benefit.</para>
+    ///
+    /// <para>No wait for the shell to settle is needed before the rebuild: the work here is only the release,
+    /// and the re-creation is retried by the discovery loop once a second until the shell answers.</para>
+    /// </remarks>
+    private void OnPowerModeChanged(object? s, PowerModeChangedEventArgs e)
+    {
+        if (_disposed || e.Mode != PowerModes.Resume) return;
+
+        // One rebuild at a time: Windows can deliver several power notifications in a row across a single
+        // resume, and a second teardown running against a shell that is already being re-bound would leave
+        // the watcher without its global hooks.
+        if (Interlocked.CompareExchange(ref _resumeRebuildInProgress, 1, 0) != 0) return;
+
+        // The shell COM objects we hold are dropped here — on the SystemEvents thread, without waiting for
+        // anything — and the rebuild is left to the same discovery loop the startup path uses. That loop
+        // already knows how to create the objects, hook every window it finds and tolerate a shell that is
+        // not ready yet (it re-tries every second); re-implementing any of that would be a second code path
+        // to keep correct. `_shellRebuildRequested` is what tells it this tick is a rebuild and not a no-op.
+        _shellRebuildRequested = true;
+
+        try
+        {
+            lock (_processLock)
+            {
+                if (_disposed)
+                {
+                    _shellRebuildRequested = false;
+                    return;
+                }
+
+                ReleaseShellObjectsForRebuild();
+                _mainExplorerProcessId = 0;
+                StartExplorerProcessCheck();
+            }
+        }
+        catch (Exception ex)
+        {
+            _shellRebuildRequested = false;
+            Debug.WriteLine($"OnPowerModeChanged: releasing the shell objects failed: {ex}");
+        }
+        finally
+        {
+            // Only guards against overlap, not against the rebuild itself: `CheckForMainExplorer` is what
+            // clears `_shellRebuildRequested`, and it does so under `_processLock`.
+            Interlocked.Exchange(ref _resumeRebuildInProgress, 0);
+        }
+    }
+
     private void OnExplorerProcessTerminated(object? s, ProcessEventArgs e)
     {
         // The ProcessWatcher is disposed alongside this watcher, but a termination event can
@@ -990,6 +1244,9 @@ public class ExplorerWatcher : IHook
         // Other explorer.exe processes
         lock (_windowEntryDictLock)
         {
+            // Nothing tracked at all: skip the per-entry COM probes entirely. This is a bookkeeping
+            // check (are there entries to examine?), not a liveness one, so `Count` is the right read
+            // here — the loop below is exactly what turns a stale entry into a removal.
             if (_windowEntryDict.Count == 0) return;
 
             // Snapshot first, then walk the copy. The dictionary's enumerator copies under its own lock
@@ -1048,6 +1305,13 @@ public class ExplorerWatcher : IHook
         if (_disposed) return;
         if (_shellInitialized) return;
 
+        // Windows already on screen are "pre-existing" only when the watcher is starting up. After a
+        // post-resume rebuild they are being re-hooked within seconds of the shell coming back, and stamping
+        // them an hour old would let SearchForTab reuse them immediately — the stale-entry guard is exactly
+        // wrong there. `_shellRebuildRequested` is the tell, and it is read once here so the flag is this
+        // method's answer to "fresh start or rebuild?" for the whole loop below.
+        var isFirstInitialization = !_shellRebuildRequested;
+
         _shellPathComparer = new ShellPathComparer();
         _staTaskScheduler = new StaTaskScheduler();
         _shellWindows = new ShellWindows();
@@ -1093,7 +1357,8 @@ public class ExplorerWatcher : IHook
                 var window = _shellWindows.Item(i);
                 if (window is null) continue;
 
-                var windowInfo = new WindowInfo(PreExistingWindowTimestamp);
+                // Pre-existing on a fresh start (see isFirstInitialization above), newly created otherwise.
+                var windowInfo = new WindowInfo(isFirstInitialization ? PreExistingWindowTimestamp : Stopwatch.GetTimestamp());
 
                 // TryAdd, not Add: this runs on a thread-pool Timer callback, and a duplicate primary
                 // key used to throw ArgumentException that escaped the callback and killed the process
@@ -1168,6 +1433,68 @@ public class ExplorerWatcher : IHook
         _shellInitialized = false;
     }
 
+    /// <summary>
+    /// Drops the Shell COM objects and the per-window subscriptions, leaving the watcher ready to be
+    /// re-initialised. Used only by the post-resume rebuild.
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from <see cref="DisposeShellObjects"/> because that one persists the tracked windows as
+    /// "lost, offer to restore" on the way out. That is right for a dying shell and wrong for a resume: the
+    /// windows are about to be re-hooked by <see cref="InitializeShellObjects"/>, so persisting them would
+    /// schedule a restore prompt for windows the user can still see.
+    ///
+    /// <para>Only the shell-owned objects are released. <c>_staTaskScheduler</c> and
+    /// <c>_shellPathComparer</c> are ours, and <c>_defaultLocation</c> is a string; keeping them means the
+    /// rebuild does not depend on the shell being ready enough to answer a default-location query during
+    /// it.</para>
+    /// </remarks>
+    private void ReleaseShellObjectsForRebuild()
+    {
+        if (!_shellInitialized) return;
+
+        if (_windowRegisteredHandler != null)
+        {
+            _shellWindows.WindowRegistered -= _windowRegisteredHandler;
+            _windowRegisteredHandler = null;
+        }
+
+        if (_eventObjectShowHookCallback != null)
+        {
+            WinApi.UnhookWinEvent(_eventObjectShowHookId);
+            _eventObjectShowHookCallback = null;
+        }
+
+        foreach (var (window, windowInfo) in _windowEntryDict)
+        {
+            try
+            {
+                if (windowInfo.OnQuitHandler != null) window.OnQuit -= windowInfo.OnQuitHandler;
+                if (windowInfo.OnNavigateHandler != null) window.NavigateComplete2 -= windowInfo.OnNavigateHandler;
+            }
+            catch (Exception ex)
+            {
+                // A window whose connection point is already gone cannot be unsubscribed; the object is
+                // released by the Dispose below either way.
+                Debug.WriteLine($"ReleaseShellObjectsForRebuild: unhooking a window failed: {ex.Message}");
+            }
+
+            window.Dispose();
+        }
+
+        _windowEntryDict.Clear();
+
+        try
+        {
+            _shellWindows.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"ReleaseShellObjectsForRebuild: releasing ShellWindows failed: {ex.Message}");
+        }
+
+        _shellInitialized = false;
+    }
+
     private void PersistWindows()
     {
         var store = new List<WindowRecord>();
@@ -1201,6 +1528,10 @@ public class ExplorerWatcher : IHook
         // Idempotent: SessionEnding (a SystemEvents thread) and the UI-exit path both call this.
         if (_disposed) return;
         _disposed = true;
+
+        // Before anything else: the resume handler is the one remaining reference that can drive a full
+        // shell rebuild on a disposed watcher (AUD-04's rule, same as the timer below).
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
         // Stop the shell-discovery timer first. It is the only remaining reference that could
         // re-initialise the shell objects (and therefore re-create global hooks) on an instance that

@@ -29,6 +29,10 @@
 
   <ItemGroup>
     <PackageReference Include="H.Hooks" Version="1.7.0" />
+    <!-- SystemEvents.PowerModeChanged（睡眠/唤醒后的 Shell COM 重建，upstream #137）。
+         用包而不是引用门面程序集：Core 是 net10.0-windows 类库，SystemEvents 已不在
+         Windows 桌面共享框架里，必须显式引入；该包仅含一个小的托管程序集，无原生依赖。 -->
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.0" />
     <!-- 保留原有的 IL 织入语义：全量注入 ConfigureAwait(false)。
          后续可逐步显式化并移除，见重构方案阶段 0 说明。
 
