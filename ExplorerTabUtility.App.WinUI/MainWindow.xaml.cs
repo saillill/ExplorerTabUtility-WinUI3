@@ -1146,7 +1146,23 @@ public sealed partial class MainWindow : Window
         // the pane, so which of the two it was is worth recording: an instance that flips between two
         // pages on its own has been reported twice, and this is what tells the two cases apart.
         StartupLog.Step($"nav: {tag}{InputSince()}");
-        ContentFrame.Navigate(pageType, _services);
+
+        // Navigated without the platform's page transition, deliberately.
+        //
+        // The default transition does not swap the pages at once: the outgoing page stays on screen
+        // until the transition has run, and on this window that is measured at ~200ms (the first
+        // layout pass after the re-attach is at +15ms, the next at +203ms, and a rendered frame still
+        // shows the old page at +121ms). The card entrance is handed over at +20ms and lasts 250ms
+        // plus a 60ms stagger — so, with the transition on, the whole wave ran and finished behind the
+        // page the user was still looking at, and the shortcuts page then arrived with its cards
+        // already in place. That is the whole of the reported symptom, and it is why the effect was
+        // only ever legible on a cold start, which is the one path that has no page to swap.
+        //
+        // Taking the transition away is not a loss here: the arrival motion of this page *is* the
+        // staggered card entrance, from the app's own vocabulary, exactly as it is for any other list.
+        // Two entrances for one arrival is the competition, not the platform transition. The same
+        // reasoning already applies to the language reload above, which suppresses it for its own reason.
+        ContentFrame.Navigate(pageType, _services, new SuppressNavigationTransitionInfo());
         StartupLog.Step($"nav: {tag} done, content={ContentFrame.Content?.GetType().Name ?? "null"}");
     }
 
@@ -1345,8 +1361,36 @@ public sealed partial class MainWindow : Window
         // that happens with the tree already settled — which is what the entrance needs. Only for the page
         // that is actually showing: the cards are the shortcuts page's, and a replay while another page is up
         // would animate elements nobody is looking at.
-        if (ContentFrame.Content is ShortcutsPage)
+        if (ContentFrame.Content is ShortcutsPage) ReplayOnceWindowHasPainted();
+    }
+
+    /// <summary>
+    /// Hands the cards their entrance on the first frame composed after the window was shown.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>AppWindow.Show()</c> returns before the window is on screen — the frame this was called in still
+    /// belongs to the hidden window, and the compositor has nothing to show for it. Handing the entrance over
+    /// synchronously therefore spends its first frames, and with the entrance curve's front-loaded travel most
+    /// of its motion, on a window nobody can see yet: measured on this machine the window is not visible until
+    /// 24ms after the entrance had already started, and it then spends a further 83ms fading in.
+    /// </para>
+    /// <para>
+    /// <see cref="CompositionTarget.Rendering"/> is the signal that separates "the window was shown" from "a
+    /// frame of it has been composed", which is the condition the entrance actually needs. A single tick is
+    /// enough and is what is waited for; the handler removes itself so nothing accumulates over a session that
+    /// may hide and show the window many times.
+    /// </para>
+    /// </remarks>
+    private void ReplayOnceWindowHasPainted()
+    {
+        void OnRendering(object? sender, object e)
+        {
+            CompositionTarget.Rendering -= OnRendering;
             _services.Profiles.Replay();
+        }
+
+        CompositionTarget.Rendering += OnRendering;
     }
 
     /// <summary>

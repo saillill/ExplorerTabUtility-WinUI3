@@ -142,7 +142,10 @@ What the contract requires, and why:
 * **Platform controls come first.** `SettingsExpander` already animates its own disclosure — at 333ms with the
   entrance spline, which is outside the set above and is left alone, because the alternative is owning a
   third-party template. `FadeIn` exists because showing a window is not a control transition; `DropdownEnter`
-  exists because the framework's popup reveal cannot be given this app's timing.
+  exists because the framework's popup reveal cannot be given this app's timing. The one platform motion this
+  app deliberately turns *off* is the `Frame`'s page transition on navigation: it is not a control transition
+  the app lacks, it is a second entrance competing with the card stagger for the same arrival, and it holds the
+  outgoing page on screen long enough to swallow the first one (see the entrance rule below).
 * **The stagger's parameters are not the caller's business.** `PosterEnter` takes an index and nothing else;
   the 48 epx rise, the 60ms step and the cap of 4 live in one place. The step is calibrated for the lists this
   app has — a handful of cards. The figure it was first given, 20ms, is right for a grid of dozens, where the
@@ -157,6 +160,15 @@ What the contract requires, and why:
   start — which is not how a tray-resident app is used, and was how it came to be reported as missing.
   `ItemContainerTransitions` is not used: the platform's item entrance exposes no interval and cannot cap one,
   and both are properties of the effect, not of the call site.
+* **An entrance is handed over only once its content is on screen.** Replaying is not enough on its own: the
+  entrance is front-loaded (the entrance spline spends ~60% of its travel in the first ~60ms), so starting it
+  while the content it animates is still arriving throws away the part a user would actually see. Two call
+  sites had to be corrected for this, and both are recorded where they are fixed: navigation suppresses the
+  platform's page transition, because it keeps the *outgoing* page on screen for ~200ms while the whole wave
+  runs behind it; and the tray restore waits for a composed frame after `AppWindow.Show()`, because that call
+  returns before the window is visible. The first-launch path reaches the same condition with its measured
+  wait. Read that as the rule: pick the entrance's moment from "the content is displayed", not from "the data
+  arrived".
 * **Every behavior has a no-animation branch.** With the system animation setting off it writes the final value
   immediately — and still invokes its completion callback, or a caller that changes visibility from that
   callback would wait for it forever. The failure paths restore a *visible* state: parked at an offset is the
