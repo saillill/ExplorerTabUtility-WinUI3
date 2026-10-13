@@ -197,6 +197,10 @@ public sealed partial class AboutPage : Page
         // Only show the placeholder when there really is nobody.
         SupportersEmptyText.Visibility =
             items.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+
+        // The same entrance the profile cards use, from the same named behavior: a card grid arriving is one
+        // kind of event, so it does not matter which page it is on.
+        ListEntrance.Queue(SupportersList);
     }
 
     /// <summary>

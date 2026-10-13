@@ -69,28 +69,31 @@ public sealed class ProfilesHost : IProfilesHost
     }
 
     /// <summary>
-    /// Adds the cards once the window has painted, so the entrance they play can be seen, and paces them so the
-    /// staggering is legible.
-    /// <para>
-    /// The wait before the first card is the measured start-up time plus a margin. The pace between cards is this
-    /// app's choice, and it has to be: <c>EntranceThemeTransition</c> has no property for the interval between
-    /// items — the runtime picks it, and what it picks reads as the cards arriving together. Spacing the adds is
-    /// not a hand-written animation; each card still enters through the platform's own item transition, which is
-    /// what <c>ItemContainerTransitions</c> is for. The pace is one of the guidance's durations, so the timing
-    /// stays inside the set this was asked for.
-    /// </para>
+    /// Adds the cards once the window has painted, so the entrance they play can be seen.
     /// </summary>
+    /// <remarks>
+    /// The wait is the measured start-up time plus a margin, and it is the only reason this is not
+    /// synchronous. Both halves of that were measured rather than assumed: a transition played for items
+    /// added from <c>OnNavigatedTo</c> produced nothing at all, because that runs before the control has
+    /// been rendered; and the window's content is not painted until about 470ms after the window appears,
+    /// so an animation started in that gap plays behind a blank window — a frame series showed the window
+    /// blank from 16.56 to 16.70 while the entrance ran from 16.36 to 16.86.
+    /// <para>
+    /// The cards are added in one go, and then handed to <see cref="ListEntrance"/>: the stagger belongs to
+    /// the shared entrance behavior, which is what makes this page's pace the same as any other list's, and
+    /// what keeps the interval, the cap and the distance in one place instead of in the call sites.
+    /// </para>
+    /// </remarks>
     private async void AddCardsAfterStartup(ItemsControl panel)
     {
         await Task.Delay(EntranceDelay);
 
-        // All at once, deliberately. The staggering is the platform's, from the control's
-        // ItemContainerTransitions, and it applies to the items the control takes on as a group. Adding them one
-        // at a time to pace the stagger by hand was tried and made no visible difference: the item transition
-        // does not appear to run for items added long after the control has loaded, so the cards simply appeared,
-        // spaced out. This arrangement is also the only one whose stagger has been reported as visible.
         foreach (var card in _cards)
             panel.Items.Add(((ProfileCardView)card).Root);
+
+        // Only after the adds: this waits for the layout pass that generates the containers, and there is
+        // nothing for it to find before they exist.
+        ListEntrance.Queue(panel);
 
         StartupLog.Step($"profiles: {_cards.Count} cards added");
     }
@@ -121,6 +124,10 @@ public sealed class ProfilesHost : IProfilesHost
 
     public void Clear()
     {
+        // Before the items go: the list is about to be filled again from scratch, and the entrance needs to
+        // know that everything in it is new rather than a continuation (see ListEntrance.Reset).
+        if (_panel is not null) ListEntrance.Reset(_panel);
+
         _panel?.Items.Clear();
         _cards.Clear();
     }
@@ -131,7 +138,14 @@ public sealed class ProfilesHost : IProfilesHost
 
         var root = ((ProfileCardView)card).Root;
         RemoveFromParent(root);
-        _panel?.Items.Add(root);
+
+        if (_panel is null) return;
+
+        _panel.Items.Add(root);
+
+        // A card added while the page is up — "New profile" — is given its entrance too, from the same
+        // behavior and with the list working out that it is this batch's only item.
+        ListEntrance.Queue(_panel);
     }
 
     public void Remove(IProfileCardView card)

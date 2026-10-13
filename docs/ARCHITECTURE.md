@@ -116,7 +116,7 @@ narrow width — widening must not re-open, and a resize must not steal it back)
 | `Application.RequestedTheme` is writable only before the first window | it is assigned once in the `App` constructor; runtime changes go through the root element / dialog `RequestedTheme` |
 | A `ContentDialog` never inherits the window's theme | `ContentDialogService.ResolveTheme()`, resolved per show and never cached |
 | `Popup.SystemBackdrop` is a no-op on a windowed popup (microsoft-ui-xaml #10087/#10677) | the dropdown material comes from the `ComboBoxDropDownBackground` override in `App.xaml`, which is the documented in-app acrylic fallback |
-| The stock `ComboBox` dropdown declares no `ChildTransitions` | `ComboBoxAssist` attaches an `EntranceThemeTransition` with its default 40 epx **horizontal** offset zeroed, so the list rises into place instead of sliding in sideways |
+| The stock `ComboBox` dropdown declares no `ChildTransitions`, and the reveal the framework can give it has no duration or curve to set | `ComboBoxAssist` clears that transition and drives the reveal from `Popup.Opened` with `Motion.DropdownEnter` (250ms, scale from the top edge + fade); the control template is not replaced |
 | `WinUI` ships no tray control | `H.NotifyIcon` in `PopupMenu` mode, where only each item's `Command` runs — menu items must be wired with `Command`, never `Click` |
 | An unpackaged app has no `ms-appx` resolution and no package identity | the tray icon and `AppWindow.SetIcon` load `Assets/Icon.ico` by absolute path; file pickers need an explicit owner HWND |
 | A `ContentDialog` cannot host a second `ContentDialog` | Tab Search's "clear history" confirmation is expressed with in-place controls |
@@ -124,7 +124,41 @@ narrow width — widening must not re-open, and a resize must not steal it back)
 
 ---
 
-## 5. Localization
+## 5. Motion
+
+Everything the app animates itself lives in `Services/Motion.cs`, and callers see four named behaviors —
+`FadeIn`, `FadeOut`, `PosterEnter`, `DropdownEnter` — never a duration, a curve or a distance. The tokens
+are a closed set: 83 / 167 / 250ms and four curves built through `Compositor.CreateCubicBezierEasingFunction`
+(entrance, move, exit, linear). Two screens that both need "content arriving" call the same name, so their
+timing agrees by construction instead of by two call sites happening to be written alike.
+
+What the contract requires, and why:
+
+* **Displacement goes through the `Translation` property-set member, never `Visual.Offset`.** Offset belongs
+  to layout: an Offset animation that has ended keeps filling a value which the next layout pass re-asserts
+  over, which is how an element ends up stranded away from where layout put it. Translation stacks on the
+  layout result instead of replacing it, needs no baseline coordinate, and therefore also allows an entrance
+  to start for an element that has not been measured yet.
+* **Platform controls come first.** `SettingsExpander` already animates its own disclosure — at 333ms with the
+  entrance spline, which is outside the set above and is left alone, because the alternative is owning a
+  third-party template. `FadeIn` exists because showing a window is not a control transition; `DropdownEnter`
+  exists because the framework's popup reveal cannot be given this app's timing.
+* **The stagger's parameters are not the caller's business.** `PosterEnter` takes an index and nothing else;
+  the 48 epx rise, the 20ms step and the cap of 8 live in one place. The cap is not an optimization: without
+  it a long list keeps moving well after the user has started reading it.
+* **Entrances are triggered through `Services/ListEntrance.cs`.** An `ItemsControl` generates its item
+  containers during the layout pass that *follows* the add, so the entrance waits for that pass rather than
+  chasing it, indexes the stagger from the start of the run of items that has not been animated yet, and
+  consumes itself once anything has been animated. `ItemContainerTransitions` is not used: the platform's item
+  entrance exposes no interval and cannot cap one, and both are properties of the effect, not of the call site.
+* **Every behavior has a no-animation branch.** With the system animation setting off it writes the final value
+  immediately — and still invokes its completion callback, or a caller that changes visibility from that
+  callback would wait for it forever. The failure paths restore a *visible* state: parked at an offset is the
+  one outcome a user cannot work around by looking at the screen.
+
+---
+
+## 6. Localization
 
 Nine languages, all of them satellites except English: the neutral `Resources.resx` **is** English, so
 `en` has no resource set of its own. Adding a language means editing four places that cannot be derived
@@ -138,7 +172,7 @@ directly — a satellite that is a copy of the English file would otherwise pass
 
 ---
 
-## 6. Release chain
+## 7. Release chain
 
 `tools/release.py` is the chain, and it is the only supported way to produce a release:
 
@@ -162,7 +196,7 @@ python tools/release.py --ship     # …and push, move the tag, replace the asse
 
 ---
 
-## 7. Audit reference numbers
+## 8. Audit reference numbers
 
 Comments in the code refer to findings by `AUD-nn`. The audit document itself is not kept in the
 repository, so the identifiers are indexed here. They are not contiguous: references disappeared together

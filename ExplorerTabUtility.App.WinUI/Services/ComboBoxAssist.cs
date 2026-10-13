@@ -136,43 +136,65 @@ internal static class ComboBoxAssist
 
     /// <summary>
     /// Gives the dropdown an open/close transition.
-    /// <para>
-    /// The stock ComboBox template declares its <c>Popup</c> without any <c>ChildTransitions</c>
-    /// (verified against the Windows App SDK <c>generic.xaml</c>), so the list appears instantly.
-    /// WinUI's <c>MenuPopupThemeTransition</c> (used by menus in UWP) is <b>not</b> shipped in
-    /// WinUI 3 and <see cref="PopupThemeTransition"/> produced no observable motion, so the
-    /// entrance transition — which is reliably animated — is attached here rather than replacing
-    /// the whole control template.
-    /// </para>
-    /// <para>
-    /// The part is located by walking the visual tree: <c>FindName</c> does not resolve template
-    /// parts of this control (probed — it returns null even after <c>ApplyTemplate</c>).
-    /// </para>
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The stock ComboBox template declares its <c>Popup</c> without any <c>ChildTransitions</c> (verified
+    /// against the Windows App SDK <c>generic.xaml</c>), so the list appears instantly. WinUI's
+    /// <c>MenuPopupThemeTransition</c> (used by menus in UWP) is <b>not</b> shipped in WinUI 3, and
+    /// <see cref="PopupThemeTransition"/> produced no observable motion.
+    /// </para>
+    /// <para>
+    /// The first fix was to attach the one transition that does reliably animate — an
+    /// <see cref="EntranceThemeTransition"/> with its default horizontal offset removed. That works, but it
+    /// leaves the timing to the framework: the reveal has no duration and no curve to set, so a dropdown
+    /// cannot be made to open over the same duration as everything else in the app. So the reveal is driven
+    /// directly instead — <see cref="Motion.DropdownEnter"/> from the popup's own <c>Opened</c> event — and
+    /// the framework's transition is cleared so the two do not both run.
+    /// </para>
+    /// <para>
+    /// What is deliberately <b>not</b> taken over is the control template. Reaching into the template tree
+    /// for the <c>Popup</c> and starting an animation on its content is a few lines; owning the template
+    /// would mean carrying a copy of several hundred lines of XAML and re-checking it against every framework
+    /// update.
+    /// </para>
+    /// <para>
+    /// The part is located by walking the visual tree: <c>FindName</c> does not resolve template parts of
+    /// this control (probed — it returns null even after <c>ApplyTemplate</c>).
+    /// </para>
+    /// </remarks>
     private static void EnableDropDownTransition(Popup popup)
     {
         try
         {
-            if (popup.ChildTransitions.Count > 0) return;
+            // Wired once per popup. ConfigureDropDown runs on Loaded and again on every DropDownOpened, and a
+            // second handler would start a second copy of the reveal on the same content.
+            if (Driven.TryGetValue(popup, out _)) return;
+            Driven.Add(popup, new object());
 
-            // EntranceThemeTransition moves content in from a *horizontal* offset by default (40 epx).
-            // On a dropdown that reads as "the list slides in from the right", which is the direction
-            // Fluent uses for page navigation, not for something that appears in place — menus and
-            // in-place popups rise or simply fade. So the horizontal component is removed and a small
-            // vertical rise kept, matching the motion the content flow implies. The transition itself is
-            // still the official one; only its default offsets are overridden.
-            popup.ChildTransitions = new TransitionCollection
+            // The framework's own reveal, switched off: it has no duration and no curve, and leaving it in
+            // place would mean both it and the app's own animation ran, with the slower of the two winning.
+            popup.ChildTransitions = NoTransitions;
+
+            popup.Opened += (_, _) =>
             {
-                new EntranceThemeTransition { FromHorizontalOffset = 0, FromVerticalOffset = 12 }
+                if (popup.Child is UIElement content)
+                    Motion.DropdownEnter(content);
             };
 
-            StartupLog.Step("ComboBoxAssist: dropdown transition enabled");
+            StartupLog.Step("ComboBoxAssist: dropdown reveal driven by the app's motion vocabulary");
         }
         catch (Exception ex)
         {
             StartupLog.Fail("ComboBoxAssist dropdown transition", ex);
         }
     }
+
+    /// <summary>An empty transition collection: the framework's reveal switched off.</summary>
+    private static readonly TransitionCollection NoTransitions = new();
+
+    /// <summary>Popups already wired, so re-opening does not stack handlers on one popup.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Popup, object> Driven = new();
 
     /// <summary>Depth-limited search for the template's Popup, which is a visual child of the control.</summary>
     private static Popup? FindPopup(DependencyObject root, int depth = 0)
