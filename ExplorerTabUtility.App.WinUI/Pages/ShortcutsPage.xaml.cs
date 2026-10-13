@@ -43,6 +43,13 @@ public sealed partial class ShortcutsPage : Page
 
             StartupLog.Step($"ShortcutsPage: profiles attached ({_services.Profiles.Cards.Count} cards)");
 
+            // The cards are already in the panel from the previous visit, so "attach" is a no-op and no
+            // entrance would play — the list is only ever *given* its items once, on the first visit. The
+            // page being entered is itself the moment the content arrives, so the entrance is replayed for
+            // it. On the first visit the panel is still empty and this does nothing; the adds that follow
+            // queue their own entrance.
+            ListEntrance.Replay(ProfilesPanel);
+
             LogGeometryOnce();
 
             Localize();

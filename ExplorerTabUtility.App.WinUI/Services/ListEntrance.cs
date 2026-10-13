@@ -84,6 +84,32 @@ internal static class ListEntrance
         if (States.TryGetValue(list, out var state)) state.Animated = 0;
     }
 
+    /// <summary>
+    /// Plays the entrance again for a list whose items are already there — the page is being (re)entered and
+    /// the content is arriving on screen for the second, third or tenth time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This exists because <see cref="Queue"/> alone made the entrance a once-per-process event. That is
+    /// what the trigger it replaced did too — the platform's item transition only fires for items a control
+    /// takes on — and it is wrong for a cached page: navigating away and back does not remove the cards, so
+    /// the list is never "given" its items again, nothing animates, and the only way to ever see this effect
+    /// was to restart the app. Which is not how a tray-resident app is used, and is exactly how it was
+    /// being reported as missing.
+    /// </para>
+    /// <para>
+    /// Deliberately routed through the same pending flag rather than animating here and now: this is called
+    /// from a page's navigation handler, which runs before the page is back in the visual tree, and an
+    /// element that is not in the tree has no visual to animate. Waiting for the layout pass that follows
+    /// the navigation is both correct and free.
+    /// </para>
+    /// </remarks>
+    public static void Replay(ItemsControl list)
+    {
+        Reset(list);
+        Queue(list);
+    }
+
     private static void Play(ItemsControl list, State state)
     {
         if (!state.Pending) return;

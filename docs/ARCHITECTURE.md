@@ -144,13 +144,19 @@ What the contract requires, and why:
   third-party template. `FadeIn` exists because showing a window is not a control transition; `DropdownEnter`
   exists because the framework's popup reveal cannot be given this app's timing.
 * **The stagger's parameters are not the caller's business.** `PosterEnter` takes an index and nothing else;
-  the 48 epx rise, the 20ms step and the cap of 8 live in one place. The cap is not an optimization: without
-  it a long list keeps moving well after the user has started reading it.
+  the 48 epx rise, the 60ms step and the cap of 4 live in one place. The step is calibrated for the lists this
+  app has — a handful of cards. The figure it was first given, 20ms, is right for a grid of dozens, where the
+  wave is carried by the number of elements; with two or three it falls below the point where two 250ms
+  movements read as separate events at all, and the entrance looks like one movement. The cap is not an
+  optimization either: without it a long list keeps moving well after the user has started reading it.
 * **Entrances are triggered through `Services/ListEntrance.cs`.** An `ItemsControl` generates its item
   containers during the layout pass that *follows* the add, so the entrance waits for that pass rather than
   chasing it, indexes the stagger from the start of the run of items that has not been animated yet, and
-  consumes itself once anything has been animated. `ItemContainerTransitions` is not used: the platform's item
-  entrance exposes no interval and cannot cap one, and both are properties of the effect, not of the call site.
+  consumes itself once anything has been animated. It also **replays when a cached page is re-entered**
+  (`Replay`): the list is only ever *given* its items once, so without that the effect existed only on a cold
+  start — which is not how a tray-resident app is used, and was how it came to be reported as missing.
+  `ItemContainerTransitions` is not used: the platform's item entrance exposes no interval and cannot cap one,
+  and both are properties of the effect, not of the call site.
 * **Every behavior has a no-animation branch.** With the system animation setting off it writes the final value
   immediately — and still invokes its completion callback, or a caller that changes visibility from that
   callback would wait for it forever. The failure paths restore a *visible* state: parked at an offset is the

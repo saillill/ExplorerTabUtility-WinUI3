@@ -87,22 +87,32 @@ internal static class Motion
 
     /// <summary>Interval between one element and the next in a staggered entrance.</summary>
     /// <remarks>
-    /// Below about 20ms the eye stops resolving the elements as separate arrivals and reads one movement
-    /// again, which is the effect this exists to avoid; above about 50ms it stops being a wave and becomes
-    /// a queue.
+    /// <para>
+    /// This is calibrated for the lists this app actually has — a handful of cards — and that is a
+    /// deliberate departure from the figure this file was first written with. The reference point is a
+    /// 20ms step, which is right for a grid of dozens: there the wave is carried by the sheer number of
+    /// elements. With two or three it is not carried by anything, and 20ms sits below the point where two
+    /// 250ms movements read as separate events at all, so the entrance looks like one movement — the exact
+    /// failure the same source names ("below this you cannot see them one by one").
+    /// </para>
+    /// <para>
+    /// 60ms is chosen from the other end: it is comfortably above the threshold at which the second card
+    /// visibly starts after the first has already moved a third of its distance, and with a cap of four it
+    /// keeps the whole wave inside half a second, which is the property the cap exists to protect.
+    /// </para>
     /// </remarks>
-    private const double StaggerStepMs = 20;
+    private const double StaggerStepMs = 60;
 
     /// <summary>
     /// The highest step index that still earns its own delay.
     /// </summary>
     /// <remarks>
     /// A cap is not an optimization, it is what keeps the effect readable: without one, the 40th element
-    /// would not begin until 800ms after the first, by which time the user is already looking at it. That
+    /// would not begin until well after the first, by which time the user is already looking at it. That
     /// reads as a stall rather than a wave. Past the cap the remaining elements enter together with the
-    /// last stepped one, so the whole thing settles within 160ms of delay plus one duration.
+    /// last stepped one.
     /// </remarks>
-    private const int StaggerCap = 8;
+    private const int StaggerCap = 4;
 
     /// <summary>
     /// The vertical scale a dropdown starts from, so its bottom edge travels roughly a tenth of the

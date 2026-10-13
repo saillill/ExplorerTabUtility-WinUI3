@@ -6,6 +6,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Graphics;
@@ -95,6 +96,11 @@ public sealed partial class MainWindow : Window
     private bool _initialNavigationDone;
     private bool _initialSizeApplied;
 
+    /// <summary>The last input seen on the navigation pane, and when — see <see cref="InputSince"/>.</summary>
+    private string _lastNavInput = "none";
+    private long _lastNavInputAt;
+    private bool _navInputWatched;
+
     private void OnNavLoaded(object sender, RoutedEventArgs e)
     {
         // XamlRoot is available from here on, which the DPI-aware sizing needs. Apply it once:
@@ -138,6 +144,18 @@ public sealed partial class MainWindow : Window
         Nav.SizeChanged -= OnNavSizeChanged;
         Nav.SizeChanged += OnNavSizeChanged;
         UpdatePaneForWidth(Nav.ActualWidth);
+
+        // Only ever for the log line below: the pane is the one place where a selection change can come
+        // from either the code or a person, and telling those apart from the outside is impossible.
+        // Attached with handledEventsToo because the pane handles arrow keys itself, and it is precisely
+        // those that change the selection. Guarded because Loaded can fire more than once and AddHandler
+        // has no matching unsubscribe to pair with.
+        if (!_navInputWatched)
+        {
+            _navInputWatched = true;
+            Nav.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler((_, e) => NoteNavInput($"key {e.Key}")), true);
+            Nav.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, _) => NoteNavInput("pointer")), true);
+        }
 
         if (_initialNavigationDone) return;
         _initialNavigationDone = true;
@@ -1124,9 +1142,36 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        StartupLog.Step($"nav: {tag}");
+        // The selection can only be moved by the code above (once, for the initial page) or by input on
+        // the pane, so which of the two it was is worth recording: an instance that flips between two
+        // pages on its own has been reported twice, and this is what tells the two cases apart.
+        StartupLog.Step($"nav: {tag}{InputSince()}");
         ContentFrame.Navigate(pageType, _services);
         StartupLog.Step($"nav: {tag} done, content={ContentFrame.Content?.GetType().Name ?? "null"}");
+    }
+
+    /// <summary>
+    /// Describes the input that preceded the current navigation, for the log line above.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately part of the navigation line rather than a diagnostic of its own: the question it answers
+    /// ("did a person do this, or did the app navigate itself?") is only ever asked about a navigation that
+    /// already logs, and it must survive into a build the user runs.
+    /// </remarks>
+    private string InputSince()
+    {
+        if (_lastNavInputAt == 0) return " (input: none)";
+
+        var age = Environment.TickCount64 - _lastNavInputAt;
+        return age <= 2000
+            ? $" (input: {_lastNavInput}, {age}ms ago)"
+            : $" (input: {_lastNavInput}, {age}ms ago — stale)";
+    }
+
+    private void NoteNavInput(string what)
+    {
+        _lastNavInput = what;
+        _lastNavInputAt = Environment.TickCount64;
     }
 
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
