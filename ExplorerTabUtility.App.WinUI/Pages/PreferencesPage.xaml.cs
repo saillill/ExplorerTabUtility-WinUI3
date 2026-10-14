@@ -117,12 +117,24 @@ public sealed partial class PreferencesPage : Page
             }
 
             UpdateTrayIconCardState();
+
+            PlayEntrance();
         }
         catch (Exception ex)
         {
             StartupLog.Fail("PreferencesPage.OnNavigatedTo", ex);
         }
     }
+
+    /// <summary>
+    /// Plays this page's entrance: the heading, then the setting rows in order, as one wave.
+    /// </summary>
+    /// <remarks>
+    /// The whole column is the wave. A page is a stack of blocks and this one has no list of its own, so
+    /// every row is a position in it — the same behavior the shortcuts page's cards use, which is what makes
+    /// arriving on this page read like arriving on that one.
+    /// </remarks>
+    internal void PlayEntrance() => ListEntrance.ReplayColumn(ContentColumn);
 
     private void Localize()
     {

@@ -25,7 +25,7 @@
     </Page.Resources>
 
     <ScrollViewer Padding="36,24,36,24">
-        <StackPanel Spacing="8" MaxWidth="720" HorizontalAlignment="Left">
+        <StackPanel x:Name="ContentColumn" Spacing="8" MaxWidth="720" HorizontalAlignment="Left">
 
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <Image x:Name="AppIcon" Width="64" Height="64" VerticalAlignment="Top" />

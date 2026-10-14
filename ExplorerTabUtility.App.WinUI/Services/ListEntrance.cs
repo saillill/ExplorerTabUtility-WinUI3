@@ -8,14 +8,20 @@ using Microsoft.UI.Xaml.Hosting;
 namespace ExplorerTabUtility.App.Services;
 
 /// <summary>
-/// Gives an <see cref="ItemsControl"/>'s items their entrance as they arrive.
+/// Gives content its entrance as it arrives: a page's blocks in order, or an <see cref="ItemsControl"/>'s items.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The entrance has to start at the moment the items appear on screen, and for a list that moment is not
-/// "when they were added": an <c>ItemsControl</c> generates its item containers during the layout pass that
+/// The entrance has to start at the moment the content appears on screen, and for a list that moment is not
+/// "when the items were added": an <c>ItemsControl</c> generates its item containers during the layout pass that
 /// follows, so at the moment of the add there is nothing yet to animate. What the two share is the layout
 /// pass, which is what the pending flag waits for.
+/// </para>
+/// <para>
+/// <b>Two shapes of host, one wave.</b> A page is a <see cref="Panel"/> of blocks — heading, toolbar, rows — so
+/// those blocks are the host's targets; an <c>ItemsControl</c>'s targets are its items. Both are animated by
+/// <see cref="Motion.PosterEnter"/>, which is what makes a page and the list inside it read as one arrival
+/// instead of two: the list is given its position in the page's wave rather than starting its own.
 /// </para>
 /// <para>
 /// Deliberately not <c>ItemContainerTransitions</c>. That is the platform's own item entrance, and it is
@@ -35,45 +41,61 @@ internal static class ListEntrance
 {
     private sealed class State
     {
-        /// <summary>Set when the list has taken on items, cleared once a pass has animated them.</summary>
+        /// <summary>The element the wave belongs to, and how to walk what it holds.</summary>
+        public FrameworkElement Host = null!;
+        public Func<int> Count = null!;
+        public Func<int, UIElement?> Target = null!;
+
+        /// <summary>
+        /// Where this host's first target sits in the wave being played. Non-zero when the host is a list whose
+        /// page put a heading and a toolbar in front of it — see <see cref="ReplayColumn"/>.
+        /// </summary>
+        public int WaveIndex;
+
+        /// <summary>Set when the host has taken on content, cleared once a pass has animated it.</summary>
         public bool Pending;
 
         /// <summary>
-        /// How many leading items already have their entrance. A new item's position in its own batch is its
+        /// How many leading targets already have their entrance. A new target's position in its own batch is its
         /// index minus this, which is what keeps a late arrival from inheriting the whole list's delays.
         /// </summary>
         public int Animated;
 
         /// <summary>
-        /// The visuals the last entrance was started on, kept so that a list whose elements were given new
+        /// The visuals the last entrance was started on, kept so that a host whose elements were given new
         /// ones underneath it can be noticed — see <see cref="PlayedOnLiveVisuals"/>.
         /// </summary>
         public Visual?[]? PlayedOn;
 
-        /// <summary>How many times the entrance has been restarted for a rebuilt list.</summary>
+        /// <summary>How many times the entrance has been restarted for a rebuilt host.</summary>
         public int Restarts;
     }
 
-    /// <summary>Per-control state. Weak so a discarded page does not keep its list alive.</summary>
-    private static readonly ConditionalWeakTable<ItemsControl, State> States = new();
+    /// <summary>Per-host state. Weak so a discarded page does not keep its content alive.</summary>
+    private static readonly ConditionalWeakTable<FrameworkElement, State> States = new();
 
     /// <summary>
-    /// How many times an entrance may be restarted because the list was rebuilt underneath it.
+    /// How many times an entrance may be restarted because the content was rebuilt underneath it.
     /// </summary>
     /// <remarks>
-    /// Bounded so that a list which never stops rebuilding cannot keep the entrance running forever. Three is
+    /// Bounded so that a host which never stops rebuilding cannot keep the entrance running forever. Three is
     /// enough for the case this exists for — a page re-attached, which settles within a pass or two.
     /// </remarks>
     private const int RestartLimit = 3;
 
+    // ---- A list: the wave runs over the items of an ItemsControl --------------------------------------
+
     /// <summary>
     /// Marks <paramref name="list"/> as having just taken on items, so they are given their entrance on the
-    /// next layout pass.
+    /// next layout pass. <paramref name="waveIndex"/> positions them inside a wave the caller is playing.
     /// </summary>
-    public static void Queue(ItemsControl list)
+    public static void Queue(ItemsControl list, int waveIndex = 0)
     {
         if (list is null) return;
-        StateOf(list).Pending = true;
+
+        var state = StateOfList(list);
+        state.WaveIndex = waveIndex;
+        state.Pending = true;
     }
 
     /// <summary>
@@ -88,19 +110,21 @@ internal static class ListEntrance
     /// its items again, so nothing animates, and the only way to ever see the effect was to restart the app.
     /// </para>
     /// <para>
-    /// It plays on the spot as well as queueing, because one of the two callers has no layout pass coming:
+    /// It plays on the spot as well as queueing, because one of the callers has no layout pass coming:
     /// showing a window that is already laid out does not invalidate layout, so waiting for a pass would
     /// leave the flag set forever. If the list is not ready at this moment — items handed over during a
     /// navigation, whose containers do not exist yet — the attempt does nothing and the pass plays instead.
     /// </para>
     /// </remarks>
-    public static void Replay(ItemsControl list)
+    public static void Replay(ItemsControl list, int waveIndex = 0)
     {
         if (list is null) return;
 
-        Reset(list);
-        Queue(list);
-        Play(list, StateOf(list));
+        var state = StateOfList(list);
+        Forget(state);
+        state.WaveIndex = waveIndex;
+        state.Pending = true;
+        Play(state);
     }
 
     /// <summary>
@@ -116,20 +140,90 @@ internal static class ListEntrance
         if (list is null) return;
         if (!States.TryGetValue(list, out var state)) return;
 
+        Forget(state);
+    }
+
+    // ---- A column: the wave runs over the children of a panel ----------------------------------------
+
+    /// <summary>
+    /// Plays the entrance for a page: its content column's children, in order, as one wave.
+    /// </summary>
+    /// <param name="column">The page's content column.</param>
+    /// <param name="ownWave">
+    /// A child that is a list and runs the wave itself — an <c>ItemsControl</c> whose items are the wave's
+    /// remaining positions. It is skipped here; its items are animated when the caller hands it this wave's
+    /// next index. It still counts as a position, so the blocks after it keep theirs.
+    /// </param>
+    /// <returns>
+    /// The index the wave reached, which is what the skipped list's own items should start from.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This is the page half of the app's arrival motion. It replaces the platform's page transition on
+    /// purpose: that transition does not swap the pages at once — the outgoing page stays on screen until it
+    /// has run, measured at ~200ms on this window — so an entrance handed over at navigation time played and
+    /// finished behind a page the user was still looking at. It is also a second entrance for the same
+    /// arrival, which is the competition rather than the feature.
+    /// </para>
+    /// <para>
+    /// A page is entered again on every navigation, so the wave is replayed rather than queued: a cached page
+    /// is handed no new children, and without the replay its blocks would animate once per process.
+    /// </para>
+    /// </remarks>
+    public static int ReplayColumn(Panel column, UIElement? ownWave = null)
+    {
+        if (column is null) return 0;
+
+        var state = StateOfColumn(column);
+        Forget(state);
+        state.WaveIndex = 0;
+        state.Pending = true;
+        Play(state);
+
+        if (ownWave is null) return column.Children.Count;
+
+        var index = column.Children.IndexOf(ownWave);
+        return index < 0 ? column.Children.Count : index;
+    }
+
+    // ---- Shared ---------------------------------------------------------------------------------------
+
+    private static State StateOfList(ItemsControl list) =>
+        StateOf(list, () => new State
+        {
+            Host = list,
+            Count = () => list.Items.Count,
+            Target = index => Target(list, index)
+        });
+
+    private static State StateOfColumn(Panel column) =>
+        StateOf(column, () => new State
+        {
+            Host = column,
+            Count = () => column.Children.Count,
+            Target = index => index < column.Children.Count ? column.Children[index] : null
+        });
+
+    private static State StateOf(FrameworkElement host, Func<State> create)
+    {
+        if (States.TryGetValue(host, out var existing)) return existing;
+
+        var state = create();
+        host.LayoutUpdated += (_, _) => Play(state);
+        States.Add(host, state);
+
+        return state;
+    }
+
+    /// <summary>Forgets what has been animated, for a host that is about to be filled again.</summary>
+    private static void Forget(State state)
+    {
         state.Animated = 0;
 
-        // What the previous entrance was started on describes a list that is about to stop existing.
+        // What the previous entrance was started on describes content that is about to stop existing.
         state.PlayedOn = null;
         state.Restarts = 0;
     }
-
-    private static State StateOf(ItemsControl list) =>
-        States.GetValue(list, static l =>
-        {
-            var created = new State();
-            l.LayoutUpdated += (_, _) => Play(l, created);
-            return created;
-        });
 
     /// <summary>
     /// The element to animate for the item at <paramref name="index"/>.
@@ -148,30 +242,30 @@ internal static class ListEntrance
         return list.ContainerFromIndex(index) as UIElement;
     }
 
-    private static void Play(ItemsControl list, State state)
+    private static void Play(State state)
     {
-        if (state.PlayedOn is not null && !PlayedOnLiveVisuals(list, state)) return;
+        if (state.PlayedOn is not null && !PlayedOnLiveVisuals(state)) return;
 
         if (!state.Pending) return;
 
-        // A list that is not in the tree must not be animated: its elements have no visual yet, or — worse —
+        // Content that is not in the tree must not be animated: its elements have no visual yet, or — worse —
         // one that is about to be replaced when the page is re-attached. The item elements of a list that is
         // being handed over again do exist at that moment, which is exactly why this is checked here rather
-        // than left to the target lookup. Waiting for the pass that follows re-attachment both puts the list
+        // than left to the target lookup. Waiting for the pass that follows re-attachment both puts the host
         // back on screen and gives it its final containers.
-        if (!list.IsLoaded) return;
+        if (!state.Host.IsLoaded) return;
 
-        var count = list.Items.Count;
+        var count = state.Count();
 
-        // Items can be removed at any time, and the watermark cannot point past the end. Clamping is what
-        // keeps the meaning of the watermark correct after a removal: the first N surviving items are still
+        // Targets can be removed at any time, and the watermark cannot point past the end. Clamping is what
+        // keeps the meaning of the watermark correct after a removal: the first N surviving targets are still
         // the ones that have been animated.
         if (state.Animated > count) state.Animated = count;
 
         if (count == 0)
         {
             // Nothing to animate. Cleared rather than left set, or every later layout pass would come back
-            // to look at an empty list.
+            // to look at an empty host.
             state.Pending = false;
             return;
         }
@@ -182,13 +276,19 @@ internal static class ListEntrance
         {
             // Not realised yet — the containers are generated during this very pass, so the ones that are
             // missing will be there for the next one. Leaving the flag set is what retries.
-            if (Target(list, i) is not { } element) return;
+            if (state.Target(i) is not { } element) return;
 
             targets[i] = element;
         }
 
         for (var i = state.Animated; i < count; i++)
-            Motion.PosterEnter(targets[i], i - state.Animated);
+        {
+            // The wave index only positions the first run — the one the caller composed. A continuation is a
+            // run of its own: a card added by hand has no heading in front of it and must not wait for one.
+            var position = state.Animated == 0 ? state.WaveIndex + i : i - state.Animated;
+
+            Motion.PosterEnter(targets[i], position);
+        }
 
         state.Animated = count;
         state.Pending = false;
@@ -205,20 +305,20 @@ internal static class ListEntrance
     /// Whether the elements the entrance was started on still have the visuals it was started on.
     /// </summary>
     /// <remarks>
-    /// The list cannot be asked whether it is about to rebuild itself, so it is asked afterwards instead:
+    /// The host cannot be asked whether it is about to rebuild itself, so it is asked afterwards instead:
     /// if the visuals changed, the entrance went nowhere and is started again on the current ones. This is
     /// what makes the effect survive a cached page being re-attached, rather than depending on getting the
     /// timing right by guesswork.
     /// </remarks>
     /// <returns>True when the entrance is still on live visuals, false when it was restarted.</returns>
-    private static bool PlayedOnLiveVisuals(ItemsControl list, State state)
+    private static bool PlayedOnLiveVisuals(State state)
     {
         var played = state.PlayedOn!;
         var stale = false;
 
         for (var i = 0; i < played.Length; i++)
         {
-            if (Target(list, i) is not { } element || !ReferenceEquals(VisualOf(element), played[i]))
+            if (state.Target(i) is not { } element || !ReferenceEquals(VisualOf(element), played[i]))
             {
                 stale = true;
                 break;
@@ -234,14 +334,14 @@ internal static class ListEntrance
 
         if (state.Restarts >= RestartLimit)
         {
-            StartupLog.Step($"entrance: the list kept being rebuilt, leaving it to settle ({state.Restarts})");
+            StartupLog.Step($"entrance: the content kept being rebuilt, leaving it to settle ({state.Restarts})");
             state.PlayedOn = null;
             state.Restarts = 0;
             return true;
         }
 
         state.Restarts++;
-        StartupLog.Step($"entrance: the list was rebuilt under the entrance, playing it again ({state.Restarts})");
+        StartupLog.Step($"entrance: the content was rebuilt under the entrance, playing it again ({state.Restarts})");
 
         state.PlayedOn = null;
         state.Animated = 0;

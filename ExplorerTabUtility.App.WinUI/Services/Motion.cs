@@ -321,12 +321,15 @@ internal static class Motion
     }
 
     /// <summary>
-    /// The entrance for content that arrives as a block — a card, a row, a grid cell — staggered by the
-    /// element's position in that block. This is the behavior to call; there is nothing to configure.
+    /// The entrance for content that arrives as a block — a page's heading, a toolbar, a card, a row, a grid
+    /// cell — staggered by the element's position in that block. This is the behavior to call; there is
+    /// nothing to configure.
     /// </summary>
     /// <param name="index">
-    /// The element's position in its block. The pacing is derived from it here rather than passed in, which
-    /// is the difference between "both screens use the same stagger" and "both screens computed a delay".
+    /// The element's position in its block. A page's wave is the whole page: its blocks take the leading
+    /// positions and the list inside it takes the ones after them. The pacing is derived from it here rather
+    /// than passed in, which is the difference between "every screen uses the same stagger" and "every screen
+    /// computed a delay".
     /// </param>
     /// <remarks>
     /// Past <see cref="StaggerCap"/> the delay stops growing, so the tail of a long list arrives together

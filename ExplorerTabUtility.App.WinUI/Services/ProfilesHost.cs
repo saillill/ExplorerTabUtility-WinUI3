@@ -93,7 +93,11 @@ public sealed class ProfilesHost : IProfilesHost
 
         // Only after the adds: this waits for the layout pass that generates the containers, and there is
         // nothing for it to find before they exist.
-        ListEntrance.Queue(panel);
+        //
+        // The wave starts at zero, because this add is not part of the page's wave: it runs 500ms after the
+        // page was entered, long after the page's own blocks were handed theirs, so the cards begin a run of
+        // their own rather than waiting for a heading that has already arrived.
+        ListEntrance.Queue(panel, waveIndex: 0);
 
         StartupLog.Step($"profiles: {_cards.Count} cards added");
     }
@@ -125,7 +129,12 @@ public sealed class ProfilesHost : IProfilesHost
     /// if a long list ever needs it, the offset has to be saved and restored around this call.
     /// </para>
     /// </remarks>
-    public void Replay()
+    /// <param name="waveIndex">
+    /// Where the cards sit in the wave being played. The shortcuts page passes the position its own blocks
+    /// reached, so the heading and the toolbar lead the cards; the tray restore passes zero, because nothing
+    /// in front of them is animating.
+    /// </param>
+    public void Replay(int waveIndex = 0)
     {
         if (_panel is null) return;
 
@@ -140,7 +149,7 @@ public sealed class ProfilesHost : IProfilesHost
         foreach (var card in _cards)
             _panel.Items.Add(((ProfileCardView)card).Root);
 
-        ListEntrance.Replay(_panel);
+        ListEntrance.Replay(_panel, waveIndex);
     }
 
     /// <summary>

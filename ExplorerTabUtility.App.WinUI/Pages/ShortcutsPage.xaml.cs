@@ -43,12 +43,7 @@ public sealed partial class ShortcutsPage : Page
 
             StartupLog.Step($"ShortcutsPage: profiles attached ({_services.Profiles.Cards.Count} cards)");
 
-            // The cards are already in the panel from the previous visit, so "attach" is a no-op and no
-            // entrance would play — the list is only ever *given* its items once, on the first visit.
-            // Entering the page is itself the moment the content arrives, so the cards are handed over again
-            // and the entrance replays. On the first visit the panel is still empty and this does nothing;
-            // the adds that follow queue their own entrance.
-            _services.Profiles.Replay();
+            PlayEntrance();
 
             LogGeometryOnce();
 
@@ -59,6 +54,25 @@ public sealed partial class ShortcutsPage : Page
         {
             StartupLog.Fail("ShortcutsPage.OnNavigatedTo", ex);
         }
+    }
+
+    /// <summary>
+    /// Plays this page's entrance: the heading and the toolbar, then the cards that follow them.
+    /// </summary>
+    /// <remarks>
+    /// The cards are already in the panel from the previous visit, so "attach" is a no-op and no entrance
+    /// would play — the list is only ever *given* its items once, on the first visit. Entering the page is
+    /// itself the moment the content arrives, so the page hands both halves over again: its own blocks here,
+    /// and the cards through the host, which is what replays them. On the first visit the panel is still
+    /// empty and that half does nothing; the delayed add that follows queues its own entrance.
+    /// </remarks>
+    internal void PlayEntrance()
+    {
+        // The card list takes the position its own blocks reached, so the heading leads the cards instead of
+        // racing them — one wave over the page, not two over its halves.
+        var cardWaveIndex = ListEntrance.ReplayColumn(ContentColumn, ProfilesPanel);
+
+        _services?.Profiles.Replay(cardWaveIndex);
     }
 
     private bool _geometryLogged;

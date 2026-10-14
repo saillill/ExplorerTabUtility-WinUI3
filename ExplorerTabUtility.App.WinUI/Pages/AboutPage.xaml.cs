@@ -102,8 +102,26 @@ public sealed partial class AboutPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+
         Localize();
+        PlayEntrance();
     }
+
+    /// <summary>Where the supporter grid lands in this page's wave — see <see cref="PlayEntrance"/>.</summary>
+    private int _supportersWaveIndex;
+
+    /// <summary>
+    /// Plays this page's entrance: the blocks of the page in order, with the supporter grid taking the
+    /// position it occupies among them.
+    /// </summary>
+    /// <remarks>
+    /// The grid runs its own wave because its items arrive later than the page does — they are read from the
+    /// bundled list in <c>Loaded</c> — so it cannot be one of this column's children being animated now. It
+    /// still counts as a position in the wave rather than starting a third one, which is why the index is
+    /// kept: the list has to be told where it belongs, and it is the page that knows.
+    /// </remarks>
+    private void PlayEntrance() =>
+        _supportersWaveIndex = ListEntrance.ReplayColumn(ContentColumn, SupportersList);
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -199,8 +217,9 @@ public sealed partial class AboutPage : Page
             items.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
 
         // The same entrance the profile cards use, from the same named behavior: a card grid arriving is one
-        // kind of event, so it does not matter which page it is on.
-        ListEntrance.Queue(SupportersList);
+        // kind of event, so it does not matter which page it is on. Its position in the page's wave comes from
+        // the page, so the grid lands where it sits instead of starting a second wave at the top.
+        ListEntrance.Queue(SupportersList, _supportersWaveIndex);
     }
 
     /// <summary>

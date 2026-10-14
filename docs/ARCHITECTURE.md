@@ -143,23 +143,34 @@ What the contract requires, and why:
   entrance spline, which is outside the set above and is left alone, because the alternative is owning a
   third-party template. `FadeIn` exists because showing a window is not a control transition; `DropdownEnter`
   exists because the framework's popup reveal cannot be given this app's timing. The one platform motion this
-  app deliberately turns *off* is the `Frame`'s page transition on navigation: it is not a control transition
-  the app lacks, it is a second entrance competing with the card stagger for the same arrival, and it holds the
-  outgoing page on screen long enough to swallow the first one (see the entrance rule below).
+  app deliberately turns *off* is the `Frame`'s page transition on navigation: the app performs that arrival
+  itself (`ListEntrance.ReplayColumn`), and the platform's version is a second entrance competing for the same
+  moment that also holds the outgoing page on screen long enough to swallow the first one (see the entrance
+  rules below).
 * **The stagger's parameters are not the caller's business.** `PosterEnter` takes an index and nothing else;
   the 48 epx rise, the 60ms step and the cap of 4 live in one place. The step is calibrated for the lists this
   app has — a handful of cards. The figure it was first given, 20ms, is right for a grid of dozens, where the
   wave is carried by the number of elements; with two or three it falls below the point where two 250ms
   movements read as separate events at all, and the entrance looks like one movement. The cap is not an
   optimization either: without it a long list keeps moving well after the user has started reading it.
-* **Entrances are triggered through `Services/ListEntrance.cs`.** An `ItemsControl` generates its item
-  containers during the layout pass that *follows* the add, so the entrance waits for that pass rather than
-  chasing it, indexes the stagger from the start of the run of items that has not been animated yet, and
-  consumes itself once anything has been animated. It also **replays when a cached page is re-entered**
-  (`Replay`): the list is only ever *given* its items once, so without that the effect existed only on a cold
-  start — which is not how a tray-resident app is used, and was how it came to be reported as missing.
+* **Entrances are triggered through `Services/ListEntrance.cs`, and a page is one wave.** The module has two
+  host shapes and one core. A page's content column is a `Panel`, so its children — heading, subtitle,
+  toolbar, rows — are the wave; an `ItemsControl`'s items are the wave. Both wait for the layout pass that
+  puts them in the tree (an `ItemsControl` generates its item containers during the pass that *follows* the
+  add, so the entrance waits for that pass rather than chasing it), index the stagger from the start of the
+  run that has not been animated yet, and consume themselves once anything has been animated. Crucially
+  `ReplayColumn` **returns the position the wave reached**, and the list inside the page is handed that
+  index: the heading leads the cards instead of racing them, and a page plus its list is one arrival rather
+  than two. Missing that is what the previous arrangement did — the page's content was only ever animated by
+  the platform's page transition, so turning that off to save the card stagger left the headings, the
+  preferences rows and the about page with no entrance at all.
   `ItemContainerTransitions` is not used: the platform's item entrance exposes no interval and cannot cap one,
   and both are properties of the effect, not of the call site.
+* **Entrances are replayed when a page is entered again.** A cached page is handed no new children and a
+  cached list no new items, so without the replay the effect existed only on a cold start — which is not how a
+  tray-resident app is used, and was how it came to be reported as missing. The first population of a list is
+  deliberately *not* part of that: it happens 500ms after the page was entered, so it starts a run of its own
+  at position zero rather than waiting for a heading that has already arrived.
 * **An entrance is handed over only once its content is on screen.** Replaying is not enough on its own: the
   entrance is front-loaded (the entrance spline spends ~60% of its travel in the first ~60ms), so starting it
   while the content it animates is still arriving throws away the part a user would actually see. Two call
