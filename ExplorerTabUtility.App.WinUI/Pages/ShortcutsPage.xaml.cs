@@ -75,6 +75,33 @@ public sealed partial class ShortcutsPage : Page
         _services?.Profiles.Replay(cardWaveIndex);
     }
 
+    /// <summary>
+    /// Ends a hotkey capture when this page is left.
+    /// </summary>
+    /// <remarks>
+    /// The capture is the one piece of state here that reaches outside the window: it installs a global
+    /// keyboard and mouse hook that swallows the chords it records, and it *suspends the app's own hotkeys*
+    /// for as long as it is running (<c>HookManager.KeybindingStarted</c> stops both hooks and
+    /// <c>KeybindingStopped</c> starts them again). The window only ended it on deactivation, which does not
+    /// happen when the user simply picks another page — and then a profile that is no longer on screen kept
+    /// the keyboard, every bindable key pressed anywhere was written into it, and the app's hotkeys stayed
+    /// dead until the window happened to lose activation. Navigating away is leaving the thing being edited,
+    /// so it ends the edit.
+    /// </remarks>
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+
+        try
+        {
+            _services?.ProfileManager.EndHotKeyCapture();
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("ShortcutsPage.OnNavigatedFrom", ex);
+        }
+    }
+
     private bool _geometryLogged;
 
     /// <summary>

@@ -1053,6 +1053,12 @@ public sealed partial class MainWindow : Window
         NavShortcuts.Content = LocalizationService.Get("TabShortcuts");
         NavPreferences.Content = LocalizationService.Get("TabPreferences");
         NavAbout.Content = LocalizationService.Get("TabAbout");
+
+        // The title-bar label is set once, when the chrome is built, so a language switch used to leave it
+        // behind. Every shipped language spells the product name the same way, which is why that was never
+        // visible — it is set here anyway: this is the method a language switch runs, and a label that only
+        // happens to be language-independent is not a label that follows the language.
+        TitleText.Text = LocalizationService.Get("AppTitle");
     }
 
     private void WireServices()
@@ -1228,6 +1234,13 @@ public sealed partial class MainWindow : Window
         }
 
         SaveWindowSize();
+
+        // A capture that is still running when the window goes away would hold the global keyboard while
+        // nothing on screen is recording it, and it suspends the app's own hotkeys for as long as it runs —
+        // which for a tray-resident app means the user's hotkeys stay dead while the app looks idle. The
+        // deactivation handler covers this in practice; ending it here is what makes it not depend on whether
+        // that event arrives.
+        _services.ProfileManager.EndHotKeyCapture();
 
         // The user is done editing: now it is safe to discard rows that were never filled in.
         // Profiles themselves are already persisted on every change.

@@ -822,7 +822,18 @@ internal sealed class ProfileCardView : IProfileCardView
 
         var action = HotKeyActionCatalog.GetActionDisplay(Profile.Action);
 
-        _summary.Text = string.IsNullOrWhiteSpace(Profile.Name) ? hotKey : Profile.Name;
+        // A name the user typed is theirs and is shown exactly as typed, in every language. A name that is
+        // still the placeholder the app generated is not user text — it carries the language that was in
+        // effect when the row was created — so it is resolved in the language in effect now, which is the
+        // same distinction PruneUntouchedProfiles draws with the same predicate. The stored value is also
+        // re-resolved on a language switch (see ProfileManager.RefreshLocalization); doing it here as well is
+        // what keeps a placeholder written by an older build from reaching the screen in a language the user
+        // has left.
+        var name = Profile.Name;
+        if (!string.IsNullOrWhiteSpace(name) && LocalizationService.Instance.IsDefaultProfileName(name))
+            name = LocalizationService.DefaultProfileName;
+
+        _summary.Text = string.IsNullOrWhiteSpace(name) ? hotKey : name;
         _summaryDetail.Text = $"{hotKey}  ·  {action}";
 
         // UpdateSummary runs on every change that can affect which fields apply — action, scope,
@@ -897,6 +908,12 @@ internal sealed class ProfileCardView : IProfileCardView
             RebuildScopes();
             coerced = RebuildActions(action);
             _scope.SelectedIndex = scope == HotkeyScope.Global ? 0 : 1;
+
+            // The field holds the stored name, so a placeholder that was re-resolved in the new language has
+            // to be re-read here too — otherwise the summary above it would name the row in one language and
+            // the field inside it would show another. The user's own text is unaffected: the field and the
+            // profile are kept in step by the field's own change handler.
+            _name.Text = Profile.Name ?? string.Empty;
         }
         finally
         {

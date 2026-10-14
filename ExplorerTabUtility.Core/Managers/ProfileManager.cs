@@ -188,6 +188,30 @@ public class ProfileManager
     /// <summary>Re-reads every card's localized strings after a language switch.</summary>
     public void RefreshLocalization()
     {
+        // A profile whose name is still the placeholder the app generated is not the user's text: a new row
+        // is created with the placeholder of the language in effect at that moment, so switching the UI
+        // language used to leave untouched rows reading "新建快捷键" inside a Japanese or German window.
+        // Re-resolving them here keeps the stored value, the field, the tray menu and the exported file
+        // agreeing with the language on screen. Anything the user typed is theirs and is left exactly as
+        // typed — the same distinction MigrateLegacyNames draws, with the same predicate.
+        var localization = LocalizationService.Instance;
+        var renamed = false;
+
+        foreach (var profile in _tempProfiles)
+        {
+            if (string.IsNullOrWhiteSpace(profile.Name)) continue;
+            if (!localization.IsDefaultProfileName(profile.Name)) continue;
+
+            profile.Name = LocalizationService.DefaultProfileName;
+            renamed = true;
+        }
+
+        if (renamed)
+        {
+            PublishSnapshot(_tempProfiles);
+            SaveProfiles();
+        }
+
         foreach (var card in _profilesHost.Cards)
             card.RefreshLocalization();
     }
