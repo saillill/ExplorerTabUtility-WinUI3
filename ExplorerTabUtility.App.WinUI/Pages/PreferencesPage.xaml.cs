@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
@@ -44,6 +45,10 @@ public sealed partial class PreferencesPage : Page
     public PreferencesPage()
     {
         InitializeComponent();
+
+        // Bound once, here, so the drawer's contents are whatever the collection holds at any moment —
+        // including folders added while the page is open.
+        CardNoMergeFolders.ItemsSource = _noMergeRows;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -509,6 +514,12 @@ public sealed partial class PreferencesPage : Page
             // Required: a picker with no filter throws on PickSingleFolderAsync.
             picker.FileTypeFilter.Add("*");
 
+            // Start at "This PC", not at the folder the picker last used. The picker never lets you commit
+            // the folder it opened *in* — its button stays disabled until the selection moves — so starting
+            // where the user left off put the folder they most likely wanted out of reach, and the only way
+            // forward was to walk into some other folder first. From This PC every folder is a step in.
+            picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
+
             var window = App.MainWindowInstance;
             if (window is null) return;
             WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
@@ -540,6 +551,18 @@ public sealed partial class PreferencesPage : Page
     }
 
     /// <summary>
+    /// The rows inside the no-merge drawer.
+    /// </summary>
+    /// <remarks>
+    /// Observable, and handed to the expander as its <c>ItemsSource</c>, because the list changes while the
+    /// page is open. Adding to the expander's own <c>Items</c> works for rows that exist before it is loaded
+    /// and does nothing for rows added afterwards — which is exactly the case the add button creates, and
+    /// what made the button look like it did nothing: the folder was being saved, and the row that should
+    /// have shown it was never drawn.
+    /// </remarks>
+    private readonly ObservableCollection<object> _noMergeRows = [];
+
+    /// <summary>
     /// Rebuilds the exempt-folder rows: one <see cref="SettingsCard"/> per folder, the path on its leading
     /// side and the button that takes it out on the trailing side — the layout Windows uses for a list of
     /// locations. Built in code because the paths are data. An empty list gets one muted row saying so, so
@@ -547,13 +570,13 @@ public sealed partial class PreferencesPage : Page
     /// </summary>
     private void RebuildNoMergeFolderList()
     {
-        CardNoMergeFolders.Items.Clear();
+        _noMergeRows.Clear();
 
         // An empty list still says so. Expanding to a blank area reads as a control that failed to load, and
         // this list is empty on every fresh install — it is the first thing anyone sees of it.
         if (SettingsManager.NoMergeFolders.Count == 0)
         {
-            CardNoMergeFolders.Items.Add(new SettingsCard
+            _noMergeRows.Add(new SettingsCard
             {
                 // Styled rather than coloured: the style's {ThemeResource} setter follows the theme that is
                 // actually in effect, which a brush fetched here would not — the same reason the profile
@@ -582,7 +605,7 @@ public sealed partial class PreferencesPage : Page
             AutomationProperties.SetName(remove, removeLabel);
             remove.Click += OnRemoveNoMergeFolderClick;
 
-            CardNoMergeFolders.Items.Add(new SettingsCard
+            _noMergeRows.Add(new SettingsCard
             {
                 Header = folder,
                 Content = remove,

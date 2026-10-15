@@ -98,7 +98,7 @@ Vérifiez la zone de notification.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>Nouveau raccourci</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Non assigné</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>Dossiers jamais fusionnés</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Ces dossiers s'ouvrent toujours dans leur propre fenêtre. Détacher un onglet y ajoute son dossier automatiquement ; vous pouvez aussi les ajouter à la main.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Ces dossiers s'ouvrent toujours dans leur propre fenêtre. Seuls les dossiers que vous ajoutez figurent ici — un onglet détaché n'est pas ajouté automatiquement.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Ne jamais fusionner ce dossier</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Ajouter un dossier</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Un dossier ouvert dans une nouvelle fenêtre est intégré comme onglet dans la fenêtre déjà ouverte. Désactivé, chaque dossier ouvre sa propre fenêtre.</value></data>

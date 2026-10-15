@@ -98,7 +98,7 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>새 단축키</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>할당되지 않음</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>병합하지 않는 폴더</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>이 폴더는 항상 별도 창으로 열립니다. 탭을 끌어내면 해당 폴더가 자동으로 여기에 추가되며, 직접 추가할 수도 있습니다.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>이 폴더는 항상 별도 창으로 열립니다. 여기에는 직접 추가한 폴더만 표시되며, 끈어낸 탭은 자동으로 추가되지 않습니다.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>이 폴더는 병합 안 함</value></data>
   <data name="AddFolder" xml:space="preserve"><value>폴더 추가</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>새 창에서 연 폴더는 이미 열려 있는 창의 탭으로 합쳐집니다. 끄면 폴더마다 별도 창으로 열립니다.</value></data>

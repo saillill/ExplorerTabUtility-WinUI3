@@ -98,7 +98,7 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>新建快捷键</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未绑定</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>不合并的文件夹</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>这些文件夹始终单独开窗口。把标签页拖出来时，该文件夹会自动加到这里；也可以手动添加。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>这些文件夹始终单独开窗口。这里只列出你手动添加的文件夹；拖出的标签不会被自动加进来。</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>不合并当前文件夹</value></data>
   <data name="AddFolder" xml:space="preserve"><value>添加文件夹</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新打开的资源管理器窗口会并入已打开窗口的标签页。关掉后，每个文件夹都单独开窗口。</value></data>

@@ -98,7 +98,7 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>新增快速鍵</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未綁定</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>不合併的資料夾</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗。將分頁拖出來時，該資料夾會自動加到這裡；也可以手動新增。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗。這裡只列出你手動新增的資料夾；拖出的分頁不會被自動加進來。</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>不合併目前資料夾</value></data>
   <data name="AddFolder" xml:space="preserve"><value>新增資料夾</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新開啟的檔案總管視窗會併入已開啟視窗的分頁。關閉後，每個資料夾都另開視窗。</value></data>

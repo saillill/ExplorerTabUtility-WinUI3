@@ -98,7 +98,7 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>Новое сочетание</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Не назначено</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>Папки без объединения</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Эти папки всегда открываются в отдельном окне. Если вытащить вкладку, её папка добавится сюда сама; можно добавить и вручную.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Эти папки всегда открываются в отдельном окне. Здесь только те папки, которые вы добавили сами — вытащенная вкладка сама сюда не попадает.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Не объединять эту папку</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Добавить папку</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Папка, открытая в новом окне, добавляется вкладкой в уже открытое окно. Если выключить, каждая папка открывается в своём окне.</value></data>

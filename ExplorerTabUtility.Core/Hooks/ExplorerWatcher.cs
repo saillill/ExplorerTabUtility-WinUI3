@@ -591,22 +591,19 @@ public class ExplorerWatcher : IHook
             // flickered on its way out of the fold.
             // The record also has to be the right *kind* of record. "A location was released and came back"
             // is equally true of a window that was closed and reopened, or of the app restoring the windows
-            // it remembered — and only a tab pulled out of a window that kept its other tabs is a statement
-            // about where the folder belongs. Without this test the app wrote folders down that nobody had
-            // asked it to keep, which is how a restored window put an entry in the user's list.
+            // it remembered — and only a tab pulled out of a window that kept its other tabs is the user
+            // moving a folder into a window of its own. Without this test the app was exempting windows
+            // nobody had pulled out.
+            //
+            // What is deliberately *not* done here is writing the folder down for next time. A pull-out is a
+            // statement about this window, and the no-merge list is the user's own instrument — an entry
+            // there means "always its own window", which is a stronger claim than "leave this one alone".
+            // The two were conflated for a while and the app filled the user's list with folders they had
+            // not chosen.
             var isDetachedTab = TryGetRecentlyClosedWindow(location, out var closedWindow) &&
                                 closedWindow!.WasDetachedTab;
             if (isDetachedTab)
-            {
                 SelectItems(window, closedWindow!.SelectedItems);
-
-                // A folder the user pulled out of a window is a folder they want in its own window, and that
-                // is a decision about the folder rather than about this one window — so it is written down
-                // where the user can see and undo it (the list on the settings page, and the tray item).
-                // Without this the exemption lasted two seconds and the folder was folded again the next time
-                // it was opened, which reads as "the app forgot what I just told it".
-                MarkNoMergeFolder(location);
-            }
 
             // A folder the user has marked as one that always opens on its own is exempt by name,
             // instead of by the timing the detached-tab test above depends on.
@@ -1062,38 +1059,6 @@ public class ExplorerWatcher : IHook
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Writes a folder down as one that always opens in its own window.
-    /// </summary>
-    /// <remarks>
-    /// Called when the user pulls a tab out of a window — see the detached-tab branch in
-    /// <see cref="OnShellWindowRegistered"/>. The entry is deliberately visible to the user (the settings
-    /// page list, and the tray item that toggles it) because the app is making a lasting decision on their
-    /// behalf; something it can do only if they can see it and take it back.
-    /// </remarks>
-    /// <returns>True when a folder was written down.</returns>
-    private bool MarkNoMergeFolder(string location)
-    {
-        try
-        {
-            // The window's location is the shell's URL form; the list stores paths, because the user reads
-            // it and the tray compares against it. A location with no path of its own (a shell namespace)
-            // has nothing to write down and is skipped.
-            var path = Helper.ToFolderPath(location);
-            if (path is null) return false;
-            if (IsNoMergeFolder(path)) return false;
-
-            SettingsManager.NoMergeFolders = [.. SettingsManager.NoMergeFolders, path];
-            Debug.WriteLine($"MarkNoMergeFolder: {path}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"MarkNoMergeFolder failed: {ex}");
-            return false;
-        }
     }
 
     private bool TryGetRecentlyClosedWindow(string location, out WindowRecord? closedWindow, int maxAge = 2_000)

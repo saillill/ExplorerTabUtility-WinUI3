@@ -98,7 +98,7 @@ Check in System Tray Icons.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>New shortcut</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Unbound</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>Folders that never merge</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>These folders always open in their own window. Pulling a tab out of a window adds that folder here by itself; folders can also be added by hand.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>These folders always open in their own window. Only folders added here are listed — a tab pulled out of a window is left alone without being added.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Never merge this folder</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Add folder</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>A folder opened in a new window is folded into a tab of the window that is already open. With this off, every folder opens in its own window.</value></data>

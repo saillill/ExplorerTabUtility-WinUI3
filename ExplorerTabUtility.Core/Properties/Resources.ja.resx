@@ -98,7 +98,7 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>新しいショートカット</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未割り当て</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>結合しないフォルダー</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>これらのフォルダーは常に単独のウィンドウで開きます。タブを外にドラッグすると、そのフォルダーが自動でここに追加されます。手動で追加することもできます。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>これらのフォルダーは常に単独のウィンドウで開きます。ここには手動で追加したフォルダーだけが並びます。外したタブは自動では追加されません。</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>このフォルダーを結合しない</value></data>
   <data name="AddFolder" xml:space="preserve"><value>フォルダーを追加</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新しいウィンドウで開いたフォルダーは、既に開いているウィンドウのタブに取り込まれます。オフにすると、各フォルダーが単独のウィンドウで開きます。</value></data>
