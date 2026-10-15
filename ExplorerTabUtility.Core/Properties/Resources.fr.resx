@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -97,4 +97,9 @@ Vérifiez la zone de notification.</value></data>
   <data name="ExportFailed" xml:space="preserve"><value>Impossible d'exporter les profils. Vérifiez que le dossier de destination est accessible en écriture.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>Nouveau raccourci</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Non assigné</value></data>
+  <data name="TabReuseTooltip" xml:space="preserve"><value>Les nouvelles fenêtres de l'Explorateur s'ouvrent en onglets dans une fenêtre déjà ouverte.</value></data>
+  <data name="WindowInterceptTooltip" xml:space="preserve"><value>Intercepte les nouvelles fenêtres pour les ouvrir en onglets. La désactivation arrête aussi la réutilisation des onglets.</value></data>
+  <data name="NoMergeFolders" xml:space="preserve"><value>Dossiers jamais fusionnés</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Ceux-ci s'ouvrent toujours dans leur propre fenêtre, même si les commutateurs ci-dessus les ouvriraient en onglet.</value></data>
+  <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Ne jamais fusionner ce dossier</value></data>
 </root>

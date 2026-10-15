@@ -575,8 +575,29 @@ public class ExplorerWatcher : IHook
                 return;
             }
 
+            // A tab the user pulled out of another window has to survive, and that question has to be
+            // asked here — before the window is hidden and before the fold is decided.
+            //
+            // The order is the whole point, and it used to be the other way round: every record for this
+            // location was dropped first ("race condition fix: OnQuit may add it async") and the lookup
+            // ran afterwards, so it could only ever match a record that arrived in between — never the one
+            // that was already there. Detaching does the opposite: the tab goes away first and the window
+            // appears second, so the record was always already there, always deleted unread, and the window
+            // the user had just pulled out was folded straight back into a tab. It was also hidden before
+            // this point and had to be brought back by the finally block, so even a window that survived
+            // flickered on its way out of the fold.
+            var isDetachedTab = TryGetRecentlyClosedWindow(location, out var closedWindow);
+            if (isDetachedTab)
+                SelectItems(window, closedWindow!.SelectedItems);
+
+            // A folder the user has marked as one that always opens on its own is exempt by name,
+            // instead of by the timing the detached-tab test above depends on.
+            var isMarkedFolder = IsNoMergeFolder(location);
+
             // Check if this is a single tab window and there are other windows
-            var shouldReopenAsTab = (_isForcingTabs || _reuseTabs) &&
+            var shouldReopenAsTab = !isDetachedTab &&
+                                    !isMarkedFolder &&
+                                    (_isForcingTabs || _reuseTabs) &&
                                     GetLiveWindowCount() > 1 &&
                                     hWnd != _mainWindowHandle &&
                                     Helper.GetAllExplorerTabs(hWnd).Take(2).Count() == 1;
@@ -586,16 +607,11 @@ public class ExplorerWatcher : IHook
             else
                 PreventWindowHiding(hWnd);
 
-            // Remove this location from closed list (race condition fix: OnQuit may add it async)
+            // Drop whatever is left for this location. OnQuit can still arrive after this point, which is
+            // what the second lookup below is for; a record that is still here now belongs to something
+            // the shell is already done with, and the lookup above has consumed the one that mattered.
             lock (_closedWindowsLock)
                 _closedWindows.RemoveAll(w => string.Equals(w.Location, location, StringComparison.OrdinalIgnoreCase));
-
-            // Check if it is a detached tab
-            var isRecentlyClosed = TryGetRecentlyClosedWindow(location, out var closedWindow);
-            if (isRecentlyClosed)
-                SelectItems(window, closedWindow!.SelectedItems);
-
-            shouldReopenAsTab = shouldReopenAsTab && !isRecentlyClosed;
 
             if (shouldReopenAsTab)
             {
@@ -628,11 +644,14 @@ public class ExplorerWatcher : IHook
                 return;
             }
 
-            // OnQuit might fire after ShellWindowRegistered in case of reattached tab (and there were selected files)
-            if (!isRecentlyClosed)
+            // OnQuit might fire after ShellWindowRegistered in case of reattached tab (and there were selected files).
+            // This is the late half of the detached-tab question asked above — the record can land after the
+            // window did. It only restores the selection now: whether the window was folded was already
+            // decided, and a late record cannot fold a window that is already open on screen.
+            if (!isDetachedTab)
             {
-                isRecentlyClosed = await Helper.DoUntilNotDefaultAsync(() => TryGetRecentlyClosedWindow(location, out closedWindow), 700, 50);
-                if (isRecentlyClosed)
+                isDetachedTab = await Helper.DoUntilNotDefaultAsync(() => TryGetRecentlyClosedWindow(location, out closedWindow), 700, 50);
+                if (isDetachedTab)
                     SelectItems(window, closedWindow!.SelectedItems);
             }
 
@@ -1000,6 +1019,28 @@ public class ExplorerWatcher : IHook
 
         return true;
     }
+    /// <summary>
+    /// Whether the user has marked this folder as one that always opens in its own window.
+    /// </summary>
+    /// <remarks>
+    /// The comparison is the shell's own path identity, not text: a marked folder arrives through several
+    /// spellings (a trailing separator, a different case, a non-canonical form) and a list that matched
+    /// only byte-for-byte would read as a feature that does not work.
+    /// </remarks>
+    private bool IsNoMergeFolder(string location)
+    {
+        var marked = SettingsManager.NoMergeFolders;
+        if (marked.Count == 0) return false;
+
+        foreach (var folder in marked)
+        {
+            if (string.IsNullOrWhiteSpace(folder)) continue;
+            if (_shellPathComparer.IsEquivalent(location, folder)) return true;
+        }
+
+        return false;
+    }
+
     private bool TryGetRecentlyClosedWindow(string location, out WindowRecord? closedWindow, int maxAge = 2_000)
     {
         nint targetPidl = 0;
@@ -1072,6 +1113,38 @@ public class ExplorerWatcher : IHook
     }
     private static string[]? GetSelectedItems(ExplorerWindow window) => window.GetSelectedItemNames();
     private static void SelectItems(ExplorerWindow window, string[]? names) => window.SelectItemsByName(names);
+
+    /// <summary>
+    /// The folder the app currently treats as the user's folder: the active tab of the window it means by
+    /// "the window in use".
+    /// </summary>
+    /// <remarks>
+    /// Asked for by the tray menu — "never merge this folder" needs a folder, and the menu's own click
+    /// arrives while the native tray popup owns the foreground, so the foreground window is the popup rather
+    /// than Explorer. The main window is the app's existing answer to "which window does the user mean"
+    /// (a hotkey can point it at another one with <see cref="SetTargetWindow"/>). Returns null when there is
+    /// no Explorer window to read, which the caller shows as a disabled item.
+    /// </remarks>
+    public string? GetCurrentLocation()
+    {
+        try
+        {
+            var hWnd = Helper.IsFileExplorerWindow(_mainWindowHandle) ? _mainWindowHandle : GetMainWindowHWnd(0);
+            if (hWnd == 0) return null;
+
+            var tabHandle = GetActiveTabHandle(hWnd);
+            var window = GetWindowByTabHandle(tabHandle);
+            if (window is null) return null;
+
+            var location = GetLocation(window);
+            return string.IsNullOrWhiteSpace(location) ? null : location;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"GetCurrentLocation failed: {ex}");
+            return null;
+        }
+    }
     /// <summary>
     /// The window's location: the cached one when the table still knows the window, a live read otherwise.
     /// </summary>

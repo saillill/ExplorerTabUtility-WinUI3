@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -97,4 +97,9 @@
   <data name="ExportFailed" xml:space="preserve"><value>匯出設定失敗，請檢查目標資料夾是否可寫入。</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>新增快速鍵</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未綁定</value></data>
+  <data name="TabReuseTooltip" xml:space="preserve"><value>新開啟的檔案總管視窗會併入已開啟視窗的分頁。</value></data>
+  <data name="WindowInterceptTooltip" xml:space="preserve"><value>攔截新視窗，以便將其併入分頁。關閉它也會停止分頁重用。</value></data>
+  <data name="NoMergeFolders" xml:space="preserve"><value>不合併的資料夾</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗，即使上面的開關原本會將其併入分頁。</value></data>
+  <data name="NoMergeCurrentFolder" xml:space="preserve"><value>不合併目前資料夾</value></data>
 </root>

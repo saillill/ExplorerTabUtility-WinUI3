@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -97,4 +97,9 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="ExportFailed" xml:space="preserve"><value>No se pudieron exportar los perfiles. Compruebe que la carpeta de destino se pueda escribir.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>Nuevo atajo</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Sin asignar</value></data>
+  <data name="TabReuseTooltip" xml:space="preserve"><value>Las ventanas nuevas del Explorador se abren como pestañas de una ventana ya abierta.</value></data>
+  <data name="WindowInterceptTooltip" xml:space="preserve"><value>Intercepta las ventanas nuevas para abrirlas como pestañas. Si se desactiva, también se detiene la reutilización de pestañas.</value></data>
+  <data name="NoMergeFolders" xml:space="preserve"><value>Carpetas que nunca se combinan</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Estas siempre se abren en su propia ventana, aunque los interruptores de arriba las abrirían como pestaña.</value></data>
+  <data name="NoMergeCurrentFolder" xml:space="preserve"><value>No combinar nunca esta carpeta</value></data>
 </root>

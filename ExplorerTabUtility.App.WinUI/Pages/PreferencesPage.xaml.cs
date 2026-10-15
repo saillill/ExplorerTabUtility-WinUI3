@@ -2,11 +2,13 @@ using System;
 using System.Linq;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.Storage.Pickers;
 using ExplorerTabUtility.App.Services;
 using ExplorerTabUtility.Helpers;
 using ExplorerTabUtility.Managers;
@@ -94,6 +96,13 @@ public sealed partial class PreferencesPage : Page
                 SwStartup.IsOn = RegistryManager.IsStartupEnabled;
                 SwHideWindowOnStartup.IsOn = SettingsManager.HideWindowOnStartup;
 
+                // The fold switches are the hook engine's state, not the page's: the tray menu and the
+                // hotkeys move the same two, so the page reads them and then keeps reading them (see
+                // WatchHookSwitches) instead of owning a copy.
+                SwReuseTabs.IsOn = SettingsManager.ReuseTabs;
+                SwWindowIntercept.IsOn = SettingsManager.IsWindowHookActive;
+                CardReuseTabs.IsEnabled = CardWindowIntercept.IsEnabled = _services?.HookManager is not null;
+
                 // Configure the dropdowns while the guard is still up: applying the item container
                 // style makes a ComboBox regenerate its items and raise SelectionChanged, and the
                 // handlers would otherwise write the reset selection back to settings — which is how
@@ -117,6 +126,8 @@ public sealed partial class PreferencesPage : Page
             }
 
             UpdateTrayIconCardState();
+
+            WatchHookSwitches();
 
             PlayEntrance();
         }
@@ -154,15 +165,28 @@ public sealed partial class PreferencesPage : Page
         CardStartup.Header = LocalizationService.Get("AddToStartup");
         SetToggleCard(CardHideWindowOnStartup, "HideWindowOnStartup", "HideWindowOnStartupTooltip");
 
+        // The two switches that fold new windows into tabs, and the list that exempts folders from it.
+        // These were reachable only from the tray menu, which is why "stop merging my windows" had nowhere
+        // to be found; the descriptions are here because the two switches act on one behaviour and the page
+        // has to say so where the switches are.
+        SetToggleCard(CardReuseTabs, "TabReuse", "TabReuseTooltip");
+        SetToggleCard(CardWindowIntercept, "WindowIntercept", "WindowInterceptTooltip");
+        CardNoMergeFolders.Header = LocalizationService.Get("NoMergeFolders");
+        CardNoMergeFolders.Description = LocalizationService.Get("NoMergeFoldersTooltip");
+        AutomationProperties.SetName(BtnAddNoMergeFolder, LocalizationService.Get("NoMergeFolders"));
+
         // Every boolean row shows the state as text to the left of the switch (the native
         // ToggleSwitch placement). Set from our own resources so the label follows the in-app
         // language rather than whatever language the WinAppSDK resource package resolved to.
         LocalizeToggleLabels(SwSaveClosedHistory, SwRestorePreviousWindows, SwHideTrayIcon,
-                             SwStartup, SwHideWindowOnStartup);
+                             SwStartup, SwHideWindowOnStartup, SwReuseTabs, SwWindowIntercept);
 
         // SetToggleCard above restored the plain description; re-apply the disabled-state warning so a
         // language switch does not drop it.
         UpdateTrayIconCardState();
+
+        // The rows carry their own accessible names, which are language-dependent like everything else.
+        RebuildNoMergeFolderList();
     }
 
     private static void LocalizeToggleLabels(params ToggleSwitch[] switches)
@@ -425,6 +449,142 @@ public sealed partial class PreferencesPage : Page
     {
         if (_loading) return;
         SettingsManager.HideWindowOnStartup = SwHideWindowOnStartup.IsOn;
+    }
+
+    // ---- Folding new windows into tabs -----------------------------------------------------------
+
+    /// <summary>Set once the hook-state events have been subscribed; this page is cached.</summary>
+    private bool _hookSwitchesWatched;
+
+    /// <summary>
+    /// Applies the tab-reuse switch through the hook engine, which owns the rule that reuse needs
+    /// interception to be on. Writing the setting here instead would leave a switch that reads on and
+    /// does nothing.
+    /// </summary>
+    private void OnReuseTabsToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        _services?.HookManager?.SetReuseTabs(SwReuseTabs.IsOn);
+    }
+
+    /// <summary>
+    /// Applies the interception switch. Turning it off also stops tab reuse — a new single-tab window is
+    /// folded while <em>either</em> switch is on, so without that the switch would read off and every
+    /// window would keep being folded.
+    /// </summary>
+    private void OnWindowInterceptToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        _services?.HookManager?.SetWindowInterception(SwWindowIntercept.IsOn);
+    }
+
+    /// <summary>
+    /// Re-reads both switches when either is moved, wherever it was moved from.
+    /// </summary>
+    /// <remarks>
+    /// The tray menu and the two hotkey actions move the same switches. The page keeps no copy of its own:
+    /// it reads the settings back, which the switch implementations keep authoritative, so the two surfaces
+    /// cannot end up showing different states — which is what happened while this rule lived in the menu.
+    /// </remarks>
+    private void WatchHookSwitches()
+    {
+        if (_hookSwitchesWatched) return;
+        if (_services?.HookManager is not { } hooks) return;
+
+        _hookSwitchesWatched = true;
+        hooks.WindowInterceptionChanged += RefreshHookSwitches;
+        hooks.ReuseTabsChanged += RefreshHookSwitches;
+    }
+
+    private void RefreshHookSwitches() => _services?.Dispatcher.TryPost(() =>
+    {
+        _loading = true;
+        try
+        {
+            SwReuseTabs.IsOn = SettingsManager.ReuseTabs;
+            SwWindowIntercept.IsOn = SettingsManager.IsWindowHookActive;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    });
+
+    /// <summary>
+    /// Opens a folder picker and adds the chosen folder to the exempt list.
+    /// </summary>
+    private async void OnAddNoMergeFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FolderPicker();
+            // Required: a picker with no filter throws on PickSingleFolderAsync.
+            picker.FileTypeFilter.Add("*");
+
+            var window = App.MainWindowInstance;
+            if (window is null) return;
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null) return;
+
+            var current = SettingsManager.NoMergeFolders;
+            if (current.Any(item => string.Equals(item, folder.Path, StringComparison.OrdinalIgnoreCase))) return;
+
+            SettingsManager.NoMergeFolders = [.. current, folder.Path];
+            RebuildNoMergeFolderList();
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("PreferencesPage.OnAddNoMergeFolderClick", ex);
+        }
+    }
+
+    private void OnRemoveNoMergeFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string folder }) return;
+
+        SettingsManager.NoMergeFolders = SettingsManager.NoMergeFolders
+            .Where(item => !string.Equals(item, folder, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        RebuildNoMergeFolderList();
+    }
+
+    /// <summary>
+    /// Rebuilds the exempt-folder rows. Built in code because the paths are data: the card's header says
+    /// what the list means, and each row is one folder next to the button that takes it out again.
+    /// </summary>
+    private void RebuildNoMergeFolderList()
+    {
+        NoMergeFolderList.Children.Clear();
+
+        var removeLabel = LocalizationService.Get("NoMergeCurrentFolder");
+
+        foreach (var folder in SettingsManager.NoMergeFolders)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+
+            row.Children.Add(new TextBlock
+            {
+                Text = folder,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var remove = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
+                Tag = folder
+            };
+            AutomationProperties.SetName(remove, removeLabel);
+            remove.Click += OnRemoveNoMergeFolderClick;
+
+            row.Children.Add(remove);
+            NoMergeFolderList.Children.Add(row);
+        }
     }
 
     private void OnStartupToggled(object sender, RoutedEventArgs e)

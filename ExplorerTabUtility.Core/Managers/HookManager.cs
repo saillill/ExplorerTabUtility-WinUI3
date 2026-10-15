@@ -33,6 +33,16 @@ public sealed class HookManager
     public event Action? OnShellInitialized;
 
     /// <summary>
+    /// Raised after the interception hook has been started or stopped — from the tray menu, the settings
+    /// page or a hotkey. Whoever shows the switch reads the current state when it hears this, rather than
+    /// trying to remember what it last set.
+    /// </summary>
+    public event Action? WindowInterceptionChanged;
+
+    /// <summary>Raised after the tab-reuse switch has been applied, from wherever it was flipped.</summary>
+    public event Action? ReuseTabsChanged;
+
+    /// <summary>
     /// Raised on the UI thread when the tab-search hotkey fires. The UI shell shows its own picker.
     /// </summary>
     public event Action? OnTabSearchRequested;
@@ -84,7 +94,72 @@ public sealed class HookManager
     public void StopKeyboardHook() => ChangeHookStatus(_keyboardHook, false);
     public void StartWindowHook() => ChangeHookStatus(_windowHook, true);
     public void StopWindowHook() => ChangeHookStatus(_windowHook, false);
-    public void SetReuseTabs(bool value) => _windowHook.SetReuseTabs(value);
+
+    /// <summary>
+    /// Applies the window-interception switch, whoever asked for it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Interception and tab reuse are two switches over one behaviour: a new single-tab window is folded
+    /// while <em>either</em> is on (<c>ExplorerWatcher</c> tests <c>_isForcingTabs || _reuseTabs</c>). So
+    /// switching interception off has to stop reuse as well — otherwise the switch reads "off" and every
+    /// window is still being folded, which is exactly how this looked from the outside — and switching it
+    /// back on restores the reuse setting the user had.
+    /// </para>
+    /// <para>
+    /// The rule lives here rather than in the menu that happened to own it, because the tray menu, the
+    /// settings page and the hotkey action are three ways to flip one switch and each could previously
+    /// disagree with the others about what "off" means.
+    /// </para>
+    /// </remarks>
+    public void SetWindowInterception(bool enabled)
+    {
+        if (enabled)
+        {
+            SettingsManager.IsWindowHookActive = true;
+            ChangeHookStatus(_windowHook, true);
+
+            if (_reuseTabsBeforeInterceptionStopped)
+            {
+                SettingsManager.ReuseTabs = true;
+                SetReuseTabs(true);
+            }
+        }
+        else
+        {
+            _reuseTabsBeforeInterceptionStopped = SettingsManager.ReuseTabs;
+
+            SettingsManager.IsWindowHookActive = false;
+            ChangeHookStatus(_windowHook, false);
+
+            if (SettingsManager.ReuseTabs) SetReuseTabs(false);
+        }
+
+        WindowInterceptionChanged?.Invoke();
+    }
+
+    /// <summary>Applies the tab-reuse switch, whoever asked for it.</summary>
+    /// <remarks>
+    /// Reuse is a request for the interception that does the folding, so switching it on switches
+    /// interception on: without that hook running there is nothing to fold a window with, and a switch that
+    /// changes nothing is worse than no switch. The reverse is deliberate in
+    /// <see cref="SetWindowInterception"/> — interception off implies reuse off — and is not mirrored here:
+    /// switching reuse off leaves interception alone, because the user asked for one thing, not both.
+    /// </remarks>
+    public void SetReuseTabs(bool enabled)
+    {
+        SettingsManager.ReuseTabs = enabled;
+        _windowHook.SetReuseTabs(enabled);
+        ReuseTabsChanged?.Invoke();
+
+        if (enabled && !SettingsManager.IsWindowHookActive) SetWindowInterception(true);
+    }
+
+    /// <summary>
+    /// The reuse setting to restore when interception is switched back on. Remembered here because
+    /// interception turning reuse off is this class's own doing, not the user's choice.
+    /// </summary>
+    private bool _reuseTabsBeforeInterceptionStopped;
 
     private async void OnHotKeyProfileTriggered(HotKeyEventArgs e)
     {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using CommunityToolkit.Mvvm.Input;
 using H.NotifyIcon;
@@ -33,13 +34,13 @@ public sealed class TrayIconService : IDisposable
 
     private readonly ToggleMenuFlyoutItem _windowHookItem = new();
     private readonly ToggleMenuFlyoutItem _reuseTabsItem = new();
+    private readonly ToggleMenuFlyoutItem _noMergeFolderItem = new();
     private readonly ToggleMenuFlyoutItem _startupItem = new();
     private readonly MenuFlyoutSubItem _keyboardMenu = new();
     private readonly MenuFlyoutSubItem _mouseMenu = new();
     private readonly MenuFlyoutItem _settingsItem = new();
     private readonly MenuFlyoutItem _exitItem = new();
 
-    private bool _savedReuseTabsState;
     private bool _disposed;
 
     public TrayIconService(ProfileManager profileManager, HookManager? hookManager, IUiDispatcher uiDispatcher)
@@ -107,6 +108,13 @@ public sealed class TrayIconService : IDisposable
             hooks.OnShellInitialized += OnShellInitialized;
             hooks.OnWindowHookToggled += OnWindowHookToggled;
             hooks.OnReuseTabsToggled += OnReuseTabsToggled;
+
+            // The state, not the last thing this menu set: the settings page and the hotkeys move the same
+            // two switches, and the check marks have to follow whoever moved them. The settings page was
+            // added because these switches had no home in the window at all — a user looking for the
+            // "stop folding my windows" setting had nowhere to look.
+            hooks.WindowInterceptionChanged += () => RunOnUi(RefreshSwitchItems);
+            hooks.ReuseTabsChanged += () => RunOnUi(RefreshSwitchItems);
         }
 
         // Rebuild the profile submenus on every profile change (add / remove / rename / enable
@@ -232,20 +240,21 @@ public sealed class TrayIconService : IDisposable
         _windowHookItem.IsChecked = SettingsManager.IsWindowHookActive;
         // BUG-01: ContextMenuMode.PopupMenu rebuilds this MenuFlyout into a native Win32 popup and only
         // executes each item's Command — it never raises the XAML Click event. Menu behaviour must be a
-        // Command, not a Click handler. WinUI also no longer auto-flips IsChecked on click, so the
-        // toggle is done explicitly here before the existing logic runs.
-        _windowHookItem.Command = new RelayCommand(() => RunOnUi(() =>
-        {
-            _windowHookItem.IsChecked = !_windowHookItem.IsChecked;
-            ToggleWindowHook();
-        }));
+        // Command, not a Click handler. WinUI also no longer auto-flips IsChecked on click, which is why
+        // the target state is computed from the setting rather than from the item: the item's check mark
+        // is set by RefreshSwitchItems once the switch has actually been applied.
+        _windowHookItem.Command = new RelayCommand(() => RunOnUi(
+            () => SetInterception(!SettingsManager.IsWindowHookActive)));
 
         _reuseTabsItem.IsChecked = SettingsManager.ReuseTabs;
-        _reuseTabsItem.Command = new RelayCommand(() => RunOnUi(() =>
-        {
-            _reuseTabsItem.IsChecked = !_reuseTabsItem.IsChecked;
-            ToggleReuseTabs();
-        }));
+        _reuseTabsItem.Command = new RelayCommand(() => RunOnUi(
+            () => SetReuseTabsSwitch(!SettingsManager.ReuseTabs)));
+
+        // "This folder" follows the user from window to window, so the item is re-read both now and every
+        // time the menu opens — a check mark that lags is worse than no check mark, and the click itself
+        // always reads the folder afresh.
+        _noMergeFolderItem.Command = new RelayCommand(() => RunOnUi(ToggleNoMergeFolder));
+        RefreshNoMergeFolderItem();
 
         _startupItem.IsChecked = RegistryManager.IsStartupEnabled;
         // ToggleStartup re-reads the registry, so it does not depend on a pre-flipped IsChecked.
@@ -267,14 +276,66 @@ public sealed class TrayIconService : IDisposable
         _menu.Items.Add(new MenuFlyoutSeparator());
         _menu.Items.Add(_windowHookItem);
         _menu.Items.Add(_reuseTabsItem);
+        _menu.Items.Add(_noMergeFolderItem);
         _menu.Items.Add(new MenuFlyoutSeparator());
         _menu.Items.Add(_startupItem);
         _menu.Items.Add(_settingsItem);
         _menu.Items.Add(new MenuFlyoutSeparator());
         _menu.Items.Add(_exitItem);
 
+        // The one state in this menu that is about the window the user is looking at rather than about a
+        // stored setting, so it is re-read when the menu opens rather than when it is built.
+        _menu.Opening += (_, _) => RefreshNoMergeFolderItem();
+
         RefreshProfileMenus();
     }
+
+    /// <summary>
+    /// Adds or removes the folder the app treats as the user's folder from the exempt list.
+    /// </summary>
+    /// <remarks>
+    /// Paths are compared as text here and enforced by the watcher with the shell's own path identity.
+    /// Text is enough for the menu: the entry stored here came from Explorer, and Explorer hands over the
+    /// same canonical spelling for the same folder. What has to be exact is the fold decision, and that is
+    /// the watcher's comparison, not this one.
+    /// </remarks>
+    private void ToggleNoMergeFolder()
+    {
+        var location = _hookManager?.WindowHook.GetCurrentLocation();
+        if (string.IsNullOrWhiteSpace(location))
+        {
+            RefreshNoMergeFolderItem();
+            return;
+        }
+
+        var marked = SettingsManager.NoMergeFolders;
+        var isMarked = marked.Any(item => SameFolder(item, location));
+
+        SettingsManager.NoMergeFolders = isMarked
+            ? marked.Where(item => !SameFolder(item, location)).ToArray()
+            : [.. marked, location.Trim()];
+
+        RefreshNoMergeFolderItem();
+    }
+
+    /// <summary>
+    /// Re-reads the exempt-folder item against the folder the app currently treats as the user's.
+    /// </summary>
+    /// <remarks>
+    /// Disabled rather than hidden when there is no folder to act on: a disappearing menu entry moves every
+    /// item below it, which is worse than one that is greyed out while no Explorer window is open.
+    /// </remarks>
+    private void RefreshNoMergeFolderItem()
+    {
+        var location = _hookManager?.WindowHook.GetCurrentLocation();
+
+        _noMergeFolderItem.IsEnabled = !string.IsNullOrWhiteSpace(location);
+        _noMergeFolderItem.IsChecked = _noMergeFolderItem.IsEnabled &&
+            SettingsManager.NoMergeFolders.Any(item => SameFolder(item, location!));
+    }
+
+    private static bool SameFolder(string left, string right) =>
+        string.Equals(left.Trim().TrimEnd('\\'), right.Trim().TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Reads every string the menu shows.
@@ -291,6 +352,7 @@ public sealed class TrayIconService : IDisposable
         _mouseMenu.Text = LocalizationService.Get("MouseShortcut");
         _windowHookItem.Text = LocalizationService.Get("WindowIntercept");
         _reuseTabsItem.Text = LocalizationService.Get("TabReuse");
+        _noMergeFolderItem.Text = LocalizationService.Get("NoMergeCurrentFolder");
         _startupItem.Text = LocalizationService.Get("AddToStartup");
         _settingsItem.Text = LocalizationService.Get("Settings");
         _exitItem.Text = LocalizationService.Get("Exit");
@@ -380,74 +442,46 @@ public sealed class TrayIconService : IDisposable
         RunOnUi(() => Recreate(_trayIcon.Visibility == Visibility.Visible));
     }
 
-    private void OnWindowHookToggled()
+    /// <summary>
+    /// The hotkey path: the user's action is "toggle", so the target state is the opposite of the state the
+    /// app is actually in — never of whatever this menu last drew.
+    /// </summary>
+    private void OnWindowHookToggled() => SetInterception(!SettingsManager.IsWindowHookActive);
+
+    private void OnReuseTabsToggled() => SetReuseTabsSwitch(!SettingsManager.ReuseTabs);
+
+    /// <summary>
+    /// Applies the interception switch and re-reads both check marks.
+    /// </summary>
+    /// <remarks>
+    /// Interception and tab reuse are two switches over one behaviour — the watcher folds a window while
+    /// either is on — so they cannot be applied one at a time by each surface that offers them.
+    /// <c>HookManager.SetWindowInterception</c> owns the implications ("interception off stops reuse",
+    /// "reuse on needs interception") for the tray, the settings page and the hotkey action alike; what is
+    /// left here is this menu's own state. Without a hook engine there is nothing to fold windows with, so
+    /// the stored value is all that can change — which is what this menu did before the rule moved.
+    /// </remarks>
+    private void SetInterception(bool enabled)
     {
-        if (_windowHookItem.IsChecked)
-        {
-            // Reuse-tabs implies the window hook; remember the old state so it can be restored.
-            _savedReuseTabsState = SettingsManager.ReuseTabs;
+        if (_hookManager is { } hooks) hooks.SetWindowInterception(enabled);
+        else SettingsManager.IsWindowHookActive = enabled;
 
-            _windowHookItem.IsChecked = false;
-            ApplyWindowHook(false);
-
-            // Match the menu path (ToggleWindowHook): reuse-tabs must actually stop too. Leaving
-            // it running meant windows kept folding into tabs even though the user had just turned
-            // interception "off" — the fold condition is (_isForcingTabs || _reuseTabs).
-            if (_reuseTabsItem.IsChecked)
-            {
-                _reuseTabsItem.IsChecked = false;
-                ApplyReuseTabs(false);
-            }
-            return;
-        }
-
-        _windowHookItem.IsChecked = true;
-        ApplyWindowHook(true);
-
-        if (!_savedReuseTabsState) return;
-
-        _reuseTabsItem.IsChecked = true;
-        ApplyReuseTabs(true);
+        RefreshSwitchItems();
     }
 
-    private void OnReuseTabsToggled()
+    private void SetReuseTabsSwitch(bool enabled)
     {
-        _reuseTabsItem.IsChecked = !_reuseTabsItem.IsChecked;
-        ApplyReuseTabs(_reuseTabsItem.IsChecked);
+        if (_hookManager is { } hooks) hooks.SetReuseTabs(enabled);
+        else SettingsManager.ReuseTabs = enabled;
+
+        RefreshSwitchItems();
     }
 
-    private void ToggleWindowHook()
+    /// <summary>Re-reads both switch states from the settings that are now in effect.</summary>
+    private void RefreshSwitchItems()
     {
-        ApplyWindowHook(_windowHookItem.IsChecked);
-
-        if (_windowHookItem.IsChecked || !_reuseTabsItem.IsChecked) return;
-
-        _reuseTabsItem.IsChecked = false;
-        ApplyReuseTabs(false);
-    }
-
-    private void ApplyWindowHook(bool enabled)
-    {
-        SettingsManager.IsWindowHookActive = enabled;
-
-        if (enabled) _hookManager?.StartWindowHook();
-        else _hookManager?.StopWindowHook();
-    }
-
-    private void ToggleReuseTabs()
-    {
-        ApplyReuseTabs(_reuseTabsItem.IsChecked);
-
-        if (!_reuseTabsItem.IsChecked || _windowHookItem.IsChecked) return;
-
-        _windowHookItem.IsChecked = true;
-        ApplyWindowHook(true);
-    }
-
-    private void ApplyReuseTabs(bool enabled)
-    {
-        SettingsManager.ReuseTabs = enabled;
-        _hookManager?.SetReuseTabs(enabled);
+        _windowHookItem.IsChecked = SettingsManager.IsWindowHookActive;
+        _reuseTabsItem.IsChecked = SettingsManager.ReuseTabs;
     }
 
     private void ToggleStartup()

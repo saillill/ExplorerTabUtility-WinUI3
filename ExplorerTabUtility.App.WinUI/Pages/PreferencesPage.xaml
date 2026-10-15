@@ -39,6 +39,41 @@
                 <ComboBox x:Name="CbLanguage" MinWidth="200" SelectionChanged="OnLanguageChanged" />
             </controls:SettingsCard>
 
+            <!--
+                新窗口折叠成标签页的两个开关。它们此前只存在于托盘菜单里，所以"别再合并我的窗口"在设置里
+                找不到任何可关的东西；两处共用 HookManager 持有的同一套规则（关闭拦截会连带停用复用）。
+                顺序与托盘菜单一致。
+            -->
+            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardReuseTabs">
+                <ToggleSwitch x:Name="SwReuseTabs" Toggled="OnReuseTabsToggled" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardWindowIntercept">
+                <ToggleSwitch x:Name="SwWindowIntercept" Toggled="OnWindowInterceptToggled" />
+            </controls:SettingsCard>
+
+            <!--
+                按文件夹豁免：列表里的文件夹始终单独开窗口。用 Expander 是因为清单可能变长，而 SettingsCard
+                的右侧内容区不是放列表的地方。行由代码生成（路径是数据）。
+            -->
+            <controls:SettingsExpander
+                x:Name="CardNoMergeFolders"
+                HorizontalAlignment="Stretch"
+                IsExpanded="False">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="8" MinWidth="240">
+                            <StackPanel x:Name="NoMergeFolderList" Spacing="4" />
+                            <Button x:Name="BtnAddNoMergeFolder"
+                                    Click="OnAddNoMergeFolderClick"
+                                    HorizontalAlignment="Left">
+                                <FontIcon Glyph="&#xE8F4;" FontSize="14" />
+                            </Button>
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
             <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardSaveClosedHistory">
                 <ToggleSwitch x:Name="SwSaveClosedHistory"
                               Toggled="OnSaveClosedHistoryToggled" />

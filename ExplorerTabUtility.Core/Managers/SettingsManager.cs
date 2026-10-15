@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -81,6 +82,20 @@ public static class SettingsManager
     { get => Settings.WindowHook; set { Settings.WindowHook = value; DebounceSave(); } }
     public static bool ReuseTabs
     { get => Settings.ReuseTabs; set { Settings.ReuseTabs = value; DebounceSave(); } }
+
+    /// <summary>
+    /// Folders that always open in their own window — see <see cref="AppSettings.NoMergeFolders"/>.
+    /// <para>
+    /// Replaced wholesale rather than mutated: the list is saved by the same debounced writer as every
+    /// other setting, and a caller that edited the live instance would be changing state the writer may
+    /// already be reading.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> NoMergeFolders
+    {
+        get => Settings.NoMergeFolders;
+        set { Settings.NoMergeFolders = [.. value]; DebounceSave(); }
+    }
     public static string HotKeyProfiles
     { get => Settings.HotKeyProfiles; set { Settings.HotKeyProfiles = value; DebounceSave(); } }
     public static WindowSize FormSize
@@ -240,6 +255,17 @@ internal class AppSettings
     public WindowRecord[]? ClosedWindows { get; set; }
     public string Language { get; set; } = "";
     public bool LanguageMigrated { get; set; }
+
+    /// <summary>
+    /// Folders that always open in their own window, never folded into a tab.
+    /// <para>
+    /// Compared by the shell's own path identity rather than as text, so a marked folder is recognised
+    /// through the spellings Explorer actually hands over — a trailing separator, a different case, a
+    /// non-canonical form. A list that only matched byte-for-byte would look like a feature that does
+    /// not work.
+    /// </para>
+    /// </summary>
+    public List<string> NoMergeFolders { get; set; } = [];
 
     /// <summary>
     /// Set once the stored <see cref="FormSize"/> has been trusted as belonging to the current unit
