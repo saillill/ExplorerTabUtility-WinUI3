@@ -542,11 +542,33 @@ public sealed partial class PreferencesPage : Page
     /// <summary>
     /// Rebuilds the exempt-folder rows: one <see cref="SettingsCard"/> per folder, the path on its leading
     /// side and the button that takes it out on the trailing side — the layout Windows uses for a list of
-    /// locations. Built in code because the paths are data.
+    /// locations. Built in code because the paths are data. An empty list gets one muted row saying so, so
+    /// that opening the drawer never shows a blank area.
     /// </summary>
     private void RebuildNoMergeFolderList()
     {
         CardNoMergeFolders.Items.Clear();
+
+        // An empty list still says so. Expanding to a blank area reads as a control that failed to load, and
+        // this list is empty on every fresh install — it is the first thing anyone sees of it.
+        if (SettingsManager.NoMergeFolders.Count == 0)
+        {
+            CardNoMergeFolders.Items.Add(new SettingsCard
+            {
+                // Styled rather than coloured: the style's {ThemeResource} setter follows the theme that is
+                // actually in effect, which a brush fetched here would not — the same reason the profile
+                // cards apply a style instead of a colour.
+                Header = new TextBlock
+                {
+                    Text = LocalizationService.Get("NoMergeFoldersEmpty"),
+                    Style = ResolveStyle("SecondaryCaptionTextBlockStyle"),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            });
+
+            return;
+        }
 
         var removeLabel = LocalizationService.Get("NoMergeCurrentFolder");
 

@@ -589,7 +589,13 @@ public class ExplorerWatcher : IHook
             // the user had just pulled out was folded straight back into a tab. It was also hidden before
             // this point and had to be brought back by the finally block, so even a window that survived
             // flickered on its way out of the fold.
-            var isDetachedTab = TryGetRecentlyClosedWindow(location, out var closedWindow);
+            // The record also has to be the right *kind* of record. "A location was released and came back"
+            // is equally true of a window that was closed and reopened, or of the app restoring the windows
+            // it remembered — and only a tab pulled out of a window that kept its other tabs is a statement
+            // about where the folder belongs. Without this test the app wrote folders down that nobody had
+            // asked it to keep, which is how a restored window put an entry in the user's list.
+            var isDetachedTab = TryGetRecentlyClosedWindow(location, out var closedWindow) &&
+                                closedWindow!.WasDetachedTab;
             if (isDetachedTab)
             {
                 SelectItems(window, closedWindow!.SelectedItems);
@@ -710,7 +716,12 @@ public class ExplorerWatcher : IHook
         {
             var location = windowInfo.Location ?? GetLocation(window);
             var locationName = windowInfo.Name ?? window.LocationName;
-            var windowRecord = new WindowRecord(location, new IntPtr(window.HWND), name: locationName);
+            var windowRecord = new WindowRecord(location, new IntPtr(window.HWND), name: locationName)
+            {
+                // A tab pulled out of a window leaves its window with the other tabs; a window that was
+                // closed leaves nothing behind. Read *now*, while the window is still there to be asked.
+                WasDetachedTab = Helper.GetAllExplorerTabs(new IntPtr(window.HWND)).Any()
+            };
             lock (_closedWindowsLock) _closedWindows.Add(windowRecord);
 
             // Home, This PC, etc (compared the same case-insensitive way as every other

@@ -103,4 +103,5 @@
   <data name="AddFolder" xml:space="preserve"><value>添加文件夹</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新打开的资源管理器窗口会并入已打开窗口的标签页。关掉后，每个文件夹都单独开窗口。</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新窗口并入标签页</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>还没有添加文件夹。</value></data>
 </root>

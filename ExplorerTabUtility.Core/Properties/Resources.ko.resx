@@ -103,4 +103,5 @@
   <data name="AddFolder" xml:space="preserve"><value>폴더 추가</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>새 창에서 연 폴더는 이미 열려 있는 창의 탭으로 합쳐집니다. 끄면 폴더마다 별도 창으로 열립니다.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>새 창을 탭으로 열기</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>아직 추가된 폴더가 없습니다.</value></data>
 </root>

@@ -103,4 +103,5 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Agregar carpeta</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Una carpeta abierta en una ventana nueva se integra como pestaña en la ventana que ya está abierta. Si se desactiva, cada carpeta abre su propia ventana.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Abrir ventanas nuevas como pestañas</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Aún no hay carpetas agregadas.</value></data>
 </root>

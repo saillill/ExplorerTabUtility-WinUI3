@@ -21,6 +21,19 @@ public class WindowRecord(string location, nint handle = 0, string[]? selectedIt
     public long CreatedAt { get; set; } = Environment.TickCount64;
     public bool Restore { get; set; } = restore;
 
+    /// <summary>
+    /// Whether this record came from a tab that left a window behind — i.e. a tab pulled out of a window
+    /// that is still open, rather than a window that was closed.
+    /// </summary>
+    /// <remarks>
+    /// The two look identical from the location alone: a window disappears and a window at the same location
+    /// appears moments later. They are not the same event, though — one is the user saying "this folder
+    /// belongs in its own window", the other is a close and a reopen (or the app restoring the windows it
+    /// remembered). Only the first is worth writing down, so the count of tabs still in the window at the
+    /// moment the tab quit is recorded here and read back by <c>ExplorerWatcher</c>.
+    /// </remarks>
+    public bool WasDetachedTab { get; set; }
+
     [JsonConstructor]
     private WindowRecord() : this(string.Empty)
     {

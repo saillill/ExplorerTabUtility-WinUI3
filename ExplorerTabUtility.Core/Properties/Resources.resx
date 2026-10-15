@@ -103,4 +103,5 @@ Check in System Tray Icons.</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Add folder</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>A folder opened in a new window is folded into a tab of the window that is already open. With this off, every folder opens in its own window.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>New windows open as tabs</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>No folders added yet.</value></data>
 </root>

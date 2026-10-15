@@ -103,4 +103,5 @@ Vérifiez la zone de notification.</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Ajouter un dossier</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Un dossier ouvert dans une nouvelle fenêtre est intégré comme onglet dans la fenêtre déjà ouverte. Désactivé, chaque dossier ouvre sa propre fenêtre.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Ouvrir les nouvelles fenêtres en onglets</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Aucun dossier ajouté pour l'instant.</value></data>
 </root>

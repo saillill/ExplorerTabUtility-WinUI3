@@ -103,4 +103,5 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="AddFolder" xml:space="preserve"><value>Ordner hinzufügen</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Ein in einem neuen Fenster geöffneter Ordner wird als Tab in das bereits geöffnete Fenster eingefügt. Ausgeschaltet öffnet jeder Ordner ein eigenes Fenster.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Neue Fenster als Tab öffnen</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Noch keine Ordner hinzugefügt.</value></data>
 </root>

@@ -103,4 +103,5 @@
   <data name="AddFolder" xml:space="preserve"><value>フォルダーを追加</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新しいウィンドウで開いたフォルダーは、既に開いているウィンドウのタブに取り込まれます。オフにすると、各フォルダーが単独のウィンドウで開きます。</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新しいウィンドウをタブに取り込む</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>追加されたフォルダーはまだありません。</value></data>
 </root>

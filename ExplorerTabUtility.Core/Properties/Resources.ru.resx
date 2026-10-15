@@ -103,4 +103,5 @@
   <data name="AddFolder" xml:space="preserve"><value>Добавить папку</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Папка, открытая в новом окне, добавляется вкладкой в уже открытое окно. Если выключить, каждая папка открывается в своём окне.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Открывать новые окна вкладками</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Папки пока не добавлены.</value></data>
 </root>
