@@ -97,9 +97,10 @@
   <data name="ExportFailed" xml:space="preserve"><value>プロファイルをエクスポートできませんでした。保存先フォルダーに書き込めるか確認してください。</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>新しいショートカット</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未割り当て</value></data>
-  <data name="TabReuseTooltip" xml:space="preserve"><value>新しく開いたエクスプローラーのウィンドウは、既に開いているウィンドウのタブとして開きます。</value></data>
-  <data name="WindowInterceptTooltip" xml:space="preserve"><value>新しいウィンドウを横取りしてタブに取り込みます。オフにするとタブの再利用も停止します。</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>結合しないフォルダー</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>これらのフォルダーは、上のスイッチでタブに取り込まれる場合でも、常に単独のウィンドウで開きます。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>これらのフォルダーは常に単独のウィンドウで開きます。タブを外にドラッグすると、そのフォルダーが自動でここに追加されます。手動で追加することもできます。</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>このフォルダーを結合しない</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>フォルダーを追加</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新しいウィンドウで開いたフォルダーは、既に開いているウィンドウのタブに取り込まれます。オフにすると、各フォルダーが単独のウィンドウで開きます。</value></data>
+  <data name="MergeNewWindows" xml:space="preserve"><value>新しいウィンドウをタブに取り込む</value></data>
 </root>

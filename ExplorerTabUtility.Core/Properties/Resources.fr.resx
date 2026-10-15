@@ -97,9 +97,10 @@ Vérifiez la zone de notification.</value></data>
   <data name="ExportFailed" xml:space="preserve"><value>Impossible d'exporter les profils. Vérifiez que le dossier de destination est accessible en écriture.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>Nouveau raccourci</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Non assigné</value></data>
-  <data name="TabReuseTooltip" xml:space="preserve"><value>Les nouvelles fenêtres de l'Explorateur s'ouvrent en onglets dans une fenêtre déjà ouverte.</value></data>
-  <data name="WindowInterceptTooltip" xml:space="preserve"><value>Intercepte les nouvelles fenêtres pour les ouvrir en onglets. La désactivation arrête aussi la réutilisation des onglets.</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>Dossiers jamais fusionnés</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Ceux-ci s'ouvrent toujours dans leur propre fenêtre, même si les commutateurs ci-dessus les ouvriraient en onglet.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Ces dossiers s'ouvrent toujours dans leur propre fenêtre. Détacher un onglet y ajoute son dossier automatiquement ; vous pouvez aussi les ajouter à la main.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Ne jamais fusionner ce dossier</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>Ajouter un dossier</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Un dossier ouvert dans une nouvelle fenêtre est intégré comme onglet dans la fenêtre déjà ouverte. Désactivé, chaque dossier ouvre sa propre fenêtre.</value></data>
+  <data name="MergeNewWindows" xml:space="preserve"><value>Ouvrir les nouvelles fenêtres en onglets</value></data>
 </root>

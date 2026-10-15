@@ -393,6 +393,51 @@ public static class Helper
     }
 
     /// <summary>
+    /// The filesystem path behind a window location, or null when there is none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A window's location comes back in the shell's URL form for a path — <c>file:///C:/…</c>, or the
+    /// back-slashed <c>file:\\\C:\…</c> shape <c>Navigate2</c> is given to. That shape is right for
+    /// navigating and wrong for anything a user reads or a list compares by text, so anything that writes a
+    /// folder <em>down</em> — the no-merge list — stores this instead.
+    /// </para>
+    /// <para>
+    /// Locations that are not the filesystem (a shell namespace, a search result) have no path and return
+    /// null: they cannot be written down as a folder, and a caller must skip them rather than store a string
+    /// nothing will ever match.
+    /// </para>
+    /// </remarks>
+    public static string? ToFolderPath(string? location)
+    {
+        if (string.IsNullOrWhiteSpace(location)) return null;
+
+        var value = location.Trim();
+
+        if (value.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            value = value[5..];
+        else if (value.Contains("://", StringComparison.Ordinal) ||
+                 value.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        value = value.Replace('/', '\\');
+
+        // The URL's empty host is spelled as extra separators: file:///C:/x arrives as \\\C:\x. A UNC path
+        // has exactly two and keeps them, which is why only the drive-letter shape is trimmed.
+        var start = 0;
+        while (start < value.Length && value[start] == '\\') start++;
+        if (start > 0 && start + 1 < value.Length && value[start + 1] == ':')
+            value = value[start..];
+
+        value = Uri.UnescapeDataString(value);
+
+        if (value.Length >= 3 && value[1] == ':' && char.IsLetter(value[0])) return value;
+        if (value.StartsWith(@"\\", StringComparison.Ordinal) && value.Length > 2) return value;
+
+        return null;
+    }
+
+    /// <summary>
     /// Normalizes a location string for comparison, persistence and navigation.
     /// <para>
     /// Note: the <c>file:///C:/…</c> URL form that <c>GetLocation</c> reads back from a window is

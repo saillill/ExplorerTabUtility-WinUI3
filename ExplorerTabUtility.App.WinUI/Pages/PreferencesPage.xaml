@@ -40,38 +40,34 @@
             </controls:SettingsCard>
 
             <!--
-                新窗口折叠成标签页的两个开关。它们此前只存在于托盘菜单里，所以"别再合并我的窗口"在设置里
-                找不到任何可关的东西；两处共用 HookManager 持有的同一套规则（关闭拦截会连带停用复用）。
-                顺序与托盘菜单一致。
+                一个开关，说的是用户看得到的行为（新窗口要不要并成标签页），而不是底层两个机制。
+                之前这里是"标签复用"和"窗口拦截"两张卡：它们是同一个行为的两个开关，任何一张开着都会
+                折叠新窗口，所以两张卡的文字读起来必然像在说同一件事 —— 那不是文案问题，是两个开关本就多余。
             -->
-            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardReuseTabs">
-                <ToggleSwitch x:Name="SwReuseTabs" Toggled="OnReuseTabsToggled" />
-            </controls:SettingsCard>
-
-            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardWindowIntercept">
-                <ToggleSwitch x:Name="SwWindowIntercept" Toggled="OnWindowInterceptToggled" />
+            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardMergeNewWindows">
+                <ToggleSwitch x:Name="SwMergeNewWindows" Toggled="OnMergeNewWindowsToggled" />
             </controls:SettingsCard>
 
             <!--
-                按文件夹豁免：列表里的文件夹始终单独开窗口。用 Expander 是因为清单可能变长，而 SettingsCard
-                的右侧内容区不是放列表的地方。行由代码生成（路径是数据）。
+                不合并的文件夹，按 Windows 自己的库位置那种排版：标题行右侧是带文字的按钮，展开后
+                每个文件夹一行 —— 路径在左、移除按钮在右。行在代码里生成（路径是数据）。
             -->
             <controls:SettingsExpander
                 x:Name="CardNoMergeFolders"
                 HorizontalAlignment="Stretch"
                 IsExpanded="False">
-                <controls:SettingsExpander.Items>
-                    <controls:SettingsCard HorizontalAlignment="Stretch">
-                        <StackPanel Spacing="8" MinWidth="240">
-                            <StackPanel x:Name="NoMergeFolderList" Spacing="4" />
-                            <Button x:Name="BtnAddNoMergeFolder"
-                                    Click="OnAddNoMergeFolderClick"
-                                    HorizontalAlignment="Left">
-                                <FontIcon Glyph="&#xE8F4;" FontSize="14" />
-                            </Button>
-                        </StackPanel>
-                    </controls:SettingsCard>
-                </controls:SettingsExpander.Items>
+                <!--
+                    Direct content, not ItemsHeader: on a SettingsExpander the card's own content slot is the
+                    trailing side of the header row — the place Windows puts "添加文件夹" on its library-
+                    locations card. ItemsHeader is the caption above the item list, which put the button on a
+                    row of its own under the title.
+                -->
+                <Button x:Name="BtnAddNoMergeFolder" Click="OnAddNoMergeFolderClick">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8F4;" FontSize="14" />
+                        <TextBlock x:Name="AddNoMergeFolderText" />
+                    </StackPanel>
+                </Button>
             </controls:SettingsExpander>
 
             <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardSaveClosedHistory">

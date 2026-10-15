@@ -97,9 +97,10 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="ExportFailed" xml:space="preserve"><value>Profile konnten nicht exportiert werden. Prüfen Sie, ob der Zielordner beschreibbar ist.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>Neues Tastenkürzel</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Nicht zugewiesen</value></data>
-  <data name="TabReuseTooltip" xml:space="preserve"><value>Neue Explorer-Fenster werden als Tab in einem bereits geöffneten Fenster geöffnet.</value></data>
-  <data name="WindowInterceptTooltip" xml:space="preserve"><value>Fängt neue Fenster ab, damit sie als Tab geöffnet werden können. Ausschalten beendet auch die Tab-Wiederverwendung.</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>Ordner, die nie zusammengeführt werden</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Diese öffnen immer in einem eigenen Fenster, auch wenn die Schalter oben sie als Tab öffnen würden.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Diese Ordner öffnen immer ein eigenes Fenster. Wird ein Tab herausgezogen, landet sein Ordner von selbst hier; Ordner lassen sich auch von Hand hinzufügen.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Diesen Ordner nie zusammenführen</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>Ordner hinzufügen</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Ein in einem neuen Fenster geöffneter Ordner wird als Tab in das bereits geöffnete Fenster eingefügt. Ausgeschaltet öffnet jeder Ordner ein eigenes Fenster.</value></data>
+  <data name="MergeNewWindows" xml:space="preserve"><value>Neue Fenster als Tab öffnen</value></data>
 </root>

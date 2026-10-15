@@ -97,9 +97,10 @@
   <data name="ExportFailed" xml:space="preserve"><value>匯出設定失敗，請檢查目標資料夾是否可寫入。</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>新增快速鍵</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未綁定</value></data>
-  <data name="TabReuseTooltip" xml:space="preserve"><value>新開啟的檔案總管視窗會併入已開啟視窗的分頁。</value></data>
-  <data name="WindowInterceptTooltip" xml:space="preserve"><value>攔截新視窗，以便將其併入分頁。關閉它也會停止分頁重用。</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>不合併的資料夾</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗，即使上面的開關原本會將其併入分頁。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗。將分頁拖出來時，該資料夾會自動加到這裡；也可以手動新增。</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>不合併目前資料夾</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>新增資料夾</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新開啟的檔案總管視窗會併入已開啟視窗的分頁。關閉後，每個資料夾都另開視窗。</value></data>
+  <data name="MergeNewWindows" xml:space="preserve"><value>新視窗併入分頁</value></data>
 </root>

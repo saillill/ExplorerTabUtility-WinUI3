@@ -483,7 +483,10 @@ public class ExplorerWatcher : IHook
     }
     private void OnWindowShown(nint hWinEventHook, uint eventType, nint hWnd, int idObject, int idChild, uint dwEventThread, uint dWmsEventTime)
     {
-        if (!_isForcingTabs || idObject != 0 || idChild != 0) return;
+        // Hiding a window only ever serves the fold, so it is the fold's own switch that decides. Gating this
+        // on interception instead is how a window could be hidden with nothing left to convert it into —
+        // one way an Explorer window ends up invisible while still counting as open.
+        if (!_reuseTabs || idObject != 0 || idChild != 0) return;
 
         // Check if the hWnd was processed by OnShellWindowRegistered
         if (_processedHWnds.TryRemove(hWnd, out _)) return;
@@ -588,7 +591,16 @@ public class ExplorerWatcher : IHook
             // flickered on its way out of the fold.
             var isDetachedTab = TryGetRecentlyClosedWindow(location, out var closedWindow);
             if (isDetachedTab)
+            {
                 SelectItems(window, closedWindow!.SelectedItems);
+
+                // A folder the user pulled out of a window is a folder they want in its own window, and that
+                // is a decision about the folder rather than about this one window — so it is written down
+                // where the user can see and undo it (the list on the settings page, and the tray item).
+                // Without this the exemption lasted two seconds and the folder was folded again the next time
+                // it was opened, which reads as "the app forgot what I just told it".
+                MarkNoMergeFolder(location);
+            }
 
             // A folder the user has marked as one that always opens on its own is exempt by name,
             // instead of by the timing the detached-tab test above depends on.
@@ -597,7 +609,7 @@ public class ExplorerWatcher : IHook
             // Check if this is a single tab window and there are other windows
             var shouldReopenAsTab = !isDetachedTab &&
                                     !isMarkedFolder &&
-                                    (_isForcingTabs || _reuseTabs) &&
+                                    _reuseTabs &&
                                     GetLiveWindowCount() > 1 &&
                                     hWnd != _mainWindowHandle &&
                                     Helper.GetAllExplorerTabs(hWnd).Take(2).Count() == 1;
@@ -1041,6 +1053,38 @@ public class ExplorerWatcher : IHook
         return false;
     }
 
+    /// <summary>
+    /// Writes a folder down as one that always opens in its own window.
+    /// </summary>
+    /// <remarks>
+    /// Called when the user pulls a tab out of a window — see the detached-tab branch in
+    /// <see cref="OnShellWindowRegistered"/>. The entry is deliberately visible to the user (the settings
+    /// page list, and the tray item that toggles it) because the app is making a lasting decision on their
+    /// behalf; something it can do only if they can see it and take it back.
+    /// </remarks>
+    /// <returns>True when a folder was written down.</returns>
+    private bool MarkNoMergeFolder(string location)
+    {
+        try
+        {
+            // The window's location is the shell's URL form; the list stores paths, because the user reads
+            // it and the tray compares against it. A location with no path of its own (a shell namespace)
+            // has nothing to write down and is skipped.
+            var path = Helper.ToFolderPath(location);
+            if (path is null) return false;
+            if (IsNoMergeFolder(path)) return false;
+
+            SettingsManager.NoMergeFolders = [.. SettingsManager.NoMergeFolders, path];
+            Debug.WriteLine($"MarkNoMergeFolder: {path}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"MarkNoMergeFolder failed: {ex}");
+            return false;
+        }
+    }
+
     private bool TryGetRecentlyClosedWindow(string location, out WindowRecord? closedWindow, int maxAge = 2_000)
     {
         nint targetPidl = 0;
@@ -1125,6 +1169,7 @@ public class ExplorerWatcher : IHook
     /// (a hotkey can point it at another one with <see cref="SetTargetWindow"/>). Returns null when there is
     /// no Explorer window to read, which the caller shows as a disabled item.
     /// </remarks>
+    /// <returns>The folder's path — not the window's location, which is the shell's URL form.</returns>
     public string? GetCurrentLocation()
     {
         try
@@ -1136,8 +1181,7 @@ public class ExplorerWatcher : IHook
             var window = GetWindowByTabHandle(tabHandle);
             if (window is null) return null;
 
-            var location = GetLocation(window);
-            return string.IsNullOrWhiteSpace(location) ? null : location;
+            return Helper.ToFolderPath(GetLocation(window));
         }
         catch (Exception ex)
         {

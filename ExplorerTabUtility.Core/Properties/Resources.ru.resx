@@ -97,9 +97,10 @@
   <data name="ExportFailed" xml:space="preserve"><value>Не удалось экспортировать профили. Проверьте, доступна ли папка назначения для записи.</value></data>
   <data name="DefaultProfileName" xml:space="preserve"><value>Новое сочетание</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>Не назначено</value></data>
-  <data name="TabReuseTooltip" xml:space="preserve"><value>Новые окна проводника открываются вкладками в уже открытом окне.</value></data>
-  <data name="WindowInterceptTooltip" xml:space="preserve"><value>Перехватывает новые окна, чтобы открывать их вкладками. При выключении также прекращается повторное использование вкладок.</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>Папки без объединения</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Они всегда открываются в отдельном окне, даже если переключатели выше объединили бы их во вкладку.</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>Эти папки всегда открываются в отдельном окне. Если вытащить вкладку, её папка добавится сюда сама; можно добавить и вручную.</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>Не объединять эту папку</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>Добавить папку</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Папка, открытая в новом окне, добавляется вкладкой в уже открытое окно. Если выключить, каждая папка открывается в своём окне.</value></data>
+  <data name="MergeNewWindows" xml:space="preserve"><value>Открывать новые окна вкладками</value></data>
 </root>

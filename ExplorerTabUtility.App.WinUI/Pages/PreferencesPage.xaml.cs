@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
@@ -96,12 +96,11 @@ public sealed partial class PreferencesPage : Page
                 SwStartup.IsOn = RegistryManager.IsStartupEnabled;
                 SwHideWindowOnStartup.IsOn = SettingsManager.HideWindowOnStartup;
 
-                // The fold switches are the hook engine's state, not the page's: the tray menu and the
-                // hotkeys move the same two, so the page reads them and then keeps reading them (see
+                // The fold switch is the hook engine's state, not the page's: the tray menu and the hotkeys
+                // move the same setting, so the page reads it and then keeps reading it (see
                 // WatchHookSwitches) instead of owning a copy.
-                SwReuseTabs.IsOn = SettingsManager.ReuseTabs;
-                SwWindowIntercept.IsOn = SettingsManager.IsWindowHookActive;
-                CardReuseTabs.IsEnabled = CardWindowIntercept.IsEnabled = _services?.HookManager is not null;
+                SwMergeNewWindows.IsOn = SettingsManager.ReuseTabs;
+                CardMergeNewWindows.IsEnabled = _services?.HookManager is not null;
 
                 // Configure the dropdowns while the guard is still up: applying the item container
                 // style makes a ComboBox regenerate its items and raise SelectionChanged, and the
@@ -165,21 +164,20 @@ public sealed partial class PreferencesPage : Page
         CardStartup.Header = LocalizationService.Get("AddToStartup");
         SetToggleCard(CardHideWindowOnStartup, "HideWindowOnStartup", "HideWindowOnStartupTooltip");
 
-        // The two switches that fold new windows into tabs, and the list that exempts folders from it.
-        // These were reachable only from the tray menu, which is why "stop merging my windows" had nowhere
-        // to be found; the descriptions are here because the two switches act on one behaviour and the page
-        // has to say so where the switches are.
-        SetToggleCard(CardReuseTabs, "TabReuse", "TabReuseTooltip");
-        SetToggleCard(CardWindowIntercept, "WindowIntercept", "WindowInterceptTooltip");
+        // One switch, named after what the user sees happen. The two switches this replaced ("tab reuse" and
+        // "window interception") were two names for one behaviour — folding happens while either is on — so
+        // their descriptions were bound to read alike; the fix is not better wording but one switch.
+        SetToggleCard(CardMergeNewWindows, "MergeNewWindows", "MergeNewWindowsTooltip");
+
         CardNoMergeFolders.Header = LocalizationService.Get("NoMergeFolders");
         CardNoMergeFolders.Description = LocalizationService.Get("NoMergeFoldersTooltip");
-        AutomationProperties.SetName(BtnAddNoMergeFolder, LocalizationService.Get("NoMergeFolders"));
+        AddNoMergeFolderText.Text = LocalizationService.Get("AddFolder");
 
         // Every boolean row shows the state as text to the left of the switch (the native
         // ToggleSwitch placement). Set from our own resources so the label follows the in-app
         // language rather than whatever language the WinAppSDK resource package resolved to.
         LocalizeToggleLabels(SwSaveClosedHistory, SwRestorePreviousWindows, SwHideTrayIcon,
-                             SwStartup, SwHideWindowOnStartup, SwReuseTabs, SwWindowIntercept);
+                             SwStartup, SwHideWindowOnStartup, SwMergeNewWindows);
 
         // SetToggleCard above restored the plain description; re-apply the disabled-state warning so a
         // language switch does not drop it.
@@ -457,35 +455,24 @@ public sealed partial class PreferencesPage : Page
     private bool _hookSwitchesWatched;
 
     /// <summary>
-    /// Applies the tab-reuse switch through the hook engine, which owns the rule that reuse needs
-    /// interception to be on. Writing the setting here instead would leave a switch that reads on and
-    /// does nothing.
+    /// Applies the fold switch through the hook engine, which owns the rules around it: folding needs the
+    /// interception that performs it, so switching this on switches that on, and switching it off stops the
+    /// folding everywhere — including the interception that was only ever hiding windows in order to fold
+    /// them.
     /// </summary>
-    private void OnReuseTabsToggled(object sender, RoutedEventArgs e)
+    private void OnMergeNewWindowsToggled(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
 
-        _services?.HookManager?.SetReuseTabs(SwReuseTabs.IsOn);
+        _services?.HookManager?.SetReuseTabs(SwMergeNewWindows.IsOn);
     }
 
     /// <summary>
-    /// Applies the interception switch. Turning it off also stops tab reuse — a new single-tab window is
-    /// folded while <em>either</em> switch is on, so without that the switch would read off and every
-    /// window would keep being folded.
-    /// </summary>
-    private void OnWindowInterceptToggled(object sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-
-        _services?.HookManager?.SetWindowInterception(SwWindowIntercept.IsOn);
-    }
-
-    /// <summary>
-    /// Re-reads both switches when either is moved, wherever it was moved from.
+    /// Re-reads the switch when it is moved, wherever it was moved from.
     /// </summary>
     /// <remarks>
-    /// The tray menu and the two hotkey actions move the same switches. The page keeps no copy of its own:
-    /// it reads the settings back, which the switch implementations keep authoritative, so the two surfaces
+    /// The tray menu and the two hotkey actions move the same setting. The page keeps no copy of its own: it
+    /// reads the settings back, which the switch implementations keep authoritative, so the two surfaces
     /// cannot end up showing different states — which is what happened while this rule lived in the menu.
     /// </remarks>
     private void WatchHookSwitches()
@@ -503,8 +490,7 @@ public sealed partial class PreferencesPage : Page
         _loading = true;
         try
         {
-            SwReuseTabs.IsOn = SettingsManager.ReuseTabs;
-            SwWindowIntercept.IsOn = SettingsManager.IsWindowHookActive;
+            SwMergeNewWindows.IsOn = SettingsManager.ReuseTabs;
         }
         finally
         {
@@ -554,26 +540,18 @@ public sealed partial class PreferencesPage : Page
     }
 
     /// <summary>
-    /// Rebuilds the exempt-folder rows. Built in code because the paths are data: the card's header says
-    /// what the list means, and each row is one folder next to the button that takes it out again.
+    /// Rebuilds the exempt-folder rows: one <see cref="SettingsCard"/> per folder, the path on its leading
+    /// side and the button that takes it out on the trailing side — the layout Windows uses for a list of
+    /// locations. Built in code because the paths are data.
     /// </summary>
     private void RebuildNoMergeFolderList()
     {
-        NoMergeFolderList.Children.Clear();
+        CardNoMergeFolders.Items.Clear();
 
         var removeLabel = LocalizationService.Get("NoMergeCurrentFolder");
 
         foreach (var folder in SettingsManager.NoMergeFolders)
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-
-            row.Children.Add(new TextBlock
-            {
-                Text = folder,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
             var remove = new Button
             {
                 Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
@@ -582,8 +560,12 @@ public sealed partial class PreferencesPage : Page
             AutomationProperties.SetName(remove, removeLabel);
             remove.Click += OnRemoveNoMergeFolderClick;
 
-            row.Children.Add(remove);
-            NoMergeFolderList.Children.Add(row);
+            CardNoMergeFolders.Items.Add(new SettingsCard
+            {
+                Header = folder,
+                Content = remove,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            });
         }
     }
 
