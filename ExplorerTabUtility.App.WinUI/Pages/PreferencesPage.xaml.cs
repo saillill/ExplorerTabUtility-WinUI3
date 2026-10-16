@@ -104,6 +104,8 @@ public sealed partial class PreferencesPage : Page
                 SwHideTrayIcon.IsOn = SettingsManager.IsTrayIconHidden;
                 SwStartup.IsOn = RegistryManager.IsStartupEnabled;
                 SwHideWindowOnStartup.IsOn = SettingsManager.HideWindowOnStartup;
+                SwAutoCheckUpdates.IsOn = SettingsManager.AutoCheckForUpdates;
+                SwAutoUpdate.IsOn = SettingsManager.AutoUpdate;
 
                 // The fold switch is the hook engine's state, not the page's: the tray menu and the hotkeys
                 // move the same setting, so the page reads it and then keeps reading it (see
@@ -194,7 +196,8 @@ public sealed partial class PreferencesPage : Page
         // ToggleSwitch placement). Set from our own resources so the label follows the in-app
         // language rather than whatever language the WinAppSDK resource package resolved to.
         LocalizeToggleLabels(SwSaveClosedHistory, SwRestorePreviousWindows, SwHideTrayIcon,
-                             SwStartup, SwHideWindowOnStartup, SwMergeNewWindows);
+                             SwStartup, SwHideWindowOnStartup, SwMergeNewWindows,
+                             SwAutoCheckUpdates, SwAutoUpdate);
 
         // SetToggleCard above restored the plain description; re-apply the disabled-state warning so a
         // language switch does not drop it.
@@ -426,6 +429,18 @@ public sealed partial class PreferencesPage : Page
     /// <summary>A message that replaces the version line until the next check (a failure, or a hand-over).</summary>
     private string? _updateMessage;
 
+    private void OnAutoCheckUpdatesToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        SettingsManager.AutoCheckForUpdates = SwAutoCheckUpdates.IsOn;
+    }
+
+    private void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        SettingsManager.AutoUpdate = SwAutoUpdate.IsOn;
+    }
+
     private async void OnUpdateButtonClick(object sender, RoutedEventArgs e)
     {
         if (_updateBusy) return;
@@ -452,7 +467,12 @@ public sealed partial class PreferencesPage : Page
 
             _updateRelease = result.Status == UpdateCheckStatus.UpdateAvailable ? result.Release : null;
             if (result.Status == UpdateCheckStatus.Failed)
+            {
+                // The reason goes to the log, not to the user: "could not check" is what they need to see, and
+                // what went wrong is what makes it fixable.
                 _updateMessage = LocalizationService.Get("UpdateCheckFailed");
+                StartupLog.Step($"update check failed: {result.Reason}");
+            }
         }
         finally
         {
@@ -468,6 +488,15 @@ public sealed partial class PreferencesPage : Page
     /// </summary>
     private void ShowUpdateDescription()
     {
+        // What the startup pass found counts too, so the row is not blank about an answer the app already has.
+        var known = UpdateService.LastCheck;
+        if (known is { Status: UpdateCheckStatus.UpdateAvailable, Release: { } startupRelease } &&
+            _updateRelease is null && _updateMessage is null)
+        {
+            _updateRelease = startupRelease;
+            BtnUpdate.Content = LocalizationService.Get("DownloadAndInstall");
+        }
+
         var state = _updateMessage;
 
         if (state is null && _updateRelease is { } release)
@@ -525,7 +554,7 @@ public sealed partial class PreferencesPage : Page
                 return;
             }
 
-            if (installed) StartInstaller(destination);
+            if (installed) UpdateService.LaunchInstaller(destination);
             else Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + destination + "\""));
         }
         catch (Exception ex)

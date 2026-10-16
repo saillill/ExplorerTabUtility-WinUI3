@@ -114,4 +114,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>檢查更新失敗</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>已下載，正在開啟所在資料夾</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>正在安裝，程式將結束</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>自動檢查更新</value></data>
+  <data name="AutoUpdate" xml:space="preserve"><value>自動更新</value></data>
 </root>

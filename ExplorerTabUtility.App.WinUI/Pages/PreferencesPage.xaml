@@ -70,16 +70,6 @@
                 </Button>
             </controls:SettingsExpander>
 
-            <!--
-                检查更新。按钮与进度条占同一个位置：下载时按钮让位给进度，行高不变。
-            -->
-            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardUpdate">
-                <Grid>
-                    <Button x:Name="BtnUpdate" Click="OnUpdateButtonClick" MinWidth="120" />
-                    <ProgressBar x:Name="UpdateProgress" Width="140" Visibility="Collapsed" />
-                </Grid>
-            </controls:SettingsCard>
-
             <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardSaveClosedHistory">
                 <ToggleSwitch x:Name="SwSaveClosedHistory"
                               Toggled="OnSaveClosedHistoryToggled" />
@@ -104,6 +94,22 @@
             <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardHideWindowOnStartup">
                 <ToggleSwitch x:Name="SwHideWindowOnStartup"
                               Toggled="OnHideWindowOnStartupToggled" />
+            </controls:SettingsCard>
+
+            <!--
+                检查更新，放在整页最下面 —— 它是关于这个程序本身的事，与上面这些"程序怎么工作"的设置不同。
+                两个开关加一个按钮：自动检查（默认开）与自动更新（默认关）各是一个开关，按钮手动查一次；
+                查出新版本后按钮变成「下载并安装」，下载时按钮让位给进度条（同一格切换，行高不跳）。
+            -->
+            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardUpdate">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <ToggleSwitch x:Name="SwAutoCheckUpdates" Toggled="OnAutoCheckUpdatesToggled" />
+                        <ToggleSwitch x:Name="SwAutoUpdate" Toggled="OnAutoUpdateToggled" />
+                        <Button x:Name="BtnUpdate" Click="OnUpdateButtonClick" MinWidth="110" />
+                    </StackPanel>
+                    <ProgressBar x:Name="UpdateProgress" Width="200" VerticalAlignment="Center" Visibility="Collapsed" />
+                </Grid>
             </controls:SettingsCard>
         </StackPanel>
     </ScrollViewer>

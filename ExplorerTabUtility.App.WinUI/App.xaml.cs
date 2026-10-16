@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using ExplorerTabUtility.App.Services;
@@ -94,6 +96,13 @@ public partial class App : Application
             {
                 RegistryManager.UpgradeStartupEntry();
             }
+
+            // The update pass, if the user left it on. Fire-and-forget: nothing on screen waits for it, and
+            // with "install automatically" off it only fills in what the settings row has to say.
+            _ = UpdateService.RunStartupCheckAsync(Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 1))
+                .ContinueWith(
+                    task => StartupLog.Step($"update pass: {UpdateService.LastCheck?.Status} {UpdateService.LastCheck?.Reason}"),
+                    TaskContinuationOptions.OnlyOnRanToCompletion);
 
             // The WPF build always showed the window on first run; keep that behaviour so a fresh
             // install is discoverable even when it is set to start minimised later on.

@@ -114,4 +114,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>업데이트를 확인할 수 없습니다</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>다운로드 완료 — 폴더를 엽니다</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>설치 중 — 앱이 종료됩니다</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>자동으로 확인</value></data>
+  <data name="AutoUpdate" xml:space="preserve"><value>자동으로 설치</value></data>
 </root>
