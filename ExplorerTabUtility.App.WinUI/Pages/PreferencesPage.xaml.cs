@@ -127,9 +127,15 @@ public sealed partial class PreferencesPage : Page
                 _trayIconHeaderHooked = true;
                 CardHideTrayIcon.RegisterPropertyChangedCallback(
                     Control.IsEnabledProperty, (_, _) => ApplyTrayIconHeader(CardHideTrayIcon.IsEnabled));
+
+                // Same treatment for the startup-hide row, which this page also enables and disables while
+                // it is open (toggling "add to startup" changes whether it means anything).
+                CardHideWindowOnStartup.RegisterPropertyChangedCallback(
+                    Control.IsEnabledProperty, (_, _) => ApplyHideWindowOnStartupHeader(CardHideWindowOnStartup.IsEnabled));
             }
 
             UpdateTrayIconCardState();
+            ApplyHideWindowOnStartupRequirement(RegistryManager.IsStartupEnabled);
 
             WatchHookSwitches();
 
@@ -167,7 +173,9 @@ public sealed partial class PreferencesPage : Page
         CardHideTrayIcon.Header = LocalizationService.Get("HideTrayIcon");
 
         CardStartup.Header = LocalizationService.Get("AddToStartup");
-        SetToggleCard(CardHideWindowOnStartup, "HideWindowOnStartup", "HideWindowOnStartupTooltip");
+        // 这一行的标题与说明由 ApplyHideWindowOnStartupRequirement 管理：它只在已注册开机自启时起作用，
+        // 未注册时禁用并在说明里给出原因（与「隐藏托盘图标」同一套处理）。
+        ApplyHideWindowOnStartupRequirement(RegistryManager.IsStartupEnabled);
 
         // One switch, named after what the user sees happen. The two switches this replaced ("tab reuse" and
         // "window interception") were two names for one behaviour — folding happens while either is on — so
@@ -342,8 +350,15 @@ public sealed partial class PreferencesPage : Page
         ToolTipService.SetToolTip(CardHideTrayIcon, reason);
     }
 
+    /// <summary>Paints the tray-icon row's title for its current availability.</summary>
+    private void ApplyTrayIconHeader(bool available) => ApplyRequirementHeader(CardHideTrayIcon, "HideTrayIcon", available);
+
+    /// <summary>Paints the startup-hide row's title for its current availability.</summary>
+    private void ApplyHideWindowOnStartupHeader(bool available) =>
+        ApplyRequirementHeader(CardHideWindowOnStartup, "HideWindowOnStartup", available);
+
     /// <summary>
-    /// Paints the row's own title for the row's current availability.
+    /// Paints a row's own title for the row's current availability.
     /// <para>
     /// The title is always given an explicit foreground rather than inheriting one from the card's
     /// header presenter. The toolkit template hands the presenter the disabled brush from its
@@ -360,16 +375,35 @@ public sealed partial class PreferencesPage : Page
     /// pass: the header follows the row's state immediately, however and whenever that changes.
     /// </para>
     /// </summary>
-    private void ApplyTrayIconHeader(bool available)
+    private static void ApplyRequirementHeader(SettingsCard card, string headerKey, bool available)
     {
-        var title = LocalizationService.Get("HideTrayIcon");
-
-        CardHideTrayIcon.Header = new TextBlock
+        card.Header = new TextBlock
         {
-            Text = title,
+            Text = LocalizationService.Get(headerKey),
             TextWrapping = TextWrapping.Wrap,
             Style = ResolveStyle(available ? "EnabledSettingHeaderTextStyle" : "DisabledSettingHeaderTextStyle")
         };
+    }
+
+    /// <summary>
+    /// Enables the "don't show the window at startup" row only while the app is registered to start with
+    /// Windows.
+    /// </summary>
+    /// <remarks>
+    /// The setting is read on the sign-in launch and on no other (<c>App.OnLaunched</c> checks it together
+    /// with <c>RegistryManager.WasStartedAtSignIn</c>), so with no startup entry there is nothing for it to
+    /// affect. Disabled with the reason in its description rather than hidden: an option that disappeared
+    /// would leave the user looking for it, and one that silently did nothing would read as a bug. The
+    /// stored value is left alone, so registering startup later brings the user's own choice back rather
+    /// than a default.
+    /// </remarks>
+    private void ApplyHideWindowOnStartupRequirement(bool canToggle)
+    {
+        ApplyHideWindowOnStartupHeader(canToggle);
+        CardHideWindowOnStartup.IsEnabled = canToggle;
+
+        CardHideWindowOnStartup.Description = LocalizationService.Get(
+            canToggle ? "HideWindowOnStartupTooltip" : "HideWindowOnStartupUnavailable");
     }
 
     /// <summary>Fetches an application-level style (its {ThemeResource} setters follow the theme).</summary>
@@ -626,5 +660,8 @@ public sealed partial class PreferencesPage : Page
         _loading = true;
         SwStartup.IsOn = RegistryManager.IsStartupEnabled;
         _loading = false;
+
+        // The startup-hide row only means something while the app is registered to start with Windows.
+        ApplyHideWindowOnStartupRequirement(RegistryManager.IsStartupEnabled);
     }
 }

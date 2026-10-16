@@ -17,9 +17,9 @@
   <data name="ThemeDark" xml:space="preserve"><value>深色</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>淺色</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>儲存關閉記錄</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>重新啟動後仍保留已關閉的分頁和視窗，可供重新開啟使用</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>重新啟動後仍可重新開啟已關閉的分頁</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>還原之前的視窗</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>下次啟動時詢問是否重新開啟重新啟動或當機前開著的視窗</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>啟動時詢問是否還原上次的視窗</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>隱藏系統匣圖示</value></data>
   <data name="Language" xml:space="preserve"><value>語言</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
@@ -88,8 +88,8 @@
   <data name="ExpandProfile" xml:space="preserve"><value>顯示進階設定</value></data>
   <data name="TogglePane" xml:space="preserve"><value>縮放側邊欄</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>開機啟動時不顯示主視窗</value></data>
-  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>勾選後，由系統啟動項拉起時只在托盤運行，不彈出視窗</value></data>
-  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>此設定僅在已設定「顯示/隱藏」快速鍵時可用。</value></data>
+  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>啟動後僅駐留系統匣，可從匣圖示開啟視窗</value></data>
+  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>需先設定「顯示/隱藏」快速鍵</value></data>
   <data name="TabSearchTitle" xml:space="preserve"><value>切換至分頁</value></data>
   <data name="TabSearchNoResults" xml:space="preserve"><value>沒有符合的分頁</value></data>
   <data name="TabSearchHint" xml:space="preserve"><value>Enter：切換 · Shift：新視窗 · Ctrl：強制複製</value></data>
@@ -98,10 +98,11 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>新增快速鍵</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未綁定</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>不合併的資料夾</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗。這裡只列出你手動新增的資料夾；拖出的分頁不會被自動加進來。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>這些資料夾一律另開視窗。只列出手動新增的項目</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>不合併目前資料夾</value></data>
   <data name="AddFolder" xml:space="preserve"><value>新增資料夾</value></data>
-  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新開啟的檔案總管視窗會併入已開啟視窗的分頁。關閉後，每個資料夾都另開視窗。</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新視窗併入已開啟的分頁；關閉後每個資料夾另開視窗</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新視窗併入分頁</value></data>
-  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>尚未新增資料夾。</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>尚未新增資料夾</value></data>
+  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>需先開啟「開機時啟動」</value></data>
 </root>

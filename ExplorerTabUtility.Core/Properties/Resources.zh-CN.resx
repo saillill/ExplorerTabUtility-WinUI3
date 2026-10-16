@@ -17,9 +17,9 @@
   <data name="ThemeDark" xml:space="preserve"><value>深色</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>浅色</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>保存关闭历史</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>重启后仍保留已关闭的标签和窗口，可供重新打开使用</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>重启后仍可重新打开已关闭的标签页</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>恢复之前的窗口</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>下次启动时询问是否重新打开重启或崩溃前开着的窗口</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>启动时询问是否恢复上次的窗口</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>隐藏托盘图标</value></data>
   <data name="Language" xml:space="preserve"><value>语言</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
@@ -88,8 +88,8 @@
   <data name="ExpandProfile" xml:space="preserve"><value>展开高级设置</value></data>
   <data name="TogglePane" xml:space="preserve"><value>缩放侧栏</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>开机自启时不显示主窗口</value></data>
-  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>勾选后，由系统启动项拉起时只在托盘运行，不弹出窗口</value></data>
-  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>此设置仅在已配置“显示/隐藏”快捷键时可用。</value></data>
+  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>启动后仅驻留托盘，可从托盘图标打开窗口</value></data>
+  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>需先配置“显示/隐藏”快捷键</value></data>
   <data name="TabSearchTitle" xml:space="preserve"><value>切换到标签页</value></data>
   <data name="TabSearchNoResults" xml:space="preserve"><value>没有匹配的标签页</value></data>
   <data name="TabSearchHint" xml:space="preserve"><value>Enter：切换 · Shift：新窗口 · Ctrl：强制复制</value></data>
@@ -98,10 +98,11 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>新建快捷键</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未绑定</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>不合并的文件夹</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>这些文件夹始终单独开窗口。这里只列出你手动添加的文件夹；拖出的标签不会被自动加进来。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>这些文件夹始终单独开窗口。只列出手动添加的项</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>不合并当前文件夹</value></data>
   <data name="AddFolder" xml:space="preserve"><value>添加文件夹</value></data>
-  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新打开的资源管理器窗口会并入已打开窗口的标签页。关掉后，每个文件夹都单独开窗口。</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新窗口并入已开启的标签页；关闭后每个文件夹单独开窗口</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新窗口并入标签页</value></data>
-  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>还没有添加文件夹。</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>未添加文件夹</value></data>
+  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>需先开启“开机自启”</value></data>
 </root>

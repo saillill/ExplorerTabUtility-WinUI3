@@ -17,9 +17,9 @@
   <data name="ThemeDark" xml:space="preserve"><value>ダーク</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>ライト</value></data>
   <data name="SaveClosedHistory" xml:space="preserve"><value>閉じた履歴を保存</value></data>
-  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>閉じたタブとウィンドウの記録を再起動後も保持し、開き直せるようにします</value></data>
+  <data name="SaveClosedHistoryTooltip" xml:space="preserve"><value>再起動後も閉じたタブを開き直せます</value></data>
   <data name="RestorePreviousWindows" xml:space="preserve"><value>以前のウィンドウを復元</value></data>
-  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>次回起動時に、再起動やクラッシュの前に開いていたウインドウを開き直すか確認します</value></data>
+  <data name="RestorePreviousWindowsTooltip" xml:space="preserve"><value>起動時に前回のウィンドウを復元するか尋ねます</value></data>
   <data name="HideTrayIcon" xml:space="preserve"><value>トレイアイコンを隠す</value></data>
   <data name="Language" xml:space="preserve"><value>言語</value></data>
   <data name="LanguageFollowSystem" xml:space="preserve">
@@ -88,8 +88,8 @@
   <data name="ExpandProfile" xml:space="preserve"><value>詳細設定を表示</value></data>
   <data name="TogglePane" xml:space="preserve"><value>ナビゲーション ウィンドウの切り替え</value></data>
   <data name="HideWindowOnStartup" xml:space="preserve"><value>サインイン時にトレイで起動</value></data>
-  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>オンにすると、サインイン時の起動ではウィンドウを表示せずトレイで動作します</value></data>
-  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>この設定は「表示/非表示」ホットキーが設定されている場合にのみ使用できます。</value></data>
+  <data name="HideWindowOnStartupTooltip" xml:space="preserve"><value>トレイに常駐して起動、ウィンドウはトレイアイコンから開きます</value></data>
+  <data name="HideTrayIconUnavailable" xml:space="preserve"><value>ウィンドウの表示／非表示のショートカットが必要です</value></data>
   <data name="TabSearchTitle" xml:space="preserve"><value>タブに切り替え</value></data>
   <data name="TabSearchNoResults" xml:space="preserve"><value>一致するタブがありません</value></data>
   <data name="TabSearchHint" xml:space="preserve"><value>Enter: 切替 · Shift: 新しいウィンドウ · Ctrl: 複製</value></data>
@@ -98,10 +98,11 @@
   <data name="DefaultProfileName" xml:space="preserve"><value>新しいショートカット</value></data>
   <data name="NoHotKeyBound" xml:space="preserve"><value>未割り当て</value></data>
   <data name="NoMergeFolders" xml:space="preserve"><value>結合しないフォルダー</value></data>
-  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>これらのフォルダーは常に単独のウィンドウで開きます。ここには手動で追加したフォルダーだけが並びます。外したタブは自動では追加されません。</value></data>
+  <data name="NoMergeFoldersTooltip" xml:space="preserve"><value>これらのフォルダーは常に単独のウィンドウで開きます。手動で追加したものだけが並びます</value></data>
   <data name="NoMergeCurrentFolder" xml:space="preserve"><value>このフォルダーを結合しない</value></data>
   <data name="AddFolder" xml:space="preserve"><value>フォルダーを追加</value></data>
-  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新しいウィンドウで開いたフォルダーは、既に開いているウィンドウのタブに取り込まれます。オフにすると、各フォルダーが単独のウィンドウで開きます。</value></data>
+  <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新しいウィンドウは既存のタブに取り込みます。オフならフォルダーごとに別ウィンドウです</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新しいウィンドウをタブに取り込む</value></data>
-  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>追加されたフォルダーはまだありません。</value></data>
+  <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>フォルダーは未追加です</value></data>
+  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>先に「スタートアップに追加」をオンにしてください</value></data>
 </root>
