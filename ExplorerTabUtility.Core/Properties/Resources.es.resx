@@ -104,4 +104,14 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Las ventanas nuevas se abren como pestaña; desactivado, cada carpeta abre la suya</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Abrir ventanas nuevas como pestañas</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>No hay carpetas agregadas</value></data>
+  <data name="CheckForUpdates" xml:space="preserve"><value>Buscar actualizaciones</value></data>
+  <data name="Check" xml:space="preserve"><value>Buscar</value></data>
+  <data name="DownloadAndInstall" xml:space="preserve"><value>Descargar e instalar</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>Versión actual</value></data>
+  <data name="UpToDate" xml:space="preserve"><value>Está actualizado</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>Hay una versión nueva</value></data>
+  <data name="Downloading" xml:space="preserve"><value>Descargando</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>No se pudo buscar actualizaciones</value></data>
+  <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Descargado — abriendo la carpeta</value></data>
+  <data name="UpdateInstalling" xml:space="preserve"><value>Instalando — la aplicación se cerrará</value></data>
 </root>

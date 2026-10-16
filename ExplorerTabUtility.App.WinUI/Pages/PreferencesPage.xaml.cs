@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -169,8 +173,13 @@ public sealed partial class PreferencesPage : Page
 
         CardStartup.Header = LocalizationService.Get("AddToStartup");
         // 这一行的标题与说明由 ApplyHideWindowOnStartupRequirement 管理：它只在已注册开机自启时起作用，
-        // 未注册时禁用并在说明里给出原因（与「隐藏托盘图标」同一套处理）。
+        // 未注册时整行不显示。
         ApplyHideWindowOnStartupRequirement(RegistryManager.IsStartupEnabled);
+
+        // 检查更新：标题与按钮固定，说明行随状态（当前版本 / 已是最新 / 发现新版本 / 失败）重建。
+        CardUpdate.Header = LocalizationService.Get("CheckForUpdates");
+        BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "Check" : "DownloadAndInstall");
+        ShowUpdateDescription();
 
         // One switch, named after what the user sees happen. The two switches this replaced ("tab reuse" and
         // "window interception") were two names for one behaviour — folding happens while either is on — so
@@ -400,6 +409,158 @@ public sealed partial class PreferencesPage : Page
     {
         CardHideWindowOnStartup.Visibility = startupRegistered ? Visibility.Visible : Visibility.Collapsed;
         SetToggleCard(CardHideWindowOnStartup, "HideWindowOnStartup", "HideWindowOnStartupTooltip");
+    }
+
+    // ---- Updates ---------------------------------------------------------------------------------
+
+    /// <summary>The version of this build, read the way the about page reads it.</summary>
+    private static Version CurrentVersion =>
+        Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 1);
+
+    /// <summary>The release the last check found, or null while the build is current.</summary>
+    private UpdateRelease? _updateRelease;
+
+    /// <summary>Set while a check or a download is in flight, so the button cannot start a second one.</summary>
+    private bool _updateBusy;
+
+    /// <summary>A message that replaces the version line until the next check (a failure, or a hand-over).</summary>
+    private string? _updateMessage;
+
+    private async void OnUpdateButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (_updateBusy) return;
+
+        // One button, two meanings: it checks, then it installs what the check found.
+        if (_updateRelease is { } release)
+        {
+            await DownloadAndInstallAsync(release);
+            return;
+        }
+
+        await CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        _updateBusy = true;
+        _updateMessage = null;
+        BtnUpdate.IsEnabled = false;
+
+        try
+        {
+            var result = await UpdateService.CheckAsync(CurrentVersion);
+
+            _updateRelease = result.Status == UpdateCheckStatus.UpdateAvailable ? result.Release : null;
+            if (result.Status == UpdateCheckStatus.Failed)
+                _updateMessage = LocalizationService.Get("UpdateCheckFailed");
+        }
+        finally
+        {
+            _updateBusy = false;
+            BtnUpdate.IsEnabled = true;
+            BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "Check" : "DownloadAndInstall");
+            ShowUpdateDescription();
+        }
+    }
+
+    /// <summary>
+    /// The row's second line: the version in use, then what the last check made of it.
+    /// </summary>
+    private void ShowUpdateDescription()
+    {
+        var state = _updateMessage;
+
+        if (state is null && _updateRelease is { } release)
+            state = LocalizationService.Get("UpdateAvailable") + " " + release.Version.ToString(3);
+
+        CardUpdate.Description = LocalizationService.Get("CurrentVersion") + " " + CurrentVersion.ToString(3)
+                                 + "  ·  " + (state ?? LocalizationService.Get("UpToDate"));
+    }
+
+    private async Task DownloadAndInstallAsync(UpdateRelease release)
+    {
+        // Which file is wanted depends on how this copy was put on the machine: the installer can replace an
+        // installed copy in place, while an unzipped one cannot replace its own running files.
+        var installed = UpdateService.IsInstalledBuild;
+        var url = installed ? release.InstallerUrl : release.PortableUrl;
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            _updateMessage = LocalizationService.Get("UpdateCheckFailed");
+            ShowUpdateDescription();
+            return;
+        }
+
+        var destination = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "ExplorerTabUtility_" + release.Tag + (installed ? "_Setup.exe" : "_Portable.zip"));
+
+        _updateBusy = true;
+        BtnUpdate.IsEnabled = false;
+        BtnUpdate.Visibility = Visibility.Collapsed;
+        UpdateProgress.Value = 0;
+        UpdateProgress.Visibility = Visibility.Visible;
+
+        try
+        {
+            var progress = new Progress<double>(value =>
+            {
+                UpdateProgress.Value = value * 100;
+                if (value < 1) return;
+
+                CardUpdate.Description = LocalizationService.Get("CurrentVersion") + " "
+                                         + CurrentVersion.ToString(3) + "  ·  "
+                                         + LocalizationService.Get(
+                                             installed ? "UpdateInstalling" : "UpdateDownloadedPortable");
+            });
+
+            var downloading = LocalizationService.Get("CurrentVersion") + " " + CurrentVersion.ToString(3)
+                              + "  ·  " + LocalizationService.Get("Downloading");
+            CardUpdate.Description = downloading;
+
+            if (!await UpdateService.DownloadAsync(url, destination, progress))
+            {
+                _updateMessage = LocalizationService.Get("UpdateCheckFailed");
+                ShowUpdateDescription();
+                return;
+            }
+
+            if (installed) StartInstaller(destination);
+            else Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + destination + "\""));
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Fail("PreferencesPage.DownloadAndInstallAsync", ex);
+        }
+        finally
+        {
+            _updateBusy = false;
+            BtnUpdate.IsEnabled = true;
+            BtnUpdate.Visibility = Visibility.Visible;
+            UpdateProgress.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>
+    /// Runs the downloaded Setup, and brings the app back when it is done.
+    /// </summary>
+    /// <remarks>
+    /// Detached through <c>cmd</c> deliberately. The installer ends this process while it works —
+    /// <c>PrepareToInstall</c> in installer.iss runs taskkill, because this app hides to the tray instead of
+    /// exiting and Inno's own Restart Manager handshake would wait forever for a close that never comes — so
+    /// nothing running inside this process can start the app again afterwards. <c>/wait</c> holds the helper
+    /// until the installer has finished; the second <c>start</c> then opens the freshly installed copy.
+    /// Silent rather than interactive because the user has already agreed by pressing the button.
+    /// </remarks>
+    private static void StartInstaller(string setupPath)
+    {
+        var exePath = Environment.ProcessPath
+                      ?? System.IO.Path.Combine(AppContext.BaseDirectory, "ExplorerTabUtility.exe");
+
+        var command = "/c start \"\" /wait \"" + setupPath + "\" /SILENT /SUPPRESSMSGBOXES /NORESTART /SP-"
+                      + " & start \"\" \"" + exePath + "\"";
+
+        Process.Start(new ProcessStartInfo("cmd.exe", command) { CreateNoWindow = true });
     }
 
     /// <summary>Fetches an application-level style (its {ThemeResource} setters follow the theme).</summary>

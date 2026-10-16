@@ -104,4 +104,14 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Neue Fenster werden als Tab im offenen Fenster geöffnet; aus öffnet jeder Ordner ein eigenes</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Neue Fenster als Tab öffnen</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Keine Ordner hinzugefügt</value></data>
+  <data name="CheckForUpdates" xml:space="preserve"><value>Nach Updates suchen</value></data>
+  <data name="Check" xml:space="preserve"><value>Suchen</value></data>
+  <data name="DownloadAndInstall" xml:space="preserve"><value>Herunterladen und installieren</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>Aktuelle Version</value></data>
+  <data name="UpToDate" xml:space="preserve"><value>Auf dem neuesten Stand</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>Neue Version verfügbar</value></data>
+  <data name="Downloading" xml:space="preserve"><value>Wird heruntergeladen</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>Suche nach Updates fehlgeschlagen</value></data>
+  <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Heruntergeladen — Ordner wird geöffnet</value></data>
+  <data name="UpdateInstalling" xml:space="preserve"><value>Installation läuft — die App wird geschlossen</value></data>
 </root>

@@ -104,4 +104,14 @@
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新視窗併入已開啟的分頁；關閉後每個資料夾另開視窗</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新視窗併入分頁</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>尚未新增資料夾</value></data>
+  <data name="CheckForUpdates" xml:space="preserve"><value>檢查更新</value></data>
+  <data name="Check" xml:space="preserve"><value>檢查</value></data>
+  <data name="DownloadAndInstall" xml:space="preserve"><value>下載並安裝</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>目前版本</value></data>
+  <data name="UpToDate" xml:space="preserve"><value>已是最新版本</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>發現新版本</value></data>
+  <data name="Downloading" xml:space="preserve"><value>正在下載</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>檢查更新失敗</value></data>
+  <data name="UpdateDownloadedPortable" xml:space="preserve"><value>已下載，正在開啟所在資料夾</value></data>
+  <data name="UpdateInstalling" xml:space="preserve"><value>正在安裝，程式將結束</value></data>
 </root>

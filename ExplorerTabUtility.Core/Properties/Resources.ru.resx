@@ -104,4 +104,14 @@
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Новые окна открываются вкладками; выкл. — у каждой папки своё окно</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Открывать новые окна вкладками</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Папки не добавлены</value></data>
+  <data name="CheckForUpdates" xml:space="preserve"><value>Проверить обновления</value></data>
+  <data name="Check" xml:space="preserve"><value>Проверить</value></data>
+  <data name="DownloadAndInstall" xml:space="preserve"><value>Скачать и установить</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>Текущая версия</value></data>
+  <data name="UpToDate" xml:space="preserve"><value>Обновлений нет</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>Доступна новая версия</value></data>
+  <data name="Downloading" xml:space="preserve"><value>Скачивание</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>Не удалось проверить обновления</value></data>
+  <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Скачано — открывается папка</value></data>
+  <data name="UpdateInstalling" xml:space="preserve"><value>Установка — приложение закроется</value></data>
 </root>

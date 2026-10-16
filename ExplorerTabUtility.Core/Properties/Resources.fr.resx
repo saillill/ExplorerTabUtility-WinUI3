@@ -104,4 +104,14 @@ Vérifiez la zone de notification.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Les nouvelles fenêtres s’ouvrent en onglet ; désactivé, chaque dossier ouvre la sienne</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Ouvrir les nouvelles fenêtres en onglets</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Aucun dossier ajouté</value></data>
+  <data name="CheckForUpdates" xml:space="preserve"><value>Rechercher des mises à jour</value></data>
+  <data name="Check" xml:space="preserve"><value>Rechercher</value></data>
+  <data name="DownloadAndInstall" xml:space="preserve"><value>Télécharger et installer</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>Version actuelle</value></data>
+  <data name="UpToDate" xml:space="preserve"><value>À jour</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>Nouvelle version disponible</value></data>
+  <data name="Downloading" xml:space="preserve"><value>Téléchargement</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>Recherche de mise à jour impossible</value></data>
+  <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Téléchargé — ouverture du dossier</value></data>
+  <data name="UpdateInstalling" xml:space="preserve"><value>Installation — l’application va se fermer</value></data>
 </root>

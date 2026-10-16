@@ -104,4 +104,14 @@
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>새 창은 열린 탭으로 합촐니다. 끄면 폴더마다 별도 창으로 열립니다</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>새 창을 탭으로 열기</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>추가된 폴더 없음</value></data>
+  <data name="CheckForUpdates" xml:space="preserve"><value>업데이트 확인</value></data>
+  <data name="Check" xml:space="preserve"><value>확인</value></data>
+  <data name="DownloadAndInstall" xml:space="preserve"><value>다운로드하고 설치</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>현재 버전</value></data>
+  <data name="UpToDate" xml:space="preserve"><value>최신 버전입니다</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>새 버전이 있습니다</value></data>
+  <data name="Downloading" xml:space="preserve"><value>다운로드 중</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>업데이트를 확인할 수 없습니다</value></data>
+  <data name="UpdateDownloadedPortable" xml:space="preserve"><value>다운로드 완료 — 폴더를 엽니다</value></data>
+  <data name="UpdateInstalling" xml:space="preserve"><value>설치 중 — 앱이 종료됩니다</value></data>
 </root>

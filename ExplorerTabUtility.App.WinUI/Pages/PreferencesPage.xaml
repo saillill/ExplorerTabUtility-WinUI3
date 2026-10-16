@@ -70,6 +70,16 @@
                 </Button>
             </controls:SettingsExpander>
 
+            <!--
+                检查更新。按钮与进度条占同一个位置：下载时按钮让位给进度，行高不变。
+            -->
+            <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardUpdate">
+                <Grid>
+                    <Button x:Name="BtnUpdate" Click="OnUpdateButtonClick" MinWidth="120" />
+                    <ProgressBar x:Name="UpdateProgress" Width="140" Visibility="Collapsed" />
+                </Grid>
+            </controls:SettingsCard>
+
             <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardSaveClosedHistory">
                 <ToggleSwitch x:Name="SwSaveClosedHistory"
                               Toggled="OnSaveClosedHistoryToggled" />
