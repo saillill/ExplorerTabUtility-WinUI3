@@ -204,20 +204,19 @@ public static class UpdateService
     public static UpdateCheckResult? LastCheck { get; private set; }
 
     /// <summary>
-    /// The pass the app runs by itself at startup, if the user left "check automatically" on.
+    /// The pass the app runs by itself at startup, while automatic updates are on.
     /// </summary>
     /// <remarks>
-    /// With "install automatically" also on, a found update is taken without asking: downloaded, handed to the
+    /// With automatic updates on, a found update is taken without asking: downloaded, handed to the
     /// installer, and the app comes back by itself. That is why the switch is off by default — it closes the
     /// app while the user is working — but it is what the switch promises when it is on.
     /// </remarks>
     public static async Task RunStartupCheckAsync(Version current, CancellationToken ct = default)
     {
-        if (!Managers.SettingsManager.AutoCheckForUpdates) return;
+        if (!Managers.SettingsManager.AutoUpdate) return;
 
         LastCheck = await CheckAsync(current, ct);
         if (LastCheck.Status != UpdateCheckStatus.UpdateAvailable) return;
-        if (!Managers.SettingsManager.AutoUpdate) return;
 
         var release = LastCheck.Release!;
         var installed = IsInstalledBuild;

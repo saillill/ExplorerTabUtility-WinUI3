@@ -105,7 +105,6 @@ Check in System Tray Icons.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>New windows open as tabs</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>No folders added</value></data>
   <data name="CheckForUpdates" xml:space="preserve"><value>Check for updates</value></data>
-  <data name="Check" xml:space="preserve"><value>Check</value></data>
   <data name="DownloadAndInstall" xml:space="preserve"><value>Download and install</value></data>
   <data name="CurrentVersion" xml:space="preserve"><value>Current version</value></data>
   <data name="UpToDate" xml:space="preserve"><value>Up to date</value></data>
@@ -114,6 +113,6 @@ Check in System Tray Icons.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Could not check for updates</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Downloaded — opening the folder</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Installing — the app will close</value></data>
-  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Check automatically</value></data>
   <data name="AutoUpdate" xml:space="preserve"><value>Install automatically</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>Check now</value></data>
 </root>

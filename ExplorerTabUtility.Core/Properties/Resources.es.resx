@@ -105,7 +105,6 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Abrir ventanas nuevas como pestañas</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>No hay carpetas agregadas</value></data>
   <data name="CheckForUpdates" xml:space="preserve"><value>Buscar actualizaciones</value></data>
-  <data name="Check" xml:space="preserve"><value>Buscar</value></data>
   <data name="DownloadAndInstall" xml:space="preserve"><value>Descargar e instalar</value></data>
   <data name="CurrentVersion" xml:space="preserve"><value>Versión actual</value></data>
   <data name="UpToDate" xml:space="preserve"><value>Está actualizado</value></data>
@@ -114,6 +113,6 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>No se pudo buscar actualizaciones</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Descargado — abriendo la carpeta</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Instalando — la aplicación se cerrará</value></data>
-  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Buscar automáticamente</value></data>
   <data name="AutoUpdate" xml:space="preserve"><value>Instalar automáticamente</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>Buscar ahora</value></data>
 </root>

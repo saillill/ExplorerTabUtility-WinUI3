@@ -105,7 +105,6 @@ Vérifiez la zone de notification.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Ouvrir les nouvelles fenêtres en onglets</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Aucun dossier ajouté</value></data>
   <data name="CheckForUpdates" xml:space="preserve"><value>Rechercher des mises à jour</value></data>
-  <data name="Check" xml:space="preserve"><value>Rechercher</value></data>
   <data name="DownloadAndInstall" xml:space="preserve"><value>Télécharger et installer</value></data>
   <data name="CurrentVersion" xml:space="preserve"><value>Version actuelle</value></data>
   <data name="UpToDate" xml:space="preserve"><value>À jour</value></data>
@@ -114,6 +113,6 @@ Vérifiez la zone de notification.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Recherche de mise à jour impossible</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Téléchargé — ouverture du dossier</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Installation — l’application va se fermer</value></data>
-  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Rechercher automatiquement</value></data>
   <data name="AutoUpdate" xml:space="preserve"><value>Installer automatiquement</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>Vérifier maintenant</value></data>
 </root>

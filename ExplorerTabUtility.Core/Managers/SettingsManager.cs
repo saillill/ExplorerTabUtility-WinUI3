@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -82,10 +82,6 @@ public static class SettingsManager
     { get => Settings.WindowHook; set { Settings.WindowHook = value; DebounceSave(); } }
     public static bool ReuseTabs
     { get => Settings.ReuseTabs; set { Settings.ReuseTabs = value; DebounceSave(); } }
-
-    /// <summary>Whether a check runs by itself at startup — see <see cref="AppSettings.AutoCheckForUpdates"/>.</summary>
-    public static bool AutoCheckForUpdates
-    { get => Settings.AutoCheckForUpdates; set { Settings.AutoCheckForUpdates = value; DebounceSave(); } }
 
     /// <summary>Whether a found update is installed without asking — see <see cref="AppSettings.AutoUpdate"/>.</summary>
     public static bool AutoUpdate
@@ -253,12 +249,10 @@ internal class AppSettings
     public bool WindowHook { get; set; } = true;
     public bool ReuseTabs { get; set; } = true;
 
-    /// <summary>Look for a newer release in the background at startup. On unless the user turns it off.</summary>
-    public bool AutoCheckForUpdates { get; set; } = true;
-
     /// <summary>
-    /// Install a found update without asking. Off unless the user asks for it: taking an update closes this
-    /// app and reopens it, which is not something to do behind someone's back.
+    /// Install a found update without asking — and look for one in the background at startup, which is part
+    /// of the same promise. Off unless the user asks for it: taking an update closes this app and reopens it,
+    /// which is not something to do behind someone's back.
     /// </summary>
     public bool AutoUpdate { get; set; }
     public WindowSize FormSize { get; set; } = WindowSize.Default;

@@ -104,7 +104,6 @@ public sealed partial class PreferencesPage : Page
                 SwHideTrayIcon.IsOn = SettingsManager.IsTrayIconHidden;
                 SwStartup.IsOn = RegistryManager.IsStartupEnabled;
                 SwHideWindowOnStartup.IsOn = SettingsManager.HideWindowOnStartup;
-                SwAutoCheckUpdates.IsOn = SettingsManager.AutoCheckForUpdates;
                 SwAutoUpdate.IsOn = SettingsManager.AutoUpdate;
 
                 // The fold switch is the hook engine's state, not the page's: the tray menu and the hotkeys
@@ -180,7 +179,7 @@ public sealed partial class PreferencesPage : Page
 
         // 检查更新：标题与按钮固定，说明行随状态（当前版本 / 已是最新 / 发现新版本 / 失败）重建。
         CardUpdate.Header = LocalizationService.Get("CheckForUpdates");
-        BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "Check" : "DownloadAndInstall");
+        BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "CheckNow" : "DownloadAndInstall");
         ShowUpdateDescription();
 
         // One switch, named after what the user sees happen. The two switches this replaced ("tab reuse" and
@@ -197,7 +196,7 @@ public sealed partial class PreferencesPage : Page
         // language rather than whatever language the WinAppSDK resource package resolved to.
         LocalizeToggleLabels(SwSaveClosedHistory, SwRestorePreviousWindows, SwHideTrayIcon,
                              SwStartup, SwHideWindowOnStartup, SwMergeNewWindows,
-                             SwAutoCheckUpdates, SwAutoUpdate);
+                             SwAutoUpdate);
 
         // SetToggleCard above restored the plain description; re-apply the disabled-state warning so a
         // language switch does not drop it.
@@ -429,12 +428,6 @@ public sealed partial class PreferencesPage : Page
     /// <summary>A message that replaces the version line until the next check (a failure, or a hand-over).</summary>
     private string? _updateMessage;
 
-    private void OnAutoCheckUpdatesToggled(object sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-        SettingsManager.AutoCheckForUpdates = SwAutoCheckUpdates.IsOn;
-    }
-
     private void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
@@ -478,7 +471,7 @@ public sealed partial class PreferencesPage : Page
         {
             _updateBusy = false;
             BtnUpdate.IsEnabled = true;
-            BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "Check" : "DownloadAndInstall");
+            BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "CheckNow" : "DownloadAndInstall");
             ShowUpdateDescription();
         }
     }

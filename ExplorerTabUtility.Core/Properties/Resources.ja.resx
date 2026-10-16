@@ -105,7 +105,6 @@
   <data name="MergeNewWindows" xml:space="preserve"><value>新しいウィンドウをタブに取り込む</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>フォルダーは未追加です</value></data>
   <data name="CheckForUpdates" xml:space="preserve"><value>アップデートを確認</value></data>
-  <data name="Check" xml:space="preserve"><value>確認</value></data>
   <data name="DownloadAndInstall" xml:space="preserve"><value>ダウンロードしてインストール</value></data>
   <data name="CurrentVersion" xml:space="preserve"><value>現在のバージョン</value></data>
   <data name="UpToDate" xml:space="preserve"><value>最新です</value></data>
@@ -114,6 +113,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>アップデートを確認できませんでした</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>ダウンロード完了 — フォルダーを開きます</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>インストール中 — アプリは終了します</value></data>
-  <data name="AutoCheckForUpdates" xml:space="preserve"><value>自動的に確認</value></data>
   <data name="AutoUpdate" xml:space="preserve"><value>自動的にインストール</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>今すぐ確認</value></data>
 </root>

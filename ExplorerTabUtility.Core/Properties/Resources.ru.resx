@@ -105,7 +105,6 @@
   <data name="MergeNewWindows" xml:space="preserve"><value>Открывать новые окна вкладками</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Папки не добавлены</value></data>
   <data name="CheckForUpdates" xml:space="preserve"><value>Проверить обновления</value></data>
-  <data name="Check" xml:space="preserve"><value>Проверить</value></data>
   <data name="DownloadAndInstall" xml:space="preserve"><value>Скачать и установить</value></data>
   <data name="CurrentVersion" xml:space="preserve"><value>Текущая версия</value></data>
   <data name="UpToDate" xml:space="preserve"><value>Обновлений нет</value></data>
@@ -114,6 +113,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Не удалось проверить обновления</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Скачано — открывается папка</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Установка — приложение закроется</value></data>
-  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Проверять автоматически</value></data>
   <data name="AutoUpdate" xml:space="preserve"><value>Устанавливать автоматически</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>Проверить сейчас</value></data>
 </root>

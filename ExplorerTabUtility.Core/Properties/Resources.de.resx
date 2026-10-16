@@ -105,7 +105,6 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Neue Fenster als Tab öffnen</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Keine Ordner hinzugefügt</value></data>
   <data name="CheckForUpdates" xml:space="preserve"><value>Nach Updates suchen</value></data>
-  <data name="Check" xml:space="preserve"><value>Suchen</value></data>
   <data name="DownloadAndInstall" xml:space="preserve"><value>Herunterladen und installieren</value></data>
   <data name="CurrentVersion" xml:space="preserve"><value>Aktuelle Version</value></data>
   <data name="UpToDate" xml:space="preserve"><value>Auf dem neuesten Stand</value></data>
@@ -114,6 +113,6 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Suche nach Updates fehlgeschlagen</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Heruntergeladen — Ordner wird geöffnet</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Installation läuft — die App wird geschlossen</value></data>
-  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Automatisch suchen</value></data>
   <data name="AutoUpdate" xml:space="preserve"><value>Automatisch installieren</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>Jetzt prüfen</value></data>
 </root>

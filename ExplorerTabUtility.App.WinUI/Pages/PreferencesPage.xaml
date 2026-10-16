@@ -97,18 +97,17 @@
             </controls:SettingsCard>
 
             <!--
-                检查更新，放在整页最下面 —— 它是关于这个程序本身的事，与上面这些"程序怎么工作"的设置不同。
-                两个开关加一个按钮：自动检查（默认开）与自动更新（默认关）各是一个开关，按钮手动查一次；
+                自动更新，放在整页最下面 —— 它是关于这个程序本身的事，与上面这些"程序怎么工作"的设置不同。
+                形状与其它行一致：右边是布尔开关；开关左边多一个「现在检测」按钮，手动查一次。
                 查出新版本后按钮变成「下载并安装」，下载时按钮让位给进度条（同一格切换，行高不跳）。
             -->
             <controls:SettingsCard HorizontalAlignment="Stretch" x:Name="CardUpdate">
                 <Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                        <ToggleSwitch x:Name="SwAutoCheckUpdates" Toggled="OnAutoCheckUpdatesToggled" />
-                        <ToggleSwitch x:Name="SwAutoUpdate" Toggled="OnAutoUpdateToggled" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                         <Button x:Name="BtnUpdate" Click="OnUpdateButtonClick" MinWidth="110" />
+                        <ToggleSwitch x:Name="SwAutoUpdate" Toggled="OnAutoUpdateToggled" />
                     </StackPanel>
-                    <ProgressBar x:Name="UpdateProgress" Width="200" VerticalAlignment="Center" Visibility="Collapsed" />
+                    <ProgressBar x:Name="UpdateProgress" Width="240" VerticalAlignment="Center" Visibility="Collapsed" />
                 </Grid>
             </controls:SettingsCard>
         </StackPanel>
