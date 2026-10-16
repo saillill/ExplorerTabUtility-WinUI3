@@ -83,9 +83,9 @@ public static class SettingsManager
     public static bool ReuseTabs
     { get => Settings.ReuseTabs; set { Settings.ReuseTabs = value; DebounceSave(); } }
 
-    /// <summary>Whether a found update is installed without asking — see <see cref="AppSettings.AutoUpdate"/>.</summary>
-    public static bool AutoUpdate
-    { get => Settings.AutoUpdate; set { Settings.AutoUpdate = value; DebounceSave(); } }
+    /// <summary>Whether a check runs by itself at startup — see <see cref="AppSettings.AutoCheckForUpdates"/>.</summary>
+    public static bool AutoCheckForUpdates
+    { get => Settings.AutoCheckForUpdates; set { Settings.AutoCheckForUpdates = value; DebounceSave(); } }
 
     /// <summary>
     /// Folders that always open in their own window — see <see cref="AppSettings.NoMergeFolders"/>.
@@ -254,7 +254,7 @@ internal class AppSettings
     /// of the same promise. Off unless the user asks for it: taking an update closes this app and reopens it,
     /// which is not something to do behind someone's back.
     /// </summary>
-    public bool AutoUpdate { get; set; }
+    public bool AutoCheckForUpdates { get; set; } = true;
     public WindowSize FormSize { get; set; } = WindowSize.Default;
     public bool IsFirstRun { get; set; } = true;
     public bool IsTrayIconHidden { get; set; }

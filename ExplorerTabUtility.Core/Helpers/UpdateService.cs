@@ -213,7 +213,7 @@ public static class UpdateService
     /// </remarks>
     public static async Task RunStartupCheckAsync(Version current, CancellationToken ct = default)
     {
-        if (!Managers.SettingsManager.AutoUpdate) return;
+        if (!Managers.SettingsManager.AutoCheckForUpdates) return;
 
         LastCheck = await CheckAsync(current, ct);
         if (LastCheck.Status != UpdateCheckStatus.UpdateAvailable) return;

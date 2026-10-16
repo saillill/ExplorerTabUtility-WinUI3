@@ -113,6 +113,6 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>No se pudo buscar actualizaciones</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Descargado — abriendo la carpeta</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Instalando — la aplicación se cerrará</value></data>
-  <data name="AutoUpdate" xml:space="preserve"><value>Instalar automáticamente</value></data>
   <data name="CheckNow" xml:space="preserve"><value>Buscar ahora</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Buscar actualizaciones automáticamente</value></data>
 </root>

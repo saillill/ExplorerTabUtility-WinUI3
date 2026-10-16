@@ -113,6 +113,6 @@ Vérifiez la zone de notification.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Recherche de mise à jour impossible</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Téléchargé — ouverture du dossier</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Installation — l’application va se fermer</value></data>
-  <data name="AutoUpdate" xml:space="preserve"><value>Installer automatiquement</value></data>
   <data name="CheckNow" xml:space="preserve"><value>Vérifier maintenant</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Rechercher les mises à jour automatiquement</value></data>
 </root>

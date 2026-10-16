@@ -113,6 +113,6 @@ Check in System Tray Icons.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Could not check for updates</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Downloaded — opening the folder</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Installing — the app will close</value></data>
-  <data name="AutoUpdate" xml:space="preserve"><value>Install automatically</value></data>
   <data name="CheckNow" xml:space="preserve"><value>Check now</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Check for updates automatically</value></data>
 </root>

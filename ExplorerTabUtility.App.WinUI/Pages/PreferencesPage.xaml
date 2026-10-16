@@ -105,7 +105,7 @@
                 <Grid>
                     <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                         <Button x:Name="BtnUpdate" Click="OnUpdateButtonClick" MinWidth="110" />
-                        <ToggleSwitch x:Name="SwAutoUpdate" Toggled="OnAutoUpdateToggled" />
+                        <ToggleSwitch x:Name="SwAutoCheckUpdates" Toggled="OnAutoCheckUpdatesToggled" />
                     </StackPanel>
                     <ProgressBar x:Name="UpdateProgress" Width="240" VerticalAlignment="Center" Visibility="Collapsed" />
                 </Grid>

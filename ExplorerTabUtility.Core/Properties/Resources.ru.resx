@@ -113,6 +113,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Не удалось проверить обновления</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Скачано — открывается папка</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Установка — приложение закроется</value></data>
-  <data name="AutoUpdate" xml:space="preserve"><value>Устанавливать автоматически</value></data>
   <data name="CheckNow" xml:space="preserve"><value>Проверить сейчас</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Проверять обновления автоматически</value></data>
 </root>

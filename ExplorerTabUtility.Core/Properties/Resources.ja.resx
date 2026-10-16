@@ -113,6 +113,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>アップデートを確認できませんでした</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>ダウンロード完了 — フォルダーを開きます</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>インストール中 — アプリは終了します</value></data>
-  <data name="AutoUpdate" xml:space="preserve"><value>自動的にインストール</value></data>
   <data name="CheckNow" xml:space="preserve"><value>今すぐ確認</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>自動的にアップデートを確認</value></data>
 </root>

@@ -104,7 +104,7 @@ public sealed partial class PreferencesPage : Page
                 SwHideTrayIcon.IsOn = SettingsManager.IsTrayIconHidden;
                 SwStartup.IsOn = RegistryManager.IsStartupEnabled;
                 SwHideWindowOnStartup.IsOn = SettingsManager.HideWindowOnStartup;
-                SwAutoUpdate.IsOn = SettingsManager.AutoUpdate;
+                SwAutoCheckUpdates.IsOn = SettingsManager.AutoCheckForUpdates;
 
                 // The fold switch is the hook engine's state, not the page's: the tray menu and the hotkeys
                 // move the same setting, so the page reads it and then keeps reading it (see
@@ -178,7 +178,7 @@ public sealed partial class PreferencesPage : Page
         ApplyHideWindowOnStartupRequirement(RegistryManager.IsStartupEnabled);
 
         // 检查更新：标题与按钮固定，说明行随状态（当前版本 / 已是最新 / 发现新版本 / 失败）重建。
-        CardUpdate.Header = LocalizationService.Get("CheckForUpdates");
+        CardUpdate.Header = LocalizationService.Get("AutoCheckForUpdates");
         BtnUpdate.Content = LocalizationService.Get(_updateRelease is null ? "CheckNow" : "DownloadAndInstall");
         ShowUpdateDescription();
 
@@ -196,7 +196,7 @@ public sealed partial class PreferencesPage : Page
         // language rather than whatever language the WinAppSDK resource package resolved to.
         LocalizeToggleLabels(SwSaveClosedHistory, SwRestorePreviousWindows, SwHideTrayIcon,
                              SwStartup, SwHideWindowOnStartup, SwMergeNewWindows,
-                             SwAutoUpdate);
+                             SwAutoCheckUpdates);
 
         // SetToggleCard above restored the plain description; re-apply the disabled-state warning so a
         // language switch does not drop it.
@@ -428,10 +428,10 @@ public sealed partial class PreferencesPage : Page
     /// <summary>A message that replaces the version line until the next check (a failure, or a hand-over).</summary>
     private string? _updateMessage;
 
-    private void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
+    private void OnAutoCheckUpdatesToggled(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        SettingsManager.AutoUpdate = SwAutoUpdate.IsOn;
+        SettingsManager.AutoCheckForUpdates = SwAutoCheckUpdates.IsOn;
     }
 
     private async void OnUpdateButtonClick(object sender, RoutedEventArgs e)

@@ -113,6 +113,6 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="UpdateCheckFailed" xml:space="preserve"><value>Suche nach Updates fehlgeschlagen</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>Heruntergeladen — Ordner wird geöffnet</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>Installation läuft — die App wird geschlossen</value></data>
-  <data name="AutoUpdate" xml:space="preserve"><value>Automatisch installieren</value></data>
   <data name="CheckNow" xml:space="preserve"><value>Jetzt prüfen</value></data>
+  <data name="AutoCheckForUpdates" xml:space="preserve"><value>Automatisch nach Updates suchen</value></data>
 </root>
