@@ -113,6 +113,6 @@
   <data name="UpdateCheckFailed" xml:space="preserve"><value>检查更新失败</value></data>
   <data name="UpdateDownloadedPortable" xml:space="preserve"><value>已下载，正在打开所在文件夹</value></data>
   <data name="UpdateInstalling" xml:space="preserve"><value>正在安装，程序将退出</value></data>
-  <data name="CheckNow" xml:space="preserve"><value>现在检测</value></data>
+  <data name="CheckNow" xml:space="preserve"><value>立刻检测</value></data>
   <data name="AutoCheckForUpdates" xml:space="preserve"><value>自动检查更新</value></data>
 </root>
