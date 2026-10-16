@@ -32,8 +32,7 @@ public sealed class TrayIconService : IDisposable
     private readonly TaskbarIcon _trayIcon = new();
     private readonly MenuFlyout _menu = new();
 
-    private readonly ToggleMenuFlyoutItem _windowHookItem = new();
-    private readonly ToggleMenuFlyoutItem _reuseTabsItem = new();
+    private readonly ToggleMenuFlyoutItem _mergeWindowsItem = new();
     private readonly ToggleMenuFlyoutItem _noMergeFolderItem = new();
     private readonly ToggleMenuFlyoutItem _startupItem = new();
     private readonly MenuFlyoutSubItem _keyboardMenu = new();
@@ -237,17 +236,17 @@ public sealed class TrayIconService : IDisposable
     {
         ApplyMenuText();
 
-        _windowHookItem.IsChecked = SettingsManager.IsWindowHookActive;
+        // One switch for the behaviour, not one per mechanism. "Interception" and "tab reuse" were two menu
+        // items over one outcome — the watcher folds a window while either is on — so the menu showed two
+        // checkmarks for one thing and turned either off for the same effect. The settings page was reduced
+        // to the same single switch; this is the menu catching up with it.
+        _mergeWindowsItem.IsChecked = SettingsManager.ReuseTabs;
         // BUG-01: ContextMenuMode.PopupMenu rebuilds this MenuFlyout into a native Win32 popup and only
         // executes each item's Command — it never raises the XAML Click event. Menu behaviour must be a
         // Command, not a Click handler. WinUI also no longer auto-flips IsChecked on click, which is why
         // the target state is computed from the setting rather than from the item: the item's check mark
         // is set by RefreshSwitchItems once the switch has actually been applied.
-        _windowHookItem.Command = new RelayCommand(() => RunOnUi(
-            () => SetInterception(!SettingsManager.IsWindowHookActive)));
-
-        _reuseTabsItem.IsChecked = SettingsManager.ReuseTabs;
-        _reuseTabsItem.Command = new RelayCommand(() => RunOnUi(
+        _mergeWindowsItem.Command = new RelayCommand(() => RunOnUi(
             () => SetReuseTabsSwitch(!SettingsManager.ReuseTabs)));
 
         // "This folder" follows the user from window to window, so the item is re-read both now and every
@@ -274,8 +273,7 @@ public sealed class TrayIconService : IDisposable
         _menu.Items.Add(_keyboardMenu);
         _menu.Items.Add(_mouseMenu);
         _menu.Items.Add(new MenuFlyoutSeparator());
-        _menu.Items.Add(_windowHookItem);
-        _menu.Items.Add(_reuseTabsItem);
+        _menu.Items.Add(_mergeWindowsItem);
         _menu.Items.Add(_noMergeFolderItem);
         _menu.Items.Add(new MenuFlyoutSeparator());
         _menu.Items.Add(_startupItem);
@@ -350,8 +348,7 @@ public sealed class TrayIconService : IDisposable
     {
         _keyboardMenu.Text = LocalizationService.Get("KeyboardShortcut");
         _mouseMenu.Text = LocalizationService.Get("MouseShortcut");
-        _windowHookItem.Text = LocalizationService.Get("WindowIntercept");
-        _reuseTabsItem.Text = LocalizationService.Get("TabReuse");
+        _mergeWindowsItem.Text = LocalizationService.Get("MergeNewWindows");
         _noMergeFolderItem.Text = LocalizationService.Get("NoMergeCurrentFolder");
         _startupItem.Text = LocalizationService.Get("AddToStartup");
         _settingsItem.Text = LocalizationService.Get("Settings");
@@ -469,6 +466,16 @@ public sealed class TrayIconService : IDisposable
         RefreshSwitchItems();
     }
 
+    /// <summary>
+    /// Applies the fold switch and re-reads its check mark.
+    /// </summary>
+    /// <remarks>
+    /// The menu offers the behaviour, not the mechanism: reuse is the setting the fold is decided by, and
+    /// <c>HookManager.SetReuseTabs</c> owns the implications around it ("reuse on needs the interception that
+    /// does the folding"). What is left here is this menu's own state. Without a hook engine there is nothing
+    /// to fold windows with, so the stored value is all that can change — which is what this menu did before
+    /// the rule moved.
+    /// </remarks>
     private void SetReuseTabsSwitch(bool enabled)
     {
         if (_hookManager is { } hooks) hooks.SetReuseTabs(enabled);
@@ -477,12 +484,8 @@ public sealed class TrayIconService : IDisposable
         RefreshSwitchItems();
     }
 
-    /// <summary>Re-reads both switch states from the settings that are now in effect.</summary>
-    private void RefreshSwitchItems()
-    {
-        _windowHookItem.IsChecked = SettingsManager.IsWindowHookActive;
-        _reuseTabsItem.IsChecked = SettingsManager.ReuseTabs;
-    }
+    /// <summary>Re-reads the fold switch from the settings that are now in effect.</summary>
+    private void RefreshSwitchItems() => _mergeWindowsItem.IsChecked = SettingsManager.ReuseTabs;
 
     private void ToggleStartup()
     {
