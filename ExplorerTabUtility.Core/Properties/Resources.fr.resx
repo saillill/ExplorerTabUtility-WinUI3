@@ -104,5 +104,4 @@ Vérifiez la zone de notification.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Les nouvelles fenêtres s’ouvrent en onglet ; désactivé, chaque dossier ouvre la sienne</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Ouvrir les nouvelles fenêtres en onglets</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Aucun dossier ajouté</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>Activez d’abord « Lancer au démarrage »</value></data>
 </root>

@@ -104,5 +104,4 @@ Comprueba la bandeja del sistema.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Las ventanas nuevas se abren como pestaña; desactivado, cada carpeta abre la suya</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Abrir ventanas nuevas como pestañas</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>No hay carpetas agregadas</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>Activa antes “Iniciar con Windows”</value></data>
 </root>

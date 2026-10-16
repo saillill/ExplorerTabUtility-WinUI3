@@ -104,5 +104,4 @@
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新視窗併入已開啟的分頁；關閉後每個資料夾另開視窗</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新視窗併入分頁</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>尚未新增資料夾</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>需先開啟「開機時啟動」</value></data>
 </root>

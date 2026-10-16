@@ -104,5 +104,4 @@ Prüfe die Symbole im Infobereich.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Neue Fenster werden als Tab im offenen Fenster geöffnet; aus öffnet jeder Ordner ein eigenes</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Neue Fenster als Tab öffnen</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Keine Ordner hinzugefügt</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>Zuerst „Mit Windows starten“ einschalten</value></data>
 </root>

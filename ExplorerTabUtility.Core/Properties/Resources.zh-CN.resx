@@ -104,5 +104,4 @@
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>新窗口并入已开启的标签页；关闭后每个文件夹单独开窗口</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>新窗口并入标签页</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>未添加文件夹</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>需先开启“开机自启”</value></data>
 </root>

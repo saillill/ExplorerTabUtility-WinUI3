@@ -127,11 +127,6 @@ public sealed partial class PreferencesPage : Page
                 _trayIconHeaderHooked = true;
                 CardHideTrayIcon.RegisterPropertyChangedCallback(
                     Control.IsEnabledProperty, (_, _) => ApplyTrayIconHeader(CardHideTrayIcon.IsEnabled));
-
-                // Same treatment for the startup-hide row, which this page also enables and disables while
-                // it is open (toggling "add to startup" changes whether it means anything).
-                CardHideWindowOnStartup.RegisterPropertyChangedCallback(
-                    Control.IsEnabledProperty, (_, _) => ApplyHideWindowOnStartupHeader(CardHideWindowOnStartup.IsEnabled));
             }
 
             UpdateTrayIconCardState();
@@ -353,10 +348,6 @@ public sealed partial class PreferencesPage : Page
     /// <summary>Paints the tray-icon row's title for its current availability.</summary>
     private void ApplyTrayIconHeader(bool available) => ApplyRequirementHeader(CardHideTrayIcon, "HideTrayIcon", available);
 
-    /// <summary>Paints the startup-hide row's title for its current availability.</summary>
-    private void ApplyHideWindowOnStartupHeader(bool available) =>
-        ApplyRequirementHeader(CardHideWindowOnStartup, "HideWindowOnStartup", available);
-
     /// <summary>
     /// Paints a row's own title for the row's current availability.
     /// <para>
@@ -386,24 +377,29 @@ public sealed partial class PreferencesPage : Page
     }
 
     /// <summary>
-    /// Enables the "don't show the window at startup" row only while the app is registered to start with
+    /// Shows the "don't show the window at startup" row only while the app is registered to start with
     /// Windows.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The setting is read on the sign-in launch and on no other (<c>App.OnLaunched</c> checks it together
-    /// with <c>RegistryManager.WasStartedAtSignIn</c>), so with no startup entry there is nothing for it to
-    /// affect. Disabled with the reason in its description rather than hidden: an option that disappeared
-    /// would leave the user looking for it, and one that silently did nothing would read as a bug. The
-    /// stored value is left alone, so registering startup later brings the user's own choice back rather
-    /// than a default.
+    /// with <c>RegistryManager.WasStartedAtSignIn</c>), so with no startup entry it controls nothing.
+    /// </para>
+    /// <para>
+    /// Hidden rather than disabled: this is the platform's own treatment for a setting whose parent switch
+    /// is off, and it is the rule this window already follows — a profile's path or delay row appears with
+    /// the action that reads it and not before. A greyed row with a reason was tried first and asks the user
+    /// to work out which switch to reach for; a row that is simply not there does not.
+    /// </para>
+    /// <para>
+    /// The stored value is left alone, so registering startup later brings the user's own choice back
+    /// rather than a default.
+    /// </para>
     /// </remarks>
-    private void ApplyHideWindowOnStartupRequirement(bool canToggle)
+    private void ApplyHideWindowOnStartupRequirement(bool startupRegistered)
     {
-        ApplyHideWindowOnStartupHeader(canToggle);
-        CardHideWindowOnStartup.IsEnabled = canToggle;
-
-        CardHideWindowOnStartup.Description = LocalizationService.Get(
-            canToggle ? "HideWindowOnStartupTooltip" : "HideWindowOnStartupUnavailable");
+        CardHideWindowOnStartup.Visibility = startupRegistered ? Visibility.Visible : Visibility.Collapsed;
+        SetToggleCard(CardHideWindowOnStartup, "HideWindowOnStartup", "HideWindowOnStartupTooltip");
     }
 
     /// <summary>Fetches an application-level style (its {ThemeResource} setters follow the theme).</summary>

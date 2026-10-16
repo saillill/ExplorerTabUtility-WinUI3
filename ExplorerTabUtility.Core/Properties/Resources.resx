@@ -104,5 +104,4 @@ Check in System Tray Icons.</value></data>
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>New windows join the tabs already open; off, each folder opens its own window</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>New windows open as tabs</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>No folders added</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>Turn on “Add to startup” first</value></data>
 </root>

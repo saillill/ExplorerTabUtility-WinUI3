@@ -104,5 +104,4 @@
   <data name="MergeNewWindowsTooltip" xml:space="preserve"><value>Новые окна открываются вкладками; выкл. — у каждой папки своё окно</value></data>
   <data name="MergeNewWindows" xml:space="preserve"><value>Открывать новые окна вкладками</value></data>
   <data name="NoMergeFoldersEmpty" xml:space="preserve"><value>Папки не добавлены</value></data>
-  <data name="HideWindowOnStartupUnavailable" xml:space="preserve"><value>Сначала включите «Запускать при входе»</value></data>
 </root>
